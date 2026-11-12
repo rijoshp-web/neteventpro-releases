@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.52.1
+Test release for the one-click update path.
+- Settings → Updates also shows the release date of the newest version.
+
 ## 1.52.0
 One-click updates, and a compact Settings page with one clear Save.
 - **Update = one button.** Settings → Updates now shows only the version and a button (**Check for updates**, then **Update to x.y.z**). The release address (GitHub `rijoshp-web/neteventpro-releases`) and the signing public key are built into the program, so a copy installed on another computer updates with no setup. The address, key and Node.js-address boxes are gone from the screen (a `config.json` override still exists for private mirrors). Checks run by themselves every 6 hours. After the click the page waits for the service to come back and reloads.

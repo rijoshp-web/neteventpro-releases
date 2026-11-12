@@ -104,8 +104,8 @@ function upShow(u) {
   if (!u) { box.innerHTML = '<span style="color:var(--bad)">No answer from the service</span>'; return; }
   const out = []; S.upAvail = !!(u.available && u.canInstall);
   if (u.latest) {
-    if (u.available) { out.push(`<b>Version ${esc(u.latest)} is available.</b>${u.notes ? `<pre style="white-space:pre-wrap;max-width:760px;margin:4px 0;max-height:160px;overflow:auto">${esc(u.notes)}</pre>` : ''}`); if (st) st.textContent = '· update available'; }
-    else { if (st) st.textContent = '· up to date'; out.push(`You have the newest version (${esc(u.latest)}).`); }
+    if (u.available) { out.push(`<b>Version ${esc(u.latest)} is available${u.date ? ' (released ' + esc(u.date) + ')' : ''}.</b>${u.notes ? `<pre style="white-space:pre-wrap;max-width:760px;margin:4px 0;max-height:160px;overflow:auto">${esc(u.notes)}</pre>` : ''}`); if (st) st.textContent = '· update available'; }
+    else { if (st) st.textContent = '· up to date'; out.push(`You have the newest version (${esc(u.latest)}${u.date ? ', released ' + esc(u.date) : ''}).`); }
   } else if (u.error) { if (st) st.textContent = ''; out.push(u.offline ? '<span class="muted">The update server cannot be reached from this PC (no internet?). Install a new version with the installer instead; connected probes still update from this server.</span>' : `<span style="color:var(--bad)">${esc(u.error)}</span>`); }
   if (u.node?.behind) out.push(`<b style="color:var(--s3)">Node.js ${esc(u.node.current)} has a newer release (${esc(u.node.latest)}${u.node.security ? ', security' : ''}).</b> ${u.node.canInstall ? '' : esc(u.node.why || '')}`);
   box.innerHTML = out.join('<br>') + (u.checkedAt ? ` <span class="muted">Checked ${esc(dateTime(u.checkedAt))}.</span>` : '');
