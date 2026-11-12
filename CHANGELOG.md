@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.52.3
+Final test release of the one-click update path (no program changes).
+- GitHub workflows use Node 24 based actions (no deprecation notice).
+
 ## 1.52.2
 Fix: an update address or public key saved by an older version no longer overrides the built-in source (the old key made "The signature is not valid for your public key" appear on servers that had used the old Updates boxes).
 - Stored address/key are ignored unless `"custom": true` is set beside them in the update settings (private mirrors only).
