@@ -1387,7 +1387,7 @@ async function sanitize(body, current) {
     if (key && !/^[A-Za-z0-9+/=\s-]*(BEGIN PUBLIC KEY[A-Za-z0-9+/=\s-]*)?$/.test(key)) bad('The update public key has unexpected characters.');
     if (nb && !/^https?:\/\/[^\s]+$/i.test(nb)) bad('The Node.js download address must start with https:// (or http:// on your own network).');
     const flag = (k) => (k in u ? u[k] !== false : cur[k] !== false);
-    out.update = { url, publicKey: key, autoCheck: flag('autoCheck'), nodeBase: nb, autoProbes: flag('autoProbes'), probeAuto: flag('probeAuto'), probeTrust: flag('probeTrust') };
+    out.update = { url, publicKey: key, custom: 'custom' in u ? u.custom === true : cur.custom === true, autoCheck: flag('autoCheck'), nodeBase: nb, autoProbes: flag('autoProbes'), probeAuto: flag('probeAuto'), probeTrust: flag('probeTrust') };
   }
   if ('trapForwardTargets' in out) {
     if (!Array.isArray(out.trapForwardTargets)) delete out.trapForwardTargets;

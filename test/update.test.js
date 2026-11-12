@@ -21,16 +21,16 @@ test('check, verify and install a signed release; refuse a tampered or wrongly s
   let served = { zip, sig: crypto.sign(null, zip, privateKey).toString('base64'), sha: crypto.createHash('sha256').update(zip).digest('hex') };
   const srv = http.createServer((q, r) => { if (q.url === '/latest.json') { r.setHeader('content-type', 'application/json'); r.end(JSON.stringify({ version: '1.1.0', url: '/r.zip', sha256: served.sha, sig: served.sig, notes: 'n' })); } else if (q.url === '/r.zip') r.end(served.zip); else { r.statusCode = 404; r.end(); } });
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok)); const base = `http://127.0.0.1:${srv.address().port}`;
-  let cfg = { update: { url: base + '/latest.json', publicKey: pubPem } };
+  let cfg = { update: { custom: true, url: base + '/latest.json', publicKey: pubPem } };
   const u = new Updater({ dir: data, get: () => cfg }, '1.0.0');
   const c = await u.check(); assert.strictEqual(c.available, true); assert.strictEqual(c.latest, '1.1.0'); assert.strictEqual(c.canInstall, true);
-  cfg = { update: { url: base + '/latest.json', publicKey: crypto.generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' }) } };
+  cfg = { update: { custom: true, url: base + '/latest.json', publicKey: crypto.generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' }) } };
   await assert.rejects(u.install(), /signature is not valid/); assert.strictEqual(fs.readFileSync(path.join(app, 'src', 'server.js'), 'utf8'), '// old');
-  cfg = { update: { url: base + '/latest.json', publicKey: pubPem } }; const good = served.zip;
+  cfg = { update: { custom: true, url: base + '/latest.json', publicKey: pubPem } }; const good = served.zip;
   served.zip = Buffer.concat([good, Buffer.from('x')]); await assert.rejects(u.install(), /SHA-256/); assert.strictEqual(fs.readFileSync(path.join(app, 'src', 'server.js'), 'utf8'), '// old');
   served.zip = good; assert.strictEqual(await u.install(), '1.1.0');
   assert.strictEqual(fs.readFileSync(path.join(app, 'src', 'server.js'), 'utf8'), '// new version'); assert.ok(fs.existsSync(path.join(data, 'updates', 'backup-1.0.0', 'src', 'server.js'))); assert.ok(fs.existsSync(path.join(data, 'updates', 'pending.json')));
-  cfg = { update: { url: base + '/latest.json', publicKey: '' } }; const u2 = new Updater({ dir: data, get: () => cfg }, '1.0.0'); await u2.check(); assert.strictEqual(u2.pub().canInstall, true);   /* empty key = the built-in key, which does not match this test release */
+  cfg = { update: { custom: true, url: base + '/latest.json', publicKey: '' } }; const u2 = new Updater({ dir: data, get: () => cfg }, '1.0.0'); await u2.check(); assert.strictEqual(u2.pub().canInstall, true);
   await assert.rejects(u2.install(), /signature is not valid/);
   srv.close();
 });
@@ -76,7 +76,7 @@ test('Node.js update: checksum, test run, swap by rename, keep the old file, rol
   const major = process.version.split('.')[0], ver = `${major}.99.0`; let zip = mkNode(ver, `#!/bin/sh\nprintf ${ver}`), sums = (z) => `${crypto.createHash('sha256').update(z).digest('hex')}  node-${ver}-win-x64.zip\n`, shaOverride = null;
   const srv = http.createServer((q, r) => { if (q.url === '/index.json') r.end(JSON.stringify([{ version: ver, security: true }])); else if (q.url === `/${ver}/SHASUMS256.txt`) r.end(shaOverride || sums(zip)); else if (q.url === `/${ver}/node-${ver}-win-x64.zip`) r.end(zip); else { r.statusCode = 404; r.end(); } });
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok)); process.env.NEP_NODE_PATH = target;
-  const u = new Updater({ dir: data, get: () => ({ update: { url: 'http://127.0.0.1:9/none.json', publicKey: '', nodeBase: `http://127.0.0.1:${srv.address().port}/` } }) }, '1.0.0');
+  const u = new Updater({ dir: data, get: () => ({ update: { custom: true, url: 'http://127.0.0.1:9/none.json', publicKey: '', nodeBase: `http://127.0.0.1:${srv.address().port}/` } }) }, '1.0.0');
   const c = await u.check(); assert.strictEqual(c.node.latest, ver); assert.strictEqual(c.node.behind, true); assert.strictEqual(c.node.canInstall, true);
   shaOverride = '0'.repeat(64) + `  node-${ver}-win-x64.zip\n`; await assert.rejects(u.installNode(), /SHA-256/); assert.strictEqual(fs.readFileSync(target, 'utf8'), '#!/bin/sh\necho old'); shaOverride = null;
   zip = mkNode(ver, '#!/bin/sh\nexit 3'); await assert.rejects(u.installNode(), /test run/); assert.strictEqual(fs.readFileSync(target, 'utf8'), '#!/bin/sh\necho old'); assert.ok(!fs.existsSync(path.join(nodeDir, 'node-new.exe')));
@@ -94,5 +94,6 @@ test('built-in update source: no address or key has to be set', () => {
   assert.match(u.cfg.url, /^https:\/\/github\.com\/.+\/releases\/latest\/download\/latest\.json$/); assert.strictEqual(u.cfg.publicKey, D.publicKey); assert.strictEqual(u.cfg.autoCheck, true);
   assert.strictEqual(u.pub().hasKey, true);   /* the embedded key is a valid Ed25519 key */
   assert.doesNotThrow(() => crypto.createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(D.publicKey, 'base64')]), format: 'der', type: 'spki' }));
-  assert.strictEqual(new Updater({ dir: data, get: () => ({ update: { url: 'http://x/y.json', publicKey: 'K' } }) }, '1.0.0').cfg.url, 'http://x/y.json');   /* an override still wins */
+  assert.strictEqual(new Updater({ dir: data, get: () => ({ update: { url: 'http://x/y.json', publicKey: 'K', custom: true } }) }, '1.0.0').cfg.url, 'http://x/y.json');   /* a deliberate override wins */
+  assert.strictEqual(new Updater({ dir: data, get: () => ({ update: { url: 'http://old/y.json', publicKey: 'OLD' } }) }, '1.0.0').cfg.publicKey, D.publicKey);   /* leftovers of an older version are ignored */
 });

@@ -71,7 +71,7 @@ function plan(entries) {
 
 class Updater {
   constructor(config, version) { this.config = config; this.version = version; this.info = { checkedAt: 0, error: '', current: version, available: false }; this.busy = false; }
-  get cfg() { const u = this.config.get().update || {}; return { ...u, url: u.url || DEFAULTS.url, publicKey: u.publicKey || DEFAULTS.publicKey, autoCheck: u.autoCheck !== false }; }   /* nothing to set up: the built-in address and key are used unless a config file overrides them */
+  get cfg() { const u = this.config.get().update || {}, own = u.custom === true; return { ...u, url: own && u.url ? u.url : DEFAULTS.url, publicKey: own && u.publicKey ? u.publicKey : DEFAULTS.publicKey, autoCheck: u.autoCheck !== false }; }   /* nothing to set up: the built-in address and key are used. An address/key saved by an older version is ignored; a private mirror needs "custom": true next to them in the update settings */
   get nodeBase() { return (this.cfg.nodeBase || 'https://nodejs.org/dist').replace(/\/+$/, ''); }
   /** where the program's own node.exe is. Only a copy that runs from its own "node" folder (the installed service) may be replaced. */
   nodeTarget() {
