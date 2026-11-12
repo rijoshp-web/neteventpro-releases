@@ -1,0 +1,58 @@
+-- Sample MIB for testing NetEventPro's trap names. It is NOT a real vendor MIB: enterprise 99999 is made up for this test.
+NETEVENTPRO-TEST-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE, enterprises, Integer32 FROM SNMPv2-SMI
+    DisplayString FROM SNMPv2-TC;
+
+spTest MODULE-IDENTITY
+    LAST-UPDATED "202610280000Z"
+    ORGANIZATION "NetEventPro test"
+    CONTACT-INFO "none"
+    DESCRIPTION  "Test definitions for the NetEventPro trap receiver."
+    ::= { enterprises 99999 }
+
+spObjects OBJECT IDENTIFIER ::= { spTest 1 }
+spTraps   OBJECT IDENTIFIER ::= { spTest 2 }
+
+spPowerState OBJECT-TYPE
+    SYNTAX      INTEGER { mains(1), battery(2), off(3) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Where the equipment gets its power from."
+    ::= { spObjects 1 }
+
+spTemperature OBJECT-TYPE
+    SYNTAX      Integer32
+    UNITS       "degrees Celsius"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Inside temperature."
+    ::= { spObjects 2 }
+
+spLocation OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Where the unit is installed."
+    ::= { spObjects 3 }
+
+spPowerLost NOTIFICATION-TYPE
+    OBJECTS { spPowerState, spLocation }
+    STATUS  current
+    DESCRIPTION "The equipment lost mains power."
+    ::= { spTraps 1 }
+
+spPowerRestored NOTIFICATION-TYPE
+    OBJECTS { spPowerState, spLocation }
+    STATUS  current
+    DESCRIPTION "Mains power is back."
+    ::= { spTraps 2 }
+
+spTemperatureHigh NOTIFICATION-TYPE
+    OBJECTS { spTemperature, spLocation }
+    STATUS  current
+    DESCRIPTION "The inside temperature is above the limit."
+    ::= { spTraps 3 }
+
+END

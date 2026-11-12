@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · NetEventPro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101722'/%3E%3Cpath d='M6 9h20M6 16h14M6 23h9' stroke='%2345c2a5' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="loginpage">
+<main class="login-card">
+  <div class="brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
+  <h1>Sign in</h1>
+  <form id="f" autocomplete="on">
+    <label for="u">User name</label>
+    <input id="u" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <div id="codeRow" hidden>
+      <label for="c">Authenticator code</label>
+      <input id="c" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" spellcheck="false" placeholder="6 digits, or a recovery code">
+      <p class="muted login-note" style="margin:4px 0 0">Open your authenticator app and type the current code.</p>
+    </div>
+    <div id="err" class="login-err" role="alert" aria-live="polite"></div>
+    <button type="submit" class="primary" id="go">Sign in</button>
+  </form>
+  <p class="muted login-note">Built-in administrator user name: <b>admin</b></p>
+</main>
+<script src="/login.js"></script>
+</body>
+</html>

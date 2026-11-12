@@ -1,0 +1,33 @@
+name: Publish update
+# Push a tag such as v1.52.0 (after "npm run bump") and this job tests the program, signs the update package with the
+# private key stored in the repository secret NEP_RELEASE_KEY, and publishes it as a GitHub release.
+# Every installed NetEventPro then finds it behind its "Update" button. The repository (or at least its Releases) must be public.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Tag must match package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm test
+      - name: Sign the package
+        env:
+          NEP_RELEASE_KEY: ${{ secrets.NEP_RELEASE_KEY }}
+        run: |
+          test -n "$NEP_RELEASE_KEY" || { echo "Secret NEP_RELEASE_KEY is missing (see docs/RELEASING.md)"; exit 1; }
+          node scripts/release.js build
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          gh release create "v$VER" release/NetEventPro-$VER.zip release/latest.json --title "NetEventPro $VER" --notes-file <(node -e "console.log(require('./release/latest.json').notes)") --latest

@@ -1,0 +1,926 @@
+[
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": User: admin@10.192.244.179 logged in"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/8 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": User: admin@10.192.244.179 logged in"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": User: admin@10.192.244.179 logged in"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/8 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/2 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/2 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/3 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/3 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/4 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/4 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/5 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/5 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/6 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/6 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/6 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/5 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/4 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/3 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/2 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 9/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/2 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/2 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/3 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/3 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/4 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/4 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/4 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/5 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/5 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/6 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/6 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/6 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/5 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/3 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/2 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 15/1 E1:  Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 11/1 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M: Set: Major=AIS. Status: Major=AIS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 13/1 E+M:  Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/1 E1:  Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": User: admin@10.192.244.179 logged out"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/2 SDH LP[1-2-1-1] - Reason: SF Low Priority"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/2 SDH LP[1-3-1-1] - Reason: SF Low Priority"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH SFP: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH RS: Set: Major=LOS. Status: Major=LOS : Disabled=LOF,TIM"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH MS: Status: All disabled"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH SFP: Set: Minor=SFP-RxPower. Cleared: Major=LOS. Status: Minor=SFP-RxPower"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH SFP:  Cleared: Minor=SFP-RxPower. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH RS: Cleared: Major=LOS. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH MS: Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 4/2 SDH SFP:  Cleared: Minor=SFP-RxPower. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH LP[6-1-1-1]: Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: POWER removed from unit slot 8"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: POWER inserted in unit slot 8"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 8 POWER (BITS):  Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[6-1-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[12-1-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[1-2-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[1-3-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: 16 x FXS removed from unit slot 6"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 16 x FXS - Slot 6, Unit Missing"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: 16 x FXS inserted in unit slot 6"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 16 x FXS - Slot 6, Unit Missing Cleared"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: 16 x FXS removed from unit slot 6"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Unit: 16 x FXS inserted in unit slot 6"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/2 SDH LP[1-2-1-1] - Reason: SF Low Priority"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/2 SDH SFP: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/4 SDH SFP: Set: Major=LOS. Status: Major=LOS"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH RS: Set: Major=LOF. Status: Major=LOF : Disabled=TIM"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH MS: Status: All disabled"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH RS: Set: Major=LOF. Status: Major=LOF : Disabled=TIM"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH MS: Status: All disabled"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH LP[6-1-1-1]: Status: All disabled"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH LP[6-1-1-1]: Status: All disabled"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/3 SDH LP[8-1-1-1]: Status: All disabled"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH LP[8-1-1-1]: Status: All disabled"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: SDH clock switched to TRUNK_2 - Reason: Quality Change"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/2 SDH SFP: Set: Minor=SFP-RxPower. Cleared: Major=LOS. Status: Minor=SFP-RxPower"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/4 SDH SFP: Set: Minor=SFP-RxPower. Cleared: Major=LOS. Status: Minor=SFP-RxPower"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH RS: Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH MS: Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH LP[6-1-1-1]: Set: Major=AIS. Status: Major=AIS : Disabled=UNEQ,PLM,TIM,RDI"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH LP[6-1-1-1]: Set: Major=AIS. Status: Major=AIS : Disabled=UNEQ,PLM,TIM,RDI"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/3 SDH LP[8-1-1-1]: Set: Minor=AIS. Status: Minor=AIS : Disabled=UNEQ,PLM,TIM,RDI"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH RS: Cleared: Major=LOF. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH MS: Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/2 SDH SFP:  Cleared: Minor=SFP-RxPower. Status: No alarms"
+},
+{
+"host": "10.203.242.22",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 2/4 SDH SFP:  Cleared: Minor=SFP-RxPower. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH LP[8-1-1-1]: Set: Minor=AIS. Status: Minor=AIS : Disabled=UNEQ,PLM,TIM,RDI"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/1 SDH LP[6-1-1-1]: Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/2 SDH LP[6-1-1-1]: Cleared: Major=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/3 SDH LP[8-1-1-1]: Cleared: Minor=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: SDH clock switched to TRUNK_1 - Reason: Revert"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: 3/4 SDH LP[8-1-1-1]: Cleared: Minor=AIS. Status: No alarms"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: SDH clock switched to TRUNK_2 - Reason: Quality Change"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[1-2-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: Path protection switched to 3/1 SDH LP[1-3-1-1] - Reason: No Request"
+},
+{
+"host": "10.203.242.24",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: SDH clock switched to TRUNK_3 - Reason: Revert"
+},
+{
+"host": "10.203.242.23",
+"srcIp": "10.30.2.1",
+"severity": 5,
+"message": ": Alarm: SDH clock switched to TRUNK_1 - Reason: Revert"
+}
+]

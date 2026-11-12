@@ -1,0 +1,2 @@
+Standard MIB files that come with NetEventPro (IETF / IANA standards, SNMP framework, IF, IP, TCP, UDP, ENTITY, HOST-RESOURCES, BRIDGE, LLDP, OSPF, BGP, VRRP, UPS, POWER-ETHERNET, RMON, DISMAN, NET-SNMP / UCD and more).
+On the first start after installing, every file here that is not in the MIB folder yet is copied to <data folder>\mibs. Files you added or removed yourself are never touched again.

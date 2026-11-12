@@ -1,0 +1,18 @@
+{
+  "name": "neteventpro",
+  "version": "1.52.0",
+  "description": "Real-time syslog receiver for Windows with live dashboard, rules, alerts, storage and export",
+  "main": "src/server.js",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "NETEVENTPRO_UDP_PORT=5514 NETEVENTPRO_TCP_PORT=5514 node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "test:e2e": "node --disable-warning=ExperimentalWarning test/e2e.js",
+    "bump": "node scripts/bump.js"
+  }
+}

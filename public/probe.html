@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Probe · NetEventPro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101722'/%3E%3Cpath d='M6 9h20M6 16h14M6 23h9' stroke='%2345c2a5' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+<style>body{margin:0;padding:16px}main{max-width:820px;margin:0 auto}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.big{font-size:20px;font-weight:650}.ok{color:var(--ok)}.bad{color:var(--s1)}.kv{display:grid;grid-template-columns:170px 1fr;gap:4px 10px;margin:8px 0}.kv span:nth-child(odd){color:var(--muted)}@media(max-width:560px){.kv{grid-template-columns:1fr}}</style>
+</head>
+<body>
+<main>
+  <div class="brand" style="display:flex;align-items:center;gap:10px;font-weight:650;font-size:17px;margin-bottom:10px"><span class="mark"></span><span class="lbl">NetEventPro</span> <span class="muted" id="ver"></span></div>
+  <h1 style="margin:4px 0 12px">Probe <span id="so" class="row" style="display:inline-flex;margin-left:12px;font-size:13px;font-weight:400" hidden><button id="signout">Sign out</button></span></h1>
+  <section class="panel" id="login" hidden><h2>Sign in</h2><div class="form">
+    <div class="field"><label for="lpw">Password</label><div><input type="password" id="lpw" class="w-md" autocomplete="current-password"></div></div>
+    <div class="row"><button class="primary" id="lgo">Sign in</button><span id="lmsg" class="bad"></span></div></div></section>
+<div id="app">
+  <section class="panel"><div id="state" class="big">…</div><div class="kv" id="stats"></div><div id="err" class="bad" role="alert"></div></section>
+  <section class="panel"><h2>Main server</h2><div class="form">
+    <div class="field"><label for="srv">Server address</label><div><input type="text" id="srv" style="width:100%" placeholder="https://nms.example.com:8514"><div class="hint">The address of the main NetEventPro dashboard.</div></div></div>
+    <div class="field"><label for="tok">Probe token</label><div><input type="password" id="tok" style="width:100%" autocomplete="off" placeholder="Created on the main server: Settings, Remote probes"></div></div>
+    <div class="field"><label for="nm">Probe name</label><div><input type="text" id="nm" class="w-md" placeholder="Site name"></div></div>
+    <label class="chk"><input type="checkbox" id="self"> Accept a self-signed certificate of the main server</label>
+    <div class="row"><button class="primary" id="save">Save</button><button id="test">Test the connection</button><span id="msg" class="muted"></span></div>
+  </div></section>
+  <section class="panel"><h2>What this probe receives</h2><div class="form">
+    <label class="chk"><input type="checkbox" id="udpOn"> Syslog UDP, port <input type="number" id="udpPort" class="w-sm" min="1" max="65535"></label>
+    <label class="chk"><input type="checkbox" id="tcpOn"> Syslog TCP, port <input type="number" id="tcpPort" class="w-sm" min="1" max="65535"></label>
+    <label class="chk"><input type="checkbox" id="snmpOn"> SNMP traps (UDP), port <input type="number" id="snmpPort" class="w-sm" min="1" max="65535"></label>
+    <div class="field"><label for="src">Accept only from</label><div><input type="text" id="src" style="width:100%" placeholder="empty = every device; or 10.1.0.0/16, 192.168.5.7"></div></div>
+    <div id="lst" class="muted"></div>
+    <div class="row"><button class="primary" id="saveNet">Save</button><span class="muted">Port changes apply at once.</span></div>
+  </div></section>
+  <section class="panel"><h2>Updates</h2><div class="form">
+    <div class="field"><label for="upUrl">Release file address</label><div><input type="text" id="upUrl" style="width:100%" placeholder="https://updates.example.com/neteventpro/latest.json"></div></div>
+    <div class="field"><label for="upKey">Public key</label><div><textarea id="upKey" rows="3" style="width:100%" placeholder="Paste the public key (only needed once; leave empty to keep the saved key)"></textarea></div></div>
+    <div class="field"><label>From the main server</label><div><label class="chk"><input type="checkbox" id="upAutoSrv" checked> Install the update that the main server offers (checked every 5 minutes)</label><br><label class="chk"><input type="checkbox" id="upTrust" checked> Trust the main server: also accept its installed program files when it was updated from the installer (no internet, no signature)</label><div class="muted small" id="upAutoMsg"></div></div></div>
+    <div class="row"><button id="upSave">Save</button><button id="upCheck">Check for updates</button><button id="upGo" hidden>Install update</button><span id="upMsg" class="muted"></span></div>
+  </div></section>
+  <section class="panel" id="secPanel"><h2>Security</h2><div class="form">
+    <div id="secWarn" class="bad" role="alert"></div>
+    <h3 style="margin:6px 0">Password for this page</h3>
+    <div class="row"><input type="password" id="pwCur" class="w-md" placeholder="Current password" autocomplete="current-password"><input type="password" id="pwNew" class="w-md" placeholder="New password (10+ characters)" autocomplete="new-password"><button id="pwSet">Set password</button><button id="pwDel" hidden>Remove password</button><span id="pwMsg" class="muted"></span></div>
+    <h3 style="margin:14px 0 6px">Who can open this page</h3>
+    <div class="field"><label for="wb">Open from</label><div><select id="wb"><option value="127.0.0.1">This computer only</option><option value="0.0.0.0">Other computers on the network (password required)</option></select><div class="hint">A change applies after “Restart the service”.</div></div></div>
+    <div class="field"><label for="wa">Allowed addresses</label><div><input type="text" id="wa" style="width:100%" placeholder="empty = any; or 10.1.0.0/16, 192.168.5.7 (only used for network access)"></div></div>
+    <div class="field"><label>HTTPS for this page</label><div><span id="httpsState" class="muted"></span> <button id="httpsGen">Create a certificate</button> <button id="httpsOff" hidden>Turn HTTPS off</button><div class="hint">Needed when the page is opened from other computers, so the password is not sent in clear. The certificate is self-signed: the browser warns once.</div></div></div>
+    <h3 style="margin:14px 0 6px">Connection to the main server</h3>
+    <label class="chk"><input type="checkbox" id="reqHttps"> Refuse plain http:// (always use HTTPS)</label>
+    <div class="field"><label>Pinned certificate</label><div><span id="pinState" class="muted"></span> <button id="pinGet">Pin the server's certificate…</button> <button id="pinDel" hidden>Remove pin</button><div class="hint">With a pin the probe only talks to a server presenting exactly that certificate: nothing, not even the token, is sent to anything else. Pin again after the server's certificate is renewed.</div></div></div>
+    <div class="field"><label for="rl">Receive limit</label><div><input type="number" id="rl" class="w-sm" min="0" max="100000"> packets per second from one device (0 = no limit)<div class="hint">Protects the queue from one device that floods the probe.</div></div></div>
+    <div class="row"><button class="primary" id="secSave">Save security settings</button><span id="secMsg" class="muted"></span></div>
+    <h3 style="margin:14px 0 6px">Audit log</h3><div id="auditList" class="muted" style="max-height:200px;overflow:auto"></div>
+  </div></section>
+  <section class="panel"><h2>This computer</h2><div class="row"><button id="central">Switch back to a full NetEventPro…</button><button id="restart">Restart the service</button></div>
+    <p class="muted" style="margin:8px 0 0">By default the page is only reachable from this computer. Waiting packets are kept on disk (<span id="qf"></span>) and sent when the main server is reachable again.</p></section>
+</div>
+</main>
+<script src="/probe.js"></script>
+</body>
+</html>

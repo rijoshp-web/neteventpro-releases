@@ -1,0 +1,22 @@
+<!-- WinSW service definition. WinSW (NetEventProService.exe) must sit next to this file. -->
+<service>
+  <id>NetEventPro</id>
+  <name>NetEventPro Network Event Receiver</name>
+  <description>Real-time syslog and SNMP trap receiver with live dashboard (storage, rules, alarms).</description>
+  <executable>%BASE%\..\node\node.exe</executable>
+  <arguments>--disable-warning=ExperimentalWarning "%BASE%\..\app\src\server.js"</arguments>
+  <workingdirectory>%BASE%\..\app</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>false</delayedAutoStart>
+  <stoptimeout>15 sec</stoptimeout>
+  <!-- restart automatically if the process exits with an error (also used by Settings > Restart service) -->
+  <onfailure action="restart" delay="3 sec"/>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%ProgramData%\NetEventPro\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>5120</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>
