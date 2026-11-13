@@ -160,6 +160,7 @@ class Collector {
       const want = dev.profile && dev.profile !== 'auto' ? dev.profile : res.detected, prof = profiles.find((p) => p.id === want) || profiles.find((p) => p.id === 'generic') || profiles[0]; res.profile = prof.id;
       readings.push({ k: 'poll.ok', inst: '', v: 1 }, { k: 'rtt', inst: '', v: r.rtt });
       for (const m of prof.metrics) { if (m.on === false) continue; if (m.k === 'uptime' && up !== null) { readings.push({ k: 'uptime', inst: '', v: up / 100 }); continue; } await this.evalMetric(t, m, dev, ts, readings); }
+      if (up !== null && !prof.metrics.some((m) => m.k === 'uptime')) readings.push({ k: 'uptime', inst: '', v: up / 100 });   /* uptime is always kept, whatever the profile */
       await this.interfaces(t, dev, ts, n, res, readings);
       res.ok = true;
     } catch (e) { res.error = e.message; res.code = e.code || 'error'; if (dev.ping) res.pingOk = await ping(dev.host); }

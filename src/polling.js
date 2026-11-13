@@ -134,6 +134,8 @@ class Polling {
   // ---------- lookups (a value -> a word and a state) and text values ----------
   lookups() { return [...BUILTIN_LOOKUPS, ...(this.cfg.lookups || []).map((l) => ({ ...l, builtin: false }))]; }
   lookup(id) { return id ? this.lookups().find((l) => l.id === id) || null : null; }
+  lookupTell() { return this.cfg.lookupProfiles ?? this.cfg.noAnswerProfiles ?? []; }   /* who is told about lookup alarms (until chosen on the Lookups tab it is the No-answer list, as before) */
+  setLookupTell(list) { this.config.update({ polling: { ...this.cfg, lookupProfiles: (Array.isArray(list) ? list : []).map(String).slice(0, 20) } }); }
   saveLookups(list) {
     const out = [], seen = new Set();
     for (const l of Array.isArray(list) ? list.slice(0, 100) : []) {
@@ -187,7 +189,7 @@ class Polling {
   rules() {
     const c = this.cfg, out = [], act = (profiles, extra = {}) => ({ alarm: true, profiles: Array.isArray(profiles) ? profiles : [], ...extra });
     out.push({ id: 'poll-noanswer', name: 'No SNMP answer', enabled: true, source: 'syslog', match: { tag: 'poll-noanswer' }, actions: act(c.noAnswerProfiles, { clearText: ['/^CLEARED:/'] }) });
-    out.push({ id: 'poll-lookup', name: 'SNMP value state (lookup)', enabled: true, source: 'syslog', match: { tag: 'poll-lookup' }, actions: act(c.lookupProfiles || c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
+    out.push({ id: 'poll-lookup', name: 'SNMP value state (lookup)', enabled: true, source: 'syslog', match: { tag: 'poll-lookup' }, actions: act(c.lookupProfiles ?? c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
     for (const t of c.thresholds || []) {
       if (!t || t.enabled === false || !t.id) continue;
       out.push({ id: 'poll-' + t.id, name: String(t.name || 'SNMP threshold').slice(0, 100), enabled: true, source: 'syslog', match: { tag: 'poll-' + t.id },

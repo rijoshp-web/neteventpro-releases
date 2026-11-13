@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.52.5
+Fix: a device whose profile has no Uptime value showed "–" for uptime, and a table metric with a lookup (for example "Temperature Normal (22)") lost its graph.
+- Uptime is always read, whatever the profile.
+- Metrics that use a lookup are graphed again (numeric value; one line per row for tables).
+- **Lookups vs thresholds made clear.** Both SNMP tabs and the polling Settings now start with a short explanation: a *lookup* turns status codes into OK/Warning/Critical, a *threshold* watches a measurement against a limit, both raise the same normal alarm (Alarms page + a syslog line).
+- **Notify choice you can change.** The "Tell" multi-select boxes (which could not be cleared) are replaced by tick-boxes named **Notify** for thresholds, lookups and "No SNMP answer". Nothing ticked = alarm only (no e-mail/message). Lookups now have their own Notify list on the Lookups tab; until you save it, it keeps using the No-answer list as before.
+
 ## 1.52.4
 Fix: the device graph for a table metric (one reading per row, e.g. alarm voltages/temperatures) stayed on "Collecting data…" although the row values were shown. The graph now draws one line per row (up to 8; the Graph button on a row still shows a single row).
 - Lookup (status) metrics no longer get an empty numeric graph.

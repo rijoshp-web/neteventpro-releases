@@ -111,7 +111,7 @@ test('1.50: a table read row by row gives one value per row, named by a name col
     pl.saveProfiles([{ name: 'Rows', metrics: [{ k: 'ifst', label: 'Port state', unit: '', t: 'walk', oid: '1.3.6.1.2.1.2.2.1.8', agg: 'each', nameOid: '1.3.6.1.2.1.31.1.1.1.1', scale: 1, on: true }, { k: 'ifst2', label: 'Port state (no names)', unit: '', t: 'walk', oid: '1.3.6.1.2.1.2.2.1.8', agg: 'each', scale: 1, on: true }, { k: 'ifmax', label: 'Max', unit: '', t: 'walk', oid: '1.3.6.1.2.1.2.2.1.8', agg: 'max', scale: 1, on: true }] }]);
     const prof = pl.profiles().find((p) => p.name === 'Rows'); assert.ok(prof);
     const d = pl.saveDevice({ name: 'RowDev', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0, profile: prof.id });
-    await pl.pollDevice(pl.devices()[0]); const dd = pl.devices()[0], det = pl.detail(dd.id);
+    await pl.pollDevice(pl.devices()[0]); const dd = pl.devices()[0], det = pl.detail(dd.id); assert.ok(det.values.uptime > 0, 'uptime is kept even if the profile has no uptime value');
     assert.deepEqual(det.insts.ifst, { 'Gi1/0/1': 1, 'Gi1/0/2': 2, 'Vlan1': 1 }, 'one value per row, named by the name column');
     assert.deepEqual(det.insts.ifst2, { '1': 1, '2': 2, '3': 1 }, 'the row number when no name column is given');
     assert.equal(det.values.ifmax, 2, 'combining rows still works');
@@ -168,4 +168,11 @@ test('1.52.4: a new device polls only uptime: no interfaces, CPU or memory unles
     await pl.pollDevice(pl.devices().find((x) => x.id === d.id));
     const v = pl.detail(d.id); assert.deepStrictEqual(v.ifaces, []); assert.ok(!('cpu' in v.values) && !('memory' in v.values) && !v.insts['if.status']);
   } finally { a.close(); }
+});
+
+test('1.52.5: lookup alarms have their own notify list (empty = alarm only)', () => {
+  const { pl } = setup(); const rule = () => pl.rules().find((r) => r.id === 'poll-lookup');
+  pl.config.update({ polling: { ...pl.cfg, noAnswerProfiles: ['mail1'] } }); assert.deepStrictEqual(pl.lookupTell(), ['mail1']);   /* as before until chosen */
+  pl.setLookupTell([]); assert.deepStrictEqual(pl.lookupTell(), []); assert.deepStrictEqual(rule().actions.profiles, []);
+  pl.setLookupTell(['teams1']); assert.deepStrictEqual(rule().actions.profiles, ['teams1']);
 });
