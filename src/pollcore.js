@@ -60,11 +60,11 @@ class Collector {
   constructor(client) { this.client = client || new SnmpClient(); this.prev = new Map(); this.names = new Map(); this.count = new Map(); }
   forget(id) { this.names.delete(id); this.count.delete(id); for (const k of [...this.prev.keys()]) if (k.startsWith(id + '|')) this.prev.delete(k); }
   async evalSrc(t, s) {
-    if (s.t === 'oid') { const r = await this.client.get(t, [s.oid]); const n = numOf(r.vbs[0]); return n === null ? null : n * (s.scale ?? 1); }
+    if (s.t === 'oid') { const r = await this.client.get(t, [s.oid]); const n = numOf(r.vbs[0]); return n === null ? null : n * (s.scale ?? 1) + (s.offset || 0); }
     if (s.t === 'walk') {
       const r = await this.client.walk(t, s.oid, { maxRows: 400 }); const v = r.vbs.map(numOf).filter((x) => x !== null); if (!v.length) return null;
       const agg = s.agg === 'max' ? Math.max(...v) : s.agg === 'min' ? Math.min(...v) : s.agg === 'sum' ? v.reduce((a, b) => a + b, 0) : v.reduce((a, b) => a + b, 0) / v.length;
-      return agg * (s.scale ?? 1);
+      return agg * (s.scale ?? 1) + (s.offset || 0);
     }
     if (s.t === 'pct') {
       const [a, b] = await Promise.all([this.client.walk(t, s.used, { maxRows: 200 }), this.client.walk(t, s.free, { maxRows: 200 })]);
@@ -99,7 +99,7 @@ class Collector {
           if (s.nameOid) { try { names = new Map(); for (const vb of (await this.client.walk(t, s.nameOid, { maxRows: 200 })).vbs) names.set(vb.oid.slice(String(s.nameOid).split('.').length).join('.'), toText(vb)); } catch (e) { if (e.code === 'timeout') throw e; names = null; } }
           const seen = new Set();
           for (const vb of r.vbs) {
-            let v = numOf(vb); if (v === null || !Number.isFinite(v)) continue; v *= (s.scale ?? 1);
+            let v = numOf(vb); if (v === null || !Number.isFinite(v)) continue; v = v * (s.scale ?? 1) + (s.offset || 0);
             const idx = vb.oid.slice(base).join('.'); let inst = String((names && names.get(idx)) || idx).trim().slice(0, 60) || idx; if (seen.has(inst)) inst = idx; seen.add(inst);
             if (s.rate) { const q = this.rate(`${dev.id}|${m.k}|${inst}`, v, ts, 4294967296); if (q === null) continue; v = q; }
             out.push({ k: m.k, inst, v });
@@ -194,4 +194,4 @@ class Collector {
   }
 }
 
-module.exports = { Collector, OID, IF, BUILTIN, IF_KEYS, BASE_KEYS, HOSTRE, detectProfile, vendorOf, target, ping, SKIP_IF_TYPES };
+module.exports = { Collector, OID, IF, BUILTIN, IF_KEYS, BASE_KEYS, HOSTRE, detectProfile, vendorOf, target, ping, SKIP_IF_TYPES, numOf, toText };

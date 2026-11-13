@@ -2,6 +2,17 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.53.0
+SNMP polling redesigned around the device: **Step 1** add the device with its SNMP settings, **Step 2** add its readings, each with everything that belongs to it.
+- **Readings on the device page.** Every reading has its own name, unit, OID (with a MIB picker and a **Test read** button that shows the raw and the calculated value), type (number, counter rate, uptime ticks, text), calculation (**raw × scale + offset**, new), value meanings (words and states for status numbers), any number of alarms (limit, clear value, duration, severity, who is told) and display options (graph on/off, line or filled area, card at the top, bar, top of the axis, decimals). Nothing is shared between readings, so changing one cannot affect another.
+- **Copy readings** from another device (with calculation, meanings, alarms, display), or **Use a template**, or start from a **built-in set** (Cisco, APC, …) and edit it. Copies are independent of their source.
+- **Templates:** *Save as template* on a device; apply it to any device; rename and delete under Settings → Templates.
+- **Fewer tabs:** Devices, Reports, Settings. Settings has General, Alarm limits, Value meanings, Templates and Shared sets (advanced); the old shared profiles, thresholds and lookups keep working and are still there.
+- Add device is now Step 1 only (no "What to read" box): after Add device the page opens at Step 2.
+- Per-reading alarms and meanings are kept out of the shared Alarm limits / Value meanings lists (they are edited on the device) and are removed with the device or the reading.
+- Table readings, text readings and decimals are passed to the device page correctly; a text reading is no longer drawn as a graph.
+- Tests: new `test/readings.test.js` and five e2e checks; manually tried against the fake device (add device → add readings → test read → card, alarm, copy, template).
+
 ## 1.52.6
 - **Table metrics no longer show an average.** The summary card of a metric with several rows (one value per row) showed the average of the rows (for example 10 for 22, 6, 6, 6). It now shows a summary of the rows: with a lookup "All 4 OK" or "1 Critical, 3 OK" (coloured by the worst row); without one the lowest and highest value.
 - **Fake SNMP device for trying things on one PC:** `node tools/fake-device.js` (UDP 1161, v2c, community `public`) with interfaces, CPU, uptime and a 4-row table; commands `hot`, `critical`, `cool`, `down n`, `up n`. Guide: `docs/FAKE-DEVICE.md`.

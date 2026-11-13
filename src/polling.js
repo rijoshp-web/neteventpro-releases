@@ -46,6 +46,7 @@ class Polling {
     const c = this.cfg, off = c.profileOff || {}, out = [];
     for (const p of BUILTIN) out.push({ ...p, metrics: p.metrics.map((m) => ({ ...m, on: !(off[p.id] || []).includes(m.k) })) });
     for (const p of c.profiles || []) out.push({ ...p, builtin: false, metrics: (p.metrics || []).map((m) => ({ ...m, srcs: m.srcs || [{ t: m.t === 'walk' ? 'walk' : 'oid', oid: m.oid, agg: m.dtype === 'text' && m.t === 'walk' ? 'each' : m.agg || 'avg', nameOid: m.nameOid || '', scale: (m.scale ?? 1) * (m.dtype === 'ticks' ? 0.01 : 1), rate: !!m.rate || m.dtype === 'counter', text: m.dtype === 'text' }], on: m.on !== false })) });
+    for (const p of this.ownProfiles()) out.push(p);
     return out;
   }
   profile(id) { return this.profiles().find((p) => p.id === id) || this.profiles()[0]; }
@@ -55,7 +56,7 @@ class Polling {
   }
   keyList() {
     const seen = new Map();
-    for (const p of this.profiles()) for (const m of p.metrics) if (!seen.has(m.k)) seen.set(m.k, { k: m.k, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text', inst: (m.srcs || []).some((x) => x.agg === 'each') });
+    for (const p of this.profiles()) if (!p.own) for (const m of p.metrics) if (!seen.has(m.k)) seen.set(m.k, { k: m.k, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text', inst: (m.srcs || []).some((x) => x.agg === 'each') });
     for (const x of [...IF_KEYS, ...BASE_KEYS]) seen.set(x.k, { ...x, inst: !!x.inst });
     return [...seen.values()];
   }
@@ -139,13 +140,15 @@ class Polling {
   saveLookups(list) {
     const out = [], seen = new Set();
     for (const l of Array.isArray(list) ? list.slice(0, 100) : []) {
-      if (l && l.builtin) continue; const name = String(l.name || '').trim().slice(0, 80); if (!name) continue;
+      if (l && (l.builtin || l.owner)) continue; const name = String(l.name || '').trim().slice(0, 80); if (!name) continue;
       const id = /^l[a-z0-9]{4,12}$/.test(l.id || '') && !seen.has(l.id) ? l.id : 'l' + id8(); seen.add(id);
       const items = []; for (const it of (l.items || []).slice(0, 200)) { const v = Number(it.v); if (!Number.isFinite(v) || items.some((x) => x.v === v)) continue; items.push({ v, label: String(it.label || v).slice(0, 60), state: ['ok', 'warn', 'crit', 'unk'].includes(it.state) ? it.state : 'unk' }); }
       out.push({ id, name, items });
     }
+    out.push(...(this.cfg.lookups || []).filter((l) => l.owner));
     this.config.update({ polling: { ...this.cfg, lookups: out } }); return this.lookups();
   }
+  itemsFromEnums(enums) { return Object.entries(enums && typeof enums === 'object' ? enums : {}).slice(0, 60).map(([v, label]) => ({ v: Number(v), label: String(label).slice(0, 60), state: stateOfName(String(label)) })).filter((x) => Number.isFinite(x.v)); }
   /** a lookup from the named values of a MIB type (AlarmColor ::= INTEGER { green(1) ... }); the same name is reused */
   lookupFromEnums(name, enums) {
     name = String(name || 'MIB values').slice(0, 60); const cur = (this.cfg.lookups || []).find((l) => l.name === name); if (cur) return cur.id;
@@ -285,7 +288,7 @@ class Polling {
   deleteDevice(id) {
     const d = this.devices().find((x) => x.id === id); if (!d) return null;
     this.config.update({ polling: { ...this.cfg, devices: this.devices().filter((x) => x.id !== id) } });
-    this.clearAlarms(null, lower(d.name)); this.rt.delete(id);
+    this.dropReadings(id); this.clearAlarms(null, lower(d.name)); this.rt.delete(id);
     try { this.db.prepare('DELETE FROM poll_readings WHERE dev = ?').run(id); this.db.prepare('DELETE FROM poll_avg WHERE dev = ?').run(id); } catch (e) { console.error('[polling] delete', e.message); }
     for (const k of [...this.fire.keys()]) if (k.split('|')[1] === id) this.fire.delete(k);
     this.collector.forget(id);
@@ -409,9 +412,10 @@ class Polling {
       const id = /^t[a-z0-9]{6,12}$/.test(t.id || '') ? t.id : 't' + id8(); const textOp = ['changed', 'equals', 'notequals', 'contains', 'notcontains'].includes(t.textOp) ? t.textOp : ''; const value = textOp ? 0 : Number(t.value); if (!Number.isFinite(value)) continue;
       const cv = t.clearValue === '' || t.clearValue === undefined || t.clearValue === null ? '' : Number(t.clearValue);
       out.push({ id, name, enabled: t.enabled !== false, k, op: OPS[t.op] ? t.op : '>', textOp, text: textOp ? String(t.text || '').slice(0, 200) : '', value, clearValue: Number.isFinite(cv) ? cv : '', forSec: Math.round(num(t.forSec, 0, 0, 86400)), severity: Math.round(num(t.severity, 4, 0, 7)),
-        perInstance: k.startsWith('if.') || !!t.perInstance, scope: t.scope === 'devices' ? 'devices' : 'all', devices: Array.isArray(t.devices) ? t.devices.map(String).slice(0, 500) : [], profiles: Array.isArray(t.profiles) ? t.profiles.map(String).slice(0, 20) : [] });
+        perInstance: k.startsWith('if.') || !!t.perInstance, scope: t.scope === 'devices' ? 'devices' : 'all', devices: Array.isArray(t.devices) ? t.devices.map(String).slice(0, 500) : [], profiles: Array.isArray(t.profiles) ? t.profiles.map(String).slice(0, 20) : [], ...(prev.get(id) && prev.get(id).owner ? { owner: prev.get(id).owner } : {}) });
       void keys;
     }
+    out.push(...(this.cfg.thresholds || []).filter((t) => t.owner));   /* the alarms of device readings are edited on the device page and kept as they are */
     for (const [id, old] of prev) { const now = out.find((x) => x.id === id); if (!now || now.enabled === false || now.k !== old.k) { this.clearAlarms('poll-' + id); for (const fk of [...this.fire.keys()]) if (fk.startsWith(id + '|')) this.fire.delete(fk); } }
     this.config.update({ polling: { ...this.cfg, thresholds: out } }); return out;
   }
@@ -464,7 +468,7 @@ class Polling {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; const rt = this.state(d), vals = {}, inst = {};
     for (const [key, x] of rt.last) { const [k, i] = key.split('|'); if (i) (inst[k] ||= {})[i] = x.v; else vals[k] = x.v; }
     const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic');
-    return { device: this.mask(d), via: d.via ? this.probeName(d.via) || d.via : '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', misses: rt.misses, downSince: rt.state === 'down' ? rt.downSince || 0 : 0, sysName: rt.sysName || '', sysDescr: rt.sysDescr || '', objectId: rt.objectId || '', profile: { id: prof.id, name: prof.name, metrics: prof.metrics.filter((m) => m.on !== false).map((m) => ({ k: m.k, label: m.label, unit: m.unit })) },
+    return { device: this.mask(d), via: d.via ? this.probeName(d.via) || d.via : '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', misses: rt.misses, downSince: rt.state === 'down' ? rt.downSince || 0 : 0, sysName: rt.sysName || '', sysDescr: rt.sysDescr || '', objectId: rt.objectId || '', profile: { id: prof.id, name: prof.name, metrics: prof.metrics.filter((m) => m.on !== false).map((m) => ({ k: m.k, label: m.label, unit: m.unit, dtype: m.dtype || ((m.srcs || []).some((x) => x.text) ? 'text' : 'number'), disp: m.disp || null, srcs: (m.srcs || []).map((x) => ({ agg: x.agg })) })) },
       values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d) };
   }
 
@@ -490,4 +494,5 @@ class Polling {
   }
 }
 
+require('./readings')(Polling);
 module.exports = { Polling, BUILTIN, IF_KEYS, BASE_KEYS, MASK };

@@ -6,7 +6,7 @@
   const ago = (t) => { if (!t) return 'never'; const s = Math.round((Date.now() - t) / 1000); return s < 90 ? `${Math.max(0, s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`; };
   const upt = (s) => { if (s === null || s === undefined) return '–'; s = Math.round(s); const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
   const bps = (v) => (v === null || v === undefined ? '–' : v >= 1e9 ? (v / 1e9).toFixed(2) + ' Gbit/s' : v >= 1e6 ? (v / 1e6).toFixed(2) + ' Mbit/s' : v >= 1e3 ? (v / 1e3).toFixed(1) + ' kbit/s' : Math.round(v) + ' bit/s');
-  const fv = (v, unit) => (v === null || v === undefined ? '–' : unit === 'bit/s' ? bps(v) : unit === 's' ? upt(v) : (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10) + (unit === '%' ? ' %' : unit ? ' ' + unit : ''));
+  const fv = (v, unit, dec) => (v === null || v === undefined ? '–' : unit === 'bit/s' ? bps(v) : unit === 's' ? upt(v) : dec !== null && dec !== undefined && Number.isFinite(v) ? v.toFixed(dec) + (unit === '%' ? ' %' : unit ? ' ' + unit : '') : (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10) + (unit === '%' ? ' %' : unit ? ' ' + unit : ''));
   const pill = (st) => ({ up: '<span class="pill ok">Up</span>', down: '<span class="pill bad">No SNMP answer</span>', unknown: '<span class="pill">Waiting</span>', stale: '<span class="pill warn">Probe not reporting</span>', off: '<span class="pill">Paused</span>' }[st] || '');
   const bar = (v, warn = 80, bad = 90) => (v === null || v === undefined ? '<span class="muted">–</span>' : `<span class="pbar"><i style="width:${Math.min(100, Math.max(0, v))}%;background:${v >= bad ? 'var(--bad)' : v >= warn ? 'var(--s3)' : 'var(--accent)'}"></i></span> ${Math.round(v)}%`);
   const COLORS = ['#45c2a5', '#6cb6ff', '#f5a623', '#c586f0'];
@@ -16,8 +16,10 @@
     const devId = () => S.hq?.get('d') || '';
     const go = (h) => { location.hash = h; };
     const head = (extra = '') => `<div class="page-head"><h1>SNMP polling</h1>${extra}</div>`;
-    const tabs = () => `<div class="tabs" role="tablist">${[['overview', 'Overview'], ['reports', 'Reports'], ['profiles', 'Profiles'], ['thresholds', 'Thresholds'], ['lookups', 'Lookups'], ['settings', 'Settings']].map(([k, n]) => `<button role="tab" data-t="${k}" class="tab${tab === k ? " on" : ""}">${n}</button>`).join('')}</div>`;
-    const wireTabs = () => $$('.tabs button', el).forEach((b) => { b.onclick = () => { tab = b.dataset.t; if (devId()) go('#polling'); else render(); }; });
+    const SETS = ['settings', 'thresholds', 'lookups', 'templates', 'profiles'];
+    const tabs = () => `<div class="tabs" role="tablist">${[['overview', 'Devices'], ['reports', 'Reports'], ['settings', 'Settings']].map(([k, n]) => `<button role="tab" data-t="${k}" class="tab${(SETS.includes(tab) ? 'settings' : tab) === k ? ' on' : ''}">${n}</button>`).join('')}</div>` +
+      (SETS.includes(tab) && !devId() ? `<div class="subtabs">${[['settings', 'General'], ['thresholds', 'Alarm limits'], ['lookups', 'Value meanings'], ['templates', 'Templates'], ['profiles', 'Shared sets (advanced)']].map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>` : '');
+    const wireTabs = () => $$('.tabs button, .subtabs button', el).forEach((b) => { b.onclick = () => { tab = b.dataset.t; if (devId()) go('#polling'); else render(); }; });
     const stop = () => { clearInterval(timer); timer = 0; };
     const every = (fn, ms) => { stop(); timer = setInterval(() => { if (alive && document.visibilityState === 'visible') fn(); }, ms); };
 
@@ -84,7 +86,7 @@
     const editDevice = async (d) => {
       let profs = [], probes = []; try { const r0 = await api('/api/poll/devices'); profs = r0.profiles; probes = r0.probes || []; } catch { /* fallback to auto only */ }
       d = d || { version: 'v2c', port: 161, community: '', user: '', level: 'authPriv', authProto: 'SHA', privProto: 'AES128', profile: 'basic', intervalSec: ov?.settings?.defaultIntervalSec || 60, timeoutMs: 3000, retries: 1, ping: false, enabled: true, ifMode: 'none' };
-      const dl = dialog(d.id ? 'Edit device' : 'Add device', `<div class="form">
+      const dl = dialog(d.id ? 'Edit device' : 'Add device: step 1 of 2', `${d.id ? '' : '<p class="muted" style="margin:0 0 8px;max-width:620px"><b>Step 1:</b> the device and how to reach it with SNMP. <b>Step 2</b> (next page): choose what to read from it, one reading at a time.</p>'}<div class="form">
         <div class="field"><label for="dName">Name</label><div><input type="text" id="dName" class="w-md" value="${esc(d.name || '')}" maxlength="60" placeholder="for example SW-Core-1"></div></div>
         <div class="field"><label for="dHost">Address</label><div><input type="text" id="dHost" class="w-md" value="${esc(d.host || '')}" placeholder="IP address or host name"> port <input type="number" id="dPort" style="width:80px" value="${d.port || 161}" min="1" max="65535"></div></div>
         <div class="field"><label for="dVer">SNMP version</label><div><select id="dVer"><option value="v2c">v2c (community)</option><option value="v1">v1 (community)</option><option value="v3">v3 (user, authentication, privacy)</option></select></div></div>
@@ -94,19 +96,18 @@
           <div class="field" id="rowAuth"><label for="dAuthP">Authentication</label><div><select id="dAuthP">${['SHA', 'MD5', 'SHA224', 'SHA256', 'SHA384', 'SHA512'].map((x) => `<option>${x}</option>`).join('')}</select> password <input type="password" id="dAuthW" class="w-md" value="${esc(d.authPass || '')}" autocomplete="off"></div></div>
           <div class="field" id="rowPriv"><label for="dPrivP">Privacy</label><div><select id="dPrivP">${['AES128', 'AES192', 'AES256', 'DES'].map((x) => `<option>${x}</option>`).join('')}</select> password <input type="password" id="dPrivW" class="w-md" value="${esc(d.privPass || '')}" autocomplete="off"></div></div></div>
         ${probes.length ? `<div class="field"><label for="dVia">Poll from</label><div><select id="dVia"><option value="">This server</option>${probes.map((p) => `<option value="${esc(p.id)}">Probe: ${esc(p.name)}</option>`).join('')}</select><div class="hint">Choose a probe when this server cannot reach the device. The probe polls it and sends the readings here; Test connection then runs on the probe and takes up to 10 seconds.</div></div></div>` : ''}
-        <div class="field"><label for="dProf">What to read</label><div><select id="dProf"><option value="auto">Detect from the device</option>${profs.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></div></div>
         <div class="field"><label for="dIf">Interfaces</label><div><select id="dIf"><option value="none">Do not poll interfaces</option><option value="auto">Poll the interfaces that are up</option><option value="all">Poll all interfaces</option>${d.ifMode === 'selected' ? '<option value="selected">Only the ones I ticked on the device page</option>' : ''}</select></div></div>
         <div class="field"><label for="dInt">Poll every</label><div><select id="dInt">${[[30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [900, '15 minutes']].map(([s, n]) => `<option value="${s}">${n}</option>`).join('')}</select> &nbsp; wait <input type="number" id="dTo" style="width:70px" min="1" max="30" value="${(d.timeoutMs || 3000) / 1000}"> s, retry <input type="number" id="dRe" style="width:60px" min="0" max="5" value="${d.retries ?? 1}"> times</div></div>
         <div class="field"><label for="dSite">Site</label><div><input type="text" id="dSite" class="w-md" value="${esc(d.site || '')}" maxlength="60" placeholder="optional, to find devices"></div></div>
         <div class="field"><label>Options</label><div><label class="chk"><input type="checkbox" id="dPing" ${d.ping ? 'checked' : ''}> When SNMP stops answering, also ping the device and say so in the alarm</label><br><label class="chk"><input type="checkbox" id="dOn" ${d.enabled !== false ? 'checked' : ''}> Poll this device</label></div></div>
         <div id="dTest" class="panel" hidden style="margin:8px 0"></div>
-        <div class="toolbar" style="margin:8px 0 0"><button id="dSave" class="primary">${d.id ? 'Save' : 'Add device'}</button><button id="dTestBtn">Test connection</button><button id="dCancel">Cancel</button></div></div>`, true);
-      const g = (id) => dl.$('#' + id); g('dVer').value = d.version || 'v2c'; g('dLevel').value = d.level || 'authPriv'; g('dAuthP').value = d.authProto || 'SHA'; g('dPrivP').value = d.privProto || 'AES128'; g('dProf').value = d.profile || 'basic'; g('dIf').value = d.ifMode || 'none'; if (g('dVia')) g('dVia').value = d.via || '';
+        <div class="toolbar" style="margin:8px 0 0"><button id="dSave" class="primary">${d.id ? 'Save' : 'Add device and go to step 2'}</button><button id="dTestBtn">Test connection</button><button id="dCancel">Cancel</button></div></div>`, true);
+      const g = (id) => dl.$('#' + id); g('dVer').value = d.version || 'v2c'; g('dLevel').value = d.level || 'authPriv'; g('dAuthP').value = d.authProto || 'SHA'; g('dPrivP').value = d.privProto || 'AES128'; g('dIf').value = d.ifMode || 'none'; if (g('dVia')) g('dVia').value = d.via || '';
       if (![30, 60, 120, 300, 900].includes(d.intervalSec)) g('dInt').insertAdjacentHTML('afterbegin', `<option value="${d.intervalSec}">${d.intervalSec} seconds</option>`); g('dInt').value = String(d.intervalSec || 60);
       const sync = () => { const v3 = g('dVer').value === 'v3', lv = g('dLevel').value; g('rowComm').hidden = v3; g('rowV3').hidden = !v3; g('rowAuth').hidden = lv === 'noAuthNoPriv'; g('rowPriv').hidden = lv !== 'authPriv'; };
       g('dVer').onchange = sync; g('dLevel').onchange = sync; sync(); g('dShow').onchange = () => { g('dComm').type = g('dShow').checked ? 'text' : 'password'; };
       const body = () => ({ id: d.id, name: g('dName').value.trim(), host: g('dHost').value.trim(), port: +g('dPort').value || 161, version: g('dVer').value, community: g('dComm').value, user: g('dUser').value.trim(), level: g('dLevel').value, authProto: g('dAuthP').value, authPass: g('dAuthW').value,
-        privProto: g('dPrivP').value, privPass: g('dPrivW').value, profile: g('dProf').value, via: g('dVia') ? g('dVia').value : '', intervalSec: +g('dInt').value, timeoutMs: Math.round((+g('dTo').value || 3) * 1000), retries: +g('dRe').value, site: g('dSite').value.trim(), ping: g('dPing').checked, enabled: g('dOn').checked, ifMode: g('dIf').value, ifSelected: g('dIf').value === 'selected' ? d.ifSelected : [] });
+        privProto: g('dPrivP').value, privPass: g('dPrivW').value, profile: d.profile || 'basic', via: g('dVia') ? g('dVia').value : '', intervalSec: +g('dInt').value, timeoutMs: Math.round((+g('dTo').value || 3) * 1000), retries: +g('dRe').value, site: g('dSite').value.trim(), ping: g('dPing').checked, enabled: g('dOn').checked, ifMode: g('dIf').value, ifSelected: g('dIf').value === 'selected' ? d.ifSelected : [] });
       g('dCancel').onclick = dl.close;
       g('dTestBtn').onclick = async () => {
         const box = g('dTest'); box.hidden = false; box.innerHTML = `<span class="muted">${g('dVia') && g('dVia').value ? 'Asking the probe to ask the device (up to 10 seconds)…' : 'Asking the device…'}</span>`; g('dTestBtn').disabled = true;
@@ -115,19 +116,133 @@
             : `<span class="pill bad">No answer</span> ${esc(r.error)}<div class="muted" style="margin-top:4px">${r.code === 'timeout' ? 'Check the address, that SNMP is switched on in the device, the community or user, and that UDP port ' + (+g('dPort').value || 161) + ' is allowed from this computer.' : ''}</div>`; }
         catch (e) { box.innerHTML = `<span class="pill bad">Error</span> ${esc(e.message)}`; } g('dTestBtn').disabled = false;
       };
-      g('dSave').onclick = async () => { try { const r = await api('/api/poll/devices', { method: 'POST', body: body() }); dl.close(); toast('Saved'); if (d.id) detail(); else go('#polling?d=' + r.id); } catch (e) { toast(e.message, true); } };
+      g('dSave').onclick = async () => { try { const r = await api('/api/poll/devices', { method: 'POST', body: body() }); dl.close(); toast('Saved'); if (d.id) detail(); else go('#polling?d=' + r.id + '&new=1'); } catch (e) { toast(e.message, true); } };
     };
 
     // ---------------- device page ----------------
     let dv = null;
+    // ---------------- readings of a device (1.53): Step 2 of adding a device ----------------
+    const UNITS = ['°C', '°F', '%', 'V', 'A', 'W', 'kW', 'Hz', 'dBm', 'dB', 'rpm', 'min', 's', 'bit/s', 'MB', 'GB', 'ms', 'psi', 'bar', 'pcs'];
+    const DT = { number: 'Number (as the device sends it)', counter: 'Counter (shown as a rate per second)', ticks: 'Uptime ticks (1/100 s, shown as seconds)', text: 'Text (alarm when it changes or contains…)' };
+    const KIND = { oid: 'One value', each: 'Table: every row on its own', avg: 'Table: average of the rows', max: 'Table: highest row', min: 'Table: lowest row', sum: 'Table: total of all rows' };
+    const SL = { ok: 'OK', warn: 'Warning', crit: 'Critical', unk: 'No alarm' };
+    const calcText = (r) => (r.dtype === 'text' ? 'text' : r.dtype === 'counter' ? 'rate per second' : (r.scale !== 1 || r.offset ? `raw × ${r.scale}${r.offset ? (r.offset < 0 ? ' − ' : ' + ') + Math.abs(r.offset) : ''}` : 'as sent'));
+    const mibPicker = (parent, apply) => {
+      const dl = dialog('Pick a value from a MIB', `<p class="muted" style="margin:0 0 8px;max-width:620px">Searches the MIB files you loaded (Settings → SNMP → MIB files). Type part of a name or OID.</p><div class="toolbar" style="margin:0 0 8px"><input type="search" id="mpQ" placeholder="for example temperature, upsBattery, 1.3.6.1.4.1.318" style="width:360px"><span id="mpN" class="muted"></span></div><div id="mpR" style="max-height:340px;overflow:auto"></div>`, true);
+      let objs = []; const run = async () => { try { const r = await api('/api/poll/mibobjects?limit=40&q=' + encodeURIComponent(dl.$('#mpQ').value)); objs = r.objects; dl.$('#mpN').textContent = r.total + ' found';
+        dl.$('#mpR').innerHTML = objs.length ? `<table class="data"><thead><tr><th>Name</th><th>MIB file</th><th>OID</th><th></th></tr></thead><tbody>${objs.map((o, i) => `<tr><td><b>${esc(o.name)}</b>${o.column ? ' <span class="pill">table</span>' : ''}${o.counter ? ' <span class="pill">counter</span>' : ''}</td><td class="muted">${esc(o.file || o.module)}</td><td class="muted">${esc(o.oid)}</td><td><button data-i="${i}">Use</button></td></tr>`).join('')}</tbody></table>` : '<div class="muted">Nothing found. Load the MIB file of the device first (Settings → SNMP → MIB files).</div>';
+        $$('#mpR button', dl.back).forEach((b) => { b.onclick = async () => { const o = objs[+b.dataset.i]; let nameOid = '', items = [];
+          try { if (o.column && o.entry) nameOid = (await api('/api/poll/mibobjects?limit=100&entry=' + encodeURIComponent(o.entry))).nameOid || ''; if (o.enums && Object.keys(o.enums).length) items = (await api('/api/poll/lookups/items', { method: 'POST', body: { enums: o.enums } })).items; } catch { /* optional */ }
+          apply({ label: o.name, oid: o.column ? o.oid : o.oid + '.0', t: o.column ? 'walk' : 'oid', agg: o.column ? 'each' : 'avg', nameOid, dtype: o.counter ? 'counter' : 'number', items }); dl.close(); }; }); } catch (e) { toast(e.message, true); } };
+      dl.$('#mpQ').oninput = (() => { let t = 0; return () => { clearTimeout(t); t = setTimeout(run, 300); }; })(); run(); void parent;
+    };
+    const readingDialog = async (devId, rd, r0, save) => {
+      const r = structuredClone(r0 || { label: '', unit: '', t: 'oid', oid: '', agg: 'avg', nameOid: '', scale: 1, offset: 0, dtype: 'number', items: [], lookup: '', on: true, disp: { graph: true, style: 'line', card: false, bar: false, max: null, dec: null }, alarms: [] });
+      r.disp = { graph: true, style: 'line', card: false, bar: false, max: null, dec: null, ...(r.disp || {}) }; r.items = r.items || []; r.alarms = r.alarms || [];
+      let shared = []; try { shared = (await api('/api/poll/lookups')).lookups.filter((l) => !l.owner); } catch { /* none */ }
+      const np = rd.notifProfiles || [], dl = dialog(r0 ? 'Edit reading: ' + r0.label : 'Add a reading', '<div class="form" id="rdF" style="min-width:min(780px,90vw)"></div>', true), g = (id) => dl.$('#' + id); let items = r.items.map((x) => ({ ...x })), alarms = r.alarms.map((x) => ({ ...x })), sample = null;
+      const kindOf = () => (r.t === 'oid' ? 'oid' : r.agg);
+      const paint = () => {
+        const text = r.dtype === 'text', tbl = r.t === 'walk', lk = items.length ? 'own' : r.lookup || '';
+        g('rdF').innerHTML = `<h4 class="rdh">1 · What to read</h4>
+          <div class="field"><label for="rdName">Name</label><div><input type="text" id="rdName" class="w-md" maxlength="60" value="${esc(r.label)}" placeholder="for example Room temperature"> unit <input type="text" id="rdUnit" list="rdUnits" style="width:80px" maxlength="10" value="${esc(r.unit)}"><datalist id="rdUnits">${UNITS.map((u) => `<option value="${esc(u)}">`).join('')}</datalist></div></div>
+          <div class="field"><label for="rdOid">OID</label><div><input type="text" id="rdOid" class="w-md" value="${esc(r.oid)}" placeholder="1.3.6.1.4.1.318.1.1.2.2.1.0"> <button id="rdMib" type="button">Pick from MIB…</button> <button id="rdTest" type="button">Test read</button><div class="hint">A single value usually ends with .0. A table column has no .0: choose “Table” below.</div></div></div>
+          <div id="rdTr" class="panel" hidden style="margin:6px 0"></div>
+          <div class="field"><label for="rdKind">Reads</label><div><select id="rdKind">${Object.entries(KIND).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></div></div>
+          ${tbl && r.agg === 'each' ? `<div class="field"><label for="rdNOid">Row names from</label><div><input type="text" id="rdNOid" class="w-md" value="${esc(r.nameOid)}" placeholder="OID of the column with names (optional)"><div class="hint">Without it the rows are named by their index (1, 2, 3…).</div></div></div>` : ''}
+          <div class="field"><label for="rdDt">Type of value</label><div><select id="rdDt">${Object.entries(DT).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></div></div>
+          ${text ? '' : `<h4 class="rdh">2 · Calculation</h4>
+          <div class="field"><label>Result =</label><div>raw value × <input type="number" step="any" id="rdSc" style="width:90px" value="${r.scale}"> + <input type="number" step="any" id="rdOf" style="width:90px" value="${r.offset}"> <span id="rdEx" class="muted"></span><div class="hint">Example: the sensor sends 4 for 20 °C and 5 for 25 °C → multiply by 5, add 0. Fahrenheit from tenths of a degree C: × 0.18, add 32. Use a negative number to subtract.</div></div></div>`}
+          <h4 class="rdh">${text ? '2' : '3'} · What the values mean <span class="muted" style="font-weight:400">(optional)</span></h4>
+          <div class="field"><label for="rdLk">Words for numbers</label><div><select id="rdLk"><option value="">Show the number</option><option value="own">Custom for this reading…</option>${shared.length ? '<optgroup label="Ready-made sets">' + shared.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('') + '</optgroup>' : ''}</select>
+            <div class="hint">For status values (1 = OK, 2 = fault…). A word with the state Warning or Critical raises an alarm by itself.</div></div></div>
+          ${lk === 'own' ? `<div class="field"><label>Values</label><div><table class="data"><thead><tr><th>Number</th><th>Word</th><th>State</th><th></th></tr></thead><tbody>${items.map((x, i) => `<tr data-i="${i}"><td><input type="number" class="iV" style="width:80px" value="${x.v}"></td><td><input type="text" class="iL" maxlength="60" value="${esc(x.label)}"></td><td><select class="iS">${Object.entries(SL).map(([k, n]) => `<option value="${k}" ${x.state === k ? 'selected' : ''}>${n}</option>`).join('')}</select></td><td><button class="iD" type="button">×</button></td></tr>`).join('')}</tbody></table><button id="iAdd" type="button">Add a value</button></div></div>` : ''}
+          <h4 class="rdh">${text ? '3' : '4'} · Alarms</h4>
+          <div id="rdAl">${alarms.map((a, i) => `<div class="rdal" data-i="${i}"><label class="chk"><input type="checkbox" class="aOn" ${a.enabled !== false ? 'checked' : ''}> on</label> Alarm when ${text ? `the text <select class="aTo">${[['changed', 'changes'], ['equals', 'equals'], ['notequals', 'does not equal'], ['contains', 'contains'], ['notcontains', 'does not contain']].map(([k, n]) => `<option value="${k}" ${a.textOp === k ? 'selected' : ''}>${n}</option>`).join('')}</select> <input type="text" class="aTx" style="width:150px" value="${esc(a.text || '')}">` : `the value is <select class="aOp">${['>', '<', '>=', '<=', '=', '!='].map((o) => `<option ${a.op === o ? 'selected' : ''}>${o}</option>`).join('')}</select> <input type="number" step="any" class="aVal" style="width:90px" value="${a.value}"> clear at <input type="number" step="any" class="aClr" style="width:80px" value="${a.clearValue}" placeholder="same">`} for <input type="number" class="aFor" style="width:60px" min="0" value="${a.forSec || 0}"> s, severity <select class="aSev">${SEV.map((n, k) => `<option value="${k}" ${a.severity === k ? 'selected' : ''}>${n}</option>`).join('')}</select> <button class="aDel" type="button">Remove</button>
+            <div class="muted" style="font-size:12px;margin:2px 0">Also tell:</div><div class="aTell">${tellBoxes('aT' + i, np, a.tell, '')}</div></div>`).join('') || '<div class="muted" style="margin-bottom:6px">No alarm for this reading.</div>'}</div><button id="rdAddAl" type="button">Add an alarm</button>
+          <h4 class="rdh">${text ? '4' : '5'} · How it is shown</h4>
+          <div class="field"><label>Display</label><div>
+            <label class="chk"><input type="checkbox" id="dGr" ${r.disp.graph ? 'checked' : ''} ${text ? 'disabled' : ''}> Graph</label> <select id="dSt" ${text ? 'disabled' : ''}><option value="line">line</option><option value="area">filled area</option></select><br>
+            <label class="chk"><input type="checkbox" id="dCd" ${r.disp.card ? 'checked' : ''}> Card at the top of the device page</label><br>
+            <label class="chk"><input type="checkbox" id="dBar" ${r.disp.bar ? 'checked' : ''} ${text ? 'disabled' : ''}> Bar on the card (fills from 0 to the top value)</label><br>
+            Top of the graph / bar <input type="number" step="any" id="dMax" style="width:90px" value="${r.disp.max ?? ''}" placeholder="automatic"> &nbsp; decimals <input type="number" id="dDec" min="0" max="4" style="width:60px" value="${r.disp.dec ?? ''}" placeholder="auto"></div></div>
+          <div class="field"><label>Reading</label><div><label class="chk"><input type="checkbox" id="rdOn" ${r.on !== false ? 'checked' : ''}> Read this value at every poll</label></div></div>
+          <div class="toolbar" style="margin:10px 0 0"><button id="rdSave" class="primary">${r0 ? 'Save reading' : 'Add reading'}</button><button id="rdCancel" type="button">Cancel</button></div>`;
+        g('rdKind').value = kindOf(); g('rdDt').value = r.dtype; g('rdLk').value = lk; if (g('dSt')) g('dSt').value = r.disp.style;
+        bind();
+      };
+      const pull = () => {   /* copy what is typed into r */
+        if (!g('rdName')) return; r.label = g('rdName').value.trim(); r.unit = g('rdUnit').value.trim(); r.oid = g('rdOid').value.trim(); r.dtype = g('rdDt').value;
+        const kd = g('rdKind').value; r.t = kd === 'oid' ? 'oid' : 'walk'; r.agg = kd === 'oid' ? 'avg' : kd; if (g('rdNOid')) r.nameOid = g('rdNOid').value.trim(); if (r.agg !== 'each') r.nameOid = '';
+        if (g('rdSc')) { r.scale = +g('rdSc').value || 1; r.offset = +g('rdOf').value || 0; }
+        const lkv2 = g('rdLk').value; if (lkv2 === 'own') { r.lookup = ''; } else { r.lookup = lkv2; items = []; }
+        items = $$('tr[data-i]', dl.back).length ? $$('tr[data-i]', dl.back).map((tr) => ({ v: +$('.iV', tr).value, label: $('.iL', tr).value, state: $('.iS', tr).value })) : items;
+        alarms = $$('.rdal', dl.back).map((row, i) => ({ id: alarms[i] && alarms[i].id, enabled: $('.aOn', row).checked, op: $('.aOp', row) ? $('.aOp', row).value : '>', value: $('.aVal', row) ? +$('.aVal', row).value : 0, clearValue: $('.aClr', row) ? $('.aClr', row).value : '', textOp: $('.aTo', row) ? $('.aTo', row).value : '', text: $('.aTx', row) ? $('.aTx', row).value : '', forSec: +$('.aFor', row).value || 0, severity: +$('.aSev', row).value, tell: $$('.aT' + i + ':checked', row).map((c) => c.value) }));
+        r.disp = { ...r.disp, graph: g('dGr').checked, style: g('dSt').value, card: g('dCd').checked, bar: g('dBar').checked, max: g('dMax').value === '' ? null : +g('dMax').value, dec: g('dDec').value === '' ? null : +g('dDec').value }; r.on = g('rdOn').checked;
+      };
+      const ex = () => { const e = g('rdEx'); if (!e) return; const sc = +g('rdSc').value || 1, of = +g('rdOf').value || 0, raw = sample !== null ? sample : 4; e.textContent = `→ raw ${raw} gives ${Math.round((raw * sc + of) * 1e6) / 1e6} ${g('rdUnit').value}${sample !== null ? ' (from the test read)' : ''}`; };
+      const bind = () => {
+        g('rdCancel').onclick = dl.close; ex(); ['rdSc', 'rdOf', 'rdUnit'].forEach((i) => { if (g(i)) g(i).oninput = ex; });
+        ['rdKind', 'rdDt', 'rdLk'].forEach((i) => { g(i).onchange = () => { pull(); if (i === 'rdLk' && g('rdLk').value === 'own' && !items.length) items = [{ v: 1, label: 'OK', state: 'ok' }, { v: 2, label: 'Fault', state: 'crit' }]; paint(); }; });
+        g('rdMib').onclick = () => mibPicker(dl, (o) => { pull(); Object.assign(r, { ...o, label: r.label || o.label }); if (o.items && o.items.length) { items = o.items; r.lookup = ''; } paint(); });
+        g('rdTest').onclick = async () => { pull(); const box = g('rdTr'); box.hidden = false; box.innerHTML = '<span class="muted">Reading the device…</span>';
+          try { const t = await api('/api/poll/readings/test', { method: 'POST', body: { id: devId, reading: r } });
+            if (!t.ok) { box.innerHTML = `<span class="pill bad">No value</span> ${esc(t.error)}`; return; } if (t.rows.length === 1 && Number.isFinite(+t.rows[0].raw)) { sample = +t.rows[0].raw; ex(); }
+            box.innerHTML = `<span class="pill ok">Read</span> <span class="muted">${t.rows.length} value${t.rows.length === 1 ? '' : 's'}${t.rtt ? ' in ' + t.rtt + ' ms' : ''}</span><table class="data"><thead><tr><th>${t.rows[0].name !== undefined ? 'Row' : ''}</th><th>Raw</th><th>Result</th></tr></thead><tbody>${t.rows.map((x) => `<tr><td>${esc(x.name ?? '')}</td><td>${esc(x.raw)}</td><td><b>${esc(x.value)}</b> ${esc(r.unit)}</td></tr>`).join('')}</tbody></table>${t.more ? '<div class="muted">First 20 rows shown.</div>' : ''}`;
+          } catch (e) { box.innerHTML = `<span class="pill bad">Error</span> ${esc(e.message)}`; } };
+        if (g('iAdd')) g('iAdd').onclick = () => { pull(); items.push({ v: items.length ? Math.max(...items.map((x) => x.v)) + 1 : 1, label: '', state: 'ok' }); paint(); };
+        $$('.iD', dl.back).forEach((b) => { b.onclick = () => { pull(); items.splice(+b.closest('tr').dataset.i, 1); if (!items.length) r.lookup = ''; paint(); }; });
+        g('rdAddAl').onclick = () => { pull(); alarms.push({ enabled: true, op: '>', value: 0, clearValue: '', textOp: r.dtype === 'text' ? 'changed' : '', text: '', forSec: 0, severity: 4, tell: [] }); paint(); };
+        $$('.aDel', dl.back).forEach((b) => { b.onclick = () => { pull(); alarms.splice(+b.closest('.rdal').dataset.i, 1); paint(); }; });
+        g('rdSave').onclick = async () => { pull(); if (!r.label) return toast('Give the reading a name.', true); if (!/^\d+(\.\d+)+$/.test(r.oid)) return toast('Give the OID as numbers and dots, for example 1.3.6.1.4.1.318.1.1.2.2.1.0', true);
+          try { await save({ ...r, items, alarms }); dl.close(); } catch (e) { toast(e.message, true); } };
+      };
+      paint();
+    };
+    const rdPick = (title, intro, opts, ok, hasReplace = true) => {
+      const dl = dialog(title, `<p class="muted" style="margin:0 0 8px;max-width:560px">${intro}</p><div class="form"><div class="field"><label for="pkS">Choose</label><div><select id="pkS">${opts.map((o) => `<option value="${esc(o.v)}">${esc(o.label)}</option>`).join('')}</select><div id="pkInfo" class="hint"></div></div></div>
+        ${hasReplace ? '<div class="field"><label>Then</label><div><label class="chk"><input type="radio" name="pkM" value="add" checked> add them to the readings already there</label><br><label class="chk"><input type="radio" name="pkM" value="replace"> replace the readings already there</label></div></div>' : ''}
+        <div class="toolbar"><button id="pkOk" class="primary">${hasReplace ? 'Copy readings' : 'OK'}</button><button id="pkNo">Cancel</button></div></div>`);
+      const info = () => { const o = opts.find((x) => x.v === dl.$('#pkS').value); dl.$('#pkInfo').textContent = (o && o.info) || ''; }; dl.$('#pkS').onchange = info; info(); dl.$('#pkNo').onclick = dl.close;
+      dl.$('#pkOk').onclick = async () => { try { await ok(dl.$('#pkS').value, hasReplace && dl.$('input[name="pkM"]:checked').value === 'replace'); dl.close(); } catch (e) { toast(e.message, true); } };
+    };
+    const readingsPanel = async (box, d, dv0, h) => {
+      let rd; try { rd = await api('/api/poll/readings?id=' + encodeURIComponent(d.id)); } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+      const ed = can('polling'), fresh = S.hq?.get('new') === '1', list = rd.readings, post = async (readings) => { await api('/api/poll/readings', { method: 'POST', body: { id: d.id, readings } }); toast('Saved. The next poll uses it.'); detail(); };
+      const nowOf = (r) => (dv0.insts && dv0.insts[r.k] && Object.keys(dv0.insts[r.k]).length ? h.rowSum({ k: r.k, unit: r.unit }) : dv0.texts && dv0.texts[r.k] && dv0.texts[r.k][''] ? esc(dv0.texts[r.k][''].s) : dv0.values[r.k] === undefined ? '<span class="muted">waiting for the next poll</span>' : h.lkv(r.k, dv0.values[r.k], r.unit, r.disp && r.disp.dec));
+      const first = !list.length;
+      box.innerHTML = `<div class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>Readings</b> <span class="muted">${first ? (fresh ? 'Step 2 of 2: choose what to read from this device' : 'what is read from this device') : list.length + ' read from this device'}</span><span class="spacer"></span>
+        ${ed ? `<button id="rdAdd" class="primary">Add a reading</button><button id="rdCopy">Copy from another device…</button><button id="rdTpl">Use a template…</button>${first ? '' : '<button id="rdSaveTpl">Save as template…</button>'}` : ''}</div>
+        ${first ? `<div style="padding:8px 12px 12px"><p class="muted" style="max-width:760px;margin:0 0 8px">${rd.builtin ? `Until you add readings, this device uses the built-in set <b>${esc(rd.builtin.name)}</b>${d.profile === 'auto' ? ' (found by asking the device)' : ''}. Only uptime is read when no set fits.` : 'Only the uptime is read until you add readings.'} Each reading has its own name, unit, calculation, value meanings, alarms and display. ${ed ? 'Add them one by one, copy them from a device that already has them, or start from a template or a built-in set.' : ''}</p>
+          ${ed && rd.builtin ? `<button id="rdBuilt">Start from the built-in set “${esc(rd.builtin.name)}” and edit it</button>` : ''}</div>` :
+        `<table class="data"><thead><tr><th>Reading</th><th>Now</th><th>Reads</th><th>Calculation</th><th>Alarms</th><th>Shown</th><th></th></tr></thead><tbody>${list.map((r, i) => `<tr data-i="${i}" ${r.on === false ? 'style="opacity:.55"' : ''}><td><b>${esc(r.label)}</b>${r.unit ? ` <span class="muted">${esc(r.unit)}</span>` : ''}${r.on === false ? ' <span class="pill">off</span>' : ''}</td><td>${nowOf(r)}</td>
+          <td class="muted" style="font-size:12px">${esc(r.oid)}${r.t === 'walk' ? ` <span class="pill">${esc(KIND[r.agg] || 'table')}</span>` : ''}</td><td class="muted">${esc(calcText(r))}</td><td>${(r.alarms || []).filter((a) => a.enabled !== false).length ? `<span class="pill warn">${r.alarms.filter((a) => a.enabled !== false).length}</span>` : '<span class="muted">–</span>'}${r.items && r.items.length || r.lookup ? ' <span class="pill">meanings</span>' : ''}</td>
+          <td class="muted" style="font-size:12px">${[r.disp && r.disp.graph !== false && r.dtype !== 'text' ? (r.disp.style === 'area' ? 'area graph' : 'graph') : '', r.disp && r.disp.card ? 'card' : '', r.disp && r.disp.bar ? 'bar' : ''].filter(Boolean).join(', ') || '–'}</td>
+          <td style="white-space:nowrap">${ed ? '<button class="rdE">Edit</button> <button class="rdX danger">Remove</button>' : ''}</td></tr>`).join('')}</tbody></table>`}</div>`;
+      const b = (id, fn) => { const x = $('#' + id, box); if (x) x.onclick = fn; };
+      b('rdAdd', () => readingDialog(d.id, rd, null, (r) => post([...list, r])));
+      $$('.rdE', box).forEach((x) => { x.onclick = () => { const i = +x.closest('tr').dataset.i; readingDialog(d.id, rd, list[i], (r) => post(list.map((o, j) => (j === i ? r : o)))); }; });
+      $$('.rdX', box).forEach((x) => { x.onclick = () => { const i = +x.closest('tr').dataset.i, dl = dialog('Remove reading', `<p>Remove <b>${esc(list[i].label)}</b> and its alarms from this device? Stored values stay in the history until they expire.</p><div class="toolbar"><button id="y" class="danger">Remove</button><button id="n">Cancel</button></div>`); dl.$('#n').onclick = dl.close; dl.$('#y').onclick = async () => { dl.close(); try { await post(list.filter((o, j) => j !== i)); } catch (e) { toast(e.message, true); } }; }; });
+      const cp = (from, replace) => api('/api/poll/readings/copy', { method: 'POST', body: { id: d.id, from, replace } }).then((r) => { toast(`${r.count} reading${r.count === 1 ? '' : 's'} copied${r.skipped && r.skipped.length ? '. Not copied (they need a calculation the editor does not have): ' + r.skipped.join(', ') : ''}`); detail(); });
+      b('rdCopy', () => { const src = rd.devices.filter((x) => x.count || true); if (!src.length) return toast('There is no other device yet.', true); rdPick('Copy readings from another device', 'Copies the readings with their calculation, value meanings, alarms and display. The copy is independent: changing it does not change the original.', src.map((x) => ({ v: 'dev:' + x.id, label: x.name + (x.count ? ` (${x.count} readings)` : ' (built-in set)') })), cp); });
+      b('rdTpl', () => rdPick('Use a template', 'A template is a saved set of readings (Settings → Templates). Built-in sets are ready-made lists for common devices; they are copied so you can change them.', [...rd.templates.map((t) => ({ v: 'tpl:' + t.id, label: `Template: ${t.name} (${t.count})`, info: t.labels.join(', ') })), { v: 'builtin:auto', label: 'Built-in: detected from the device' }, ...rd.builtinSets.map((x) => ({ v: 'builtin:' + x.id, label: 'Built-in: ' + x.name }))], cp));
+      b('rdBuilt', () => cp('builtin:' + (rd.builtin ? rd.builtin.id : 'auto'), true));
+      b('rdSaveTpl', () => { const dl = dialog('Save as template', `<p class="muted" style="margin:0 0 8px">Saves the ${list.length} readings of this device (with calculation, meanings, alarms and display) so you can apply them to other devices.</p><div class="form"><div class="field"><label for="tpN">Template name</label><div><input type="text" id="tpN" class="w-md" maxlength="60" value="${esc(d.name)} readings"></div></div><div class="toolbar"><button id="tpOk" class="primary">Save template</button><button id="tpNo">Cancel</button></div></div>`); dl.$('#tpNo').onclick = dl.close;
+        dl.$('#tpOk').onclick = async () => { try { await api('/api/poll/templates', { method: 'POST', body: { name: dl.$('#tpN').value, from: d.id } }); dl.close(); toast('Template saved (Settings → Templates)'); } catch (e) { toast(e.message, true); } }; });
+    };
+
+
     const detail = async () => {
       const id = devId(); try { dv = await api('/api/poll/device?id=' + encodeURIComponent(id)); } catch (e) { el.innerHTML = head() + `<div class="empty"><b>Not found</b>${esc(e.message)}</div><p><a href="#polling">Back to the overview</a></p>`; return; }
       const d = dv.device, m = dv.profile.metrics.filter((x) => x.k !== 'uptime');
+      const DEC = {}; m.forEach((x) => { if (x.disp && x.disp.dec !== null && x.disp.dec !== undefined) DEC[x.k] = x.disp.dec; });
+      const cardM = () => (dv.profile.id.startsWith('dev-') ? m.filter((x) => x.disp && x.disp.card && !(dv.texts && dv.texts[x.k])) : m.filter((x) => !(dv.texts && dv.texts[x.k])).slice(0, 2));
+      const barOf = (x) => { const v = dv.values[x.k], mx = x.disp && x.disp.max !== null && x.disp.max !== undefined ? x.disp.max : 100; if (!(x.disp && x.disp.bar) || !Number.isFinite(v) || !mx) return ''; const p = Math.min(100, Math.max(0, v / mx * 100)); return `<div><span class="pbar"><i style="width:${p}%;background:${p >= 90 ? 'var(--bad)' : p >= 80 ? 'var(--s3)' : 'var(--accent)'}"></i></span></div>`; };
       const LC = { ok: 'var(--ok)', warn: 'var(--warn, #d9a21b)', crit: 'var(--bad)', unk: 'var(--muted, #888)' };
-      const lkv = (k, v, unit) => { const l = dv.lookups && dv.lookups[k]; if (!l || v === null || v === undefined) return fv(v, unit); const it = l.items.find((x) => x.v === Math.round(v)); return `<b style="color:${LC[it ? it.state : 'unk']}">${esc(it ? it.label : v)}</b> <span class="muted">(${v})</span>`; };
+      const lkv = (k, v, unit, dec) => { const l = dv.lookups && dv.lookups[k]; if (!l || v === null || v === undefined) return fv(v, unit, dec === undefined ? DEC[k] : dec); const it = l.items.find((x) => x.v === Math.round(v)); return `<b style="color:${LC[it ? it.state : 'unk']}">${esc(it ? it.label : v)}</b> <span class="muted">(${v})</span>`; };
       const rowSum = (x) => {   /* a table metric (one value per row) is summarised, never averaged */
         const vs = Object.values(dv.insts[x.k]).filter((v) => Number.isFinite(v)), l = dv.lookups && dv.lookups[x.k]; if (!vs.length) return '–';
-        if (!l) return vs.length === 1 ? fv(vs[0], x.unit) : fv(Math.min(...vs), x.unit) + ' – ' + fv(Math.max(...vs), x.unit);
+        if (!l) return vs.length === 1 ? fv(vs[0], x.unit, DEC[x.k]) : fv(Math.min(...vs), x.unit, DEC[x.k]) + ' – ' + fv(Math.max(...vs), x.unit, DEC[x.k]);
         const c = {}, nm = { crit: 'Critical', warn: 'Warning', unk: 'unknown', ok: 'OK' }; vs.forEach((v) => { const it = l.items.find((i) => i.v === Math.round(v)), s = it ? it.state : 'unk'; c[s] = (c[s] || 0) + 1; });
         const worst = c.crit ? 'crit' : c.warn ? 'warn' : c.unk ? 'unk' : 'ok';
         return `<b style="color:${LC[worst]}">${worst === 'ok' ? 'All ' + vs.length + ' OK' : ['crit', 'warn', 'unk', 'ok'].filter((s) => c[s]).map((s) => c[s] + ' ' + nm[s]).join(', ')}</b>`;
@@ -138,8 +253,9 @@
         ${can('polling') ? '<button id="dvNow">Poll now</button><button id="dvEdit">Edit</button><button id="dvDel" class="danger">Remove</button>' : ''}</div>
         ${dv.state === 'stale' ? '<div class="banner" style="display:block;position:static;margin:0 0 12px">The probe that polls this device has not reported for a while. The values shown are the last ones received; no alarm is raised for the device while the probe is silent. Check the probe (Settings → Remote probes shows when it was last seen).</div>' : ''}
         ${dv.state === 'down' ? `<div class="banner" style="display:block;position:static;margin:0 0 12px">No SNMP answer for ${dv.misses} poll${dv.misses === 1 ? '' : 's'}: ${esc(dv.error)}${dv.downSince ? ' (since ' + new Date(dv.downSince).toLocaleString() + ')' : ''}</div>` : ''}
-        <div class="hcards">${[['Uptime', fv(dv.values.uptime, 's'), esc(dv.sysName || '')], ['Answer time', dv.rtt === null ? '–' : dv.rtt + ' ms', 'last answer ' + ago(dv.lastOk)], ...m.filter((x) => !(dv.texts && dv.texts[x.k])).slice(0, 2).map((x) => (dv.insts && dv.insts[x.k] && Object.keys(dv.insts[x.k]).length ? [x.label, rowSum(x), Object.keys(dv.insts[x.k]).length + ' rows'] : [x.label, lkv(x.k, dv.values[x.k], x.unit), '']))].map(([k, v, s]) => `<div class="hcard"><div><div class="hk">${esc(k)}</div><div class="hv">${v}</div><div class="hs">${s}</div></div></div>`).join('')}</div>
-        <div class="toolbar"><b>Graphs</b><select id="dvRange"><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="8760">Last year</option></select><span class="spacer"></span><span class="muted">${esc(dv.sysDescr).slice(0, 120)}</span></div>
+        <div class="hcards">${[['Uptime', fv(dv.values.uptime, 's'), esc(dv.sysName || '')], ['Answer time', dv.rtt === null ? '–' : dv.rtt + ' ms', 'last answer ' + ago(dv.lastOk)], ...cardM().map((x) => (dv.insts && dv.insts[x.k] && Object.keys(dv.insts[x.k]).length ? [x.label, rowSum(x), Object.keys(dv.insts[x.k]).length + ' rows'] : [x.label, lkv(x.k, dv.values[x.k], x.unit) + barOf(x), '']))].map(([k, v, s]) => `<div class="hcard"><div><div class="hk">${esc(k)}</div><div class="hv">${v}</div><div class="hs">${s}</div></div></div>`).join('')}</div>
+        <div id="rdPanel"></div>
+        <div class="toolbar" style="margin-top:12px"><b>Graphs</b><select id="dvRange"><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="8760">Last year</option></select><span class="spacer"></span><span class="muted">${esc(dv.sysDescr).slice(0, 120)}</span></div>
         <div class="pcharts" id="dvCharts"></div>
         ${statusRows.length ? `<div class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>Status</b></div><table class="data"><tbody>${statusRows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${b}</td></tr>`).join('')}</tbody></table></div>` : ''}${textPanels}
         ${Object.keys(dv.insts || {}).map((k) => { const mm = dv.profile.metrics.find((x) => x.k === k) || { label: k, unit: '' }; return `<div class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>${esc(mm.label || k)}</b> <span class="muted">${Object.keys(dv.insts[k]).length} rows</span></div><table class="data"><thead><tr><th>Row</th><th class="num-r">Value</th><th></th></tr></thead><tbody>${Object.entries(dv.insts[k]).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([i, v]) => `<tr><td><b>${esc(i)}</b></td><td class="num-r">${lkv(k, v, mm.unit)}</td><td><button class="rwg" data-k="${esc(k)}" data-i="${esc(i)}">Graph</button></td></tr>`).join('')}</tbody></table></div>`; }).join('')}
@@ -162,6 +278,7 @@
       bind('ifSave', async () => { const names = $$('tbody tr', el).filter((r) => $('.ifw', r)?.checked).map((r) => r.dataset.n); try { await api('/api/poll/interfaces', { method: 'POST', body: { id: d.id, selected: names, mode: 'selected' } }); toast('Saved. The next poll uses it.'); } catch (e) { toast(e.message, true); } });
       $$('.ifg', el).forEach((b) => { b.onclick = () => ifGraph(b.dataset.n); });
       $$('.rwg', el).forEach((b) => { b.onclick = () => rowGraph(b.dataset.k, b.dataset.i); });
+      readingsPanel($('#rdPanel', el), d, dv, { lkv, rowSum });
       charts();
     };
     const series = async (k, inst) => { try { return (await api(`/api/poll/series?id=${encodeURIComponent(devId())}&k=${encodeURIComponent(k)}&inst=${encodeURIComponent(inst || '')}&hours=${range}`)).points; } catch { return []; } };
@@ -169,7 +286,7 @@
     const charts = async () => {
       const box = $('#dvCharts', el); if (!box || !dv) return;
       const per = (m) => dv.insts && dv.insts[m.k] && Object.keys(dv.insts[m.k]).length;   /* table metrics keep one reading per row */
-      const items = [...dv.profile.metrics.filter((m) => m.k !== 'uptime' && m.dtype !== 'text' && (per(m) || !(m.srcs || []).some((x) => x.agg === 'each'))).map((m) => ({ k: m.k, rows: per(m) ? Object.keys(dv.insts[m.k]).slice(0, 8) : null, title: m.label + (m.unit ? ` (${m.unit})` : ''), unit: m.unit })), { k: 'rtt', title: 'Answer time (ms)', unit: 'ms' }];
+      const items = [...dv.profile.metrics.filter((m) => m.k !== 'uptime' && m.dtype !== 'text' && (per(m) || !(m.srcs || []).some((x) => x.agg === 'each')) && !(m.disp && m.disp.graph === false)).map((m) => ({ disp: m.disp, k: m.k, rows: per(m) ? Object.keys(dv.insts[m.k]).slice(0, 8) : null, title: m.label + (m.unit ? ` (${m.unit})` : ''), unit: m.unit })), { k: 'rtt', title: 'Answer time (ms)', unit: 'ms' }];
       box.innerHTML = items.map((it, i) => chartBox(it.title, 'pc' + i)).join('');
       for (const [i, it] of items.entries()) {
         const cv = $('#pc' + i, el);
@@ -178,7 +295,7 @@
           const byT = new Map(); all.forEach((pts, j) => pts.forEach((p) => { const o = byT.get(p.t) || { t: p.t }; o['r' + j] = p.v; byT.set(p.t, o); }));
           sysChart(cv, [...byT.values()].sort((x, y) => x.t - y.t), it.rows.map((r, j) => ({ key: 'r' + j, color: COLORS[j % COLORS.length], name: r })), { fmt: (v) => fv(v, it.unit), step: 60 }); continue;
         }
-        const pts = await series(it.k); if (!alive) return; if (!cv) continue; sysChart(cv, pts.map((p) => ({ t: p.t, v: p.v })), [{ key: 'v', color: COLORS[i % COLORS.length], name: it.title }], { max: it.unit === '%' ? 100 : undefined, fmt: (v) => fv(v, it.unit), step: 60 });
+        const pts = await series(it.k); if (!alive) return; if (!cv) continue; sysChart(cv, pts.map((p) => ({ t: p.t, v: p.v })), [{ key: 'v', color: COLORS[i % COLORS.length], name: it.title }], { max: it.disp && it.disp.max !== null && it.disp.max !== undefined ? it.disp.max : it.unit === '%' ? 100 : undefined, fillAll: !!(it.disp && it.disp.style === 'area'), fmt: (v) => fv(v, it.unit, it.disp && it.disp.dec), step: 60 });
       }
     };
     const rowGraph = async (k, inst) => {
@@ -250,10 +367,10 @@
       paint();
     };
 
-    const HOW = `<details class="panel" style="max-width:900px;margin-bottom:10px" open><summary><b>Lookups, thresholds and alarms: what is what</b></summary><ul class="muted" style="margin:6px 0 2px">
-  <li><b>Lookup</b>: for <i>status codes</i> (1 = up, 2 = down, 4 = alarm). You say what each code means: OK, Warning or Critical. A Warning or Critical value raises an alarm by itself, and it clears when the value is OK again.</li>
-  <li><b>Threshold</b>: for <i>measurements</i> (temperature, CPU, traffic). You set a limit (for example above 30 for 5 minutes). The alarm clears when the reading is back.</li>
-  <li>Both raise the same kind of alarm: it shows on the Alarms page and writes a line in the syslog list. They differ only in what starts it. Use one of them per value, not both.</li>
+    const HOW = `<details class="panel" style="max-width:900px;margin-bottom:10px" open><summary><b>Where do alarms come from?</b></summary><ul class="muted" style="margin:6px 0 2px">
+  <li><b>Per reading (the normal way)</b>: open a device → Readings → Edit. Each reading has its own <i>alarms</i> (for example above 30 for 5 minutes) and its own <i>value meanings</i> (1 = OK, 2 = Fault). Those alarms are listed on that device only.</li>
+  <li>This page lists the <b>shared alarm limits</b> that apply to many devices at once (for example “CPU above 90 on every device”) and the older limits from before 1.53.</li>
+  <li>All of them raise the same kind of alarm: it shows on the Alarms page and writes a line in the syslog list. The alarm clears when the value is back.</li>
   <li><b>Notify</b>: ticking a notification profile (e-mail, Teams, SMS…) sends the alarm there as well. With nothing ticked, the alarm only appears in NetEventPro.</li></ul></details>`;
     const tellBoxes = (cls, profs, sel, dis) => profs.length ? profs.map((x) => `<label class="chk" style="display:block;margin:0"><input type="checkbox" class="${cls}" value="${esc(x.id)}" ${(sel || []).includes(x.id) ? 'checked' : ''} ${dis}> ${esc(x.name)}</label>`).join('') : '<span class="muted">No notification profiles yet (Notifications page)</span>';
     // ---------------- thresholds ----------------
@@ -306,6 +423,17 @@
       paint();
     };
 
+    // ---------------- templates (1.53) ----------------
+    const templatesTab = async () => {
+      let t; try { t = await api('/api/poll/templates'); } catch (e) { el.innerHTML = head() + tabs() + `<div class="empty"><b>Could not load</b>${esc(e.message)}</div>`; wireTabs(); return; }
+      const ed = can('polling');
+      el.innerHTML = head() + tabs() + `<div class="panel" style="max-width:900px"><p class="muted" style="margin:0 0 10px">A template is a saved set of readings (names, units, calculations, value meanings, alarms and display). Make one from a device that is set up well (open the device → Readings → <b>Save as template</b>), then apply it to other devices with <b>Use a template</b>. Applying copies the readings: later changes to the template do not change devices that already use it.</p>
+        ${t.templates.length ? `<table class="data"><thead><tr><th>Template</th><th>Readings</th><th></th></tr></thead><tbody>${t.templates.map((x) => `<tr data-id="${esc(x.id)}"><td><b>${esc(x.name)}</b></td><td class="muted">${x.count}: ${esc(x.labels.join(', ')).slice(0, 200)}</td><td>${ed ? '<button class="tpR">Rename</button> <button class="tpD danger">Delete</button>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><b>No templates yet</b>Open a device that has readings and choose “Save as template”.</div>'}</div>`;
+      wireTabs();
+      $$('.tpD', el).forEach((b) => { b.onclick = () => { const id = b.closest('tr').dataset.id, dl = dialog('Delete template', '<p>Delete this template? Devices that already use its readings are not changed.</p><div class="toolbar"><button id="y" class="danger">Delete</button><button id="n">Cancel</button></div>'); dl.$('#n').onclick = dl.close; dl.$('#y').onclick = async () => { try { await api('/api/poll/templates/delete', { method: 'POST', body: { id } }); dl.close(); templatesTab(); } catch (e) { toast(e.message, true); } }; }; });
+      $$('.tpR', el).forEach((b) => { b.onclick = () => { const tr = b.closest('tr'), cur = t.templates.find((x) => x.id === tr.dataset.id), dl = dialog('Rename template', `<div class="form"><div class="field"><label for="rn">Name</label><div><input type="text" id="rn" class="w-md" maxlength="60" value="${esc(cur.name)}"></div></div><div class="toolbar"><button id="y" class="primary">Save</button><button id="n">Cancel</button></div></div>`); dl.$('#n').onclick = dl.close; dl.$('#y').onclick = async () => { try { await api('/api/poll/templates', { method: 'POST', body: { id: cur.id, name: dl.$('#rn').value } }); dl.close(); templatesTab(); } catch (e) { toast(e.message, true); } }; }; });
+    };
+
     // ---------------- settings ----------------
     const settings = async () => {
       let s, np = []; try { s = await api('/api/poll/settings'); np = (await api('/api/poll/thresholds')).notifProfiles; } catch (e) { el.innerHTML = head() + tabs() + `<div class="empty"><b>Could not load</b>${esc(e.message)}</div>`; wireTabs(); return; }
@@ -334,7 +462,7 @@
       stop(); const hasDev = !!devId();
       if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !(sb && !sb.hidden)) detail(); }, 30000); return; }
       if (tab === 'overview') { overview(); every(() => { if (!document.querySelector('.modal-back') && tab === 'overview' && !devId()) overview(); }, 15000); }
-      else if (tab === 'reports') reports(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
+      else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
     };
     render();
     return () => { alive = false; stop(); };

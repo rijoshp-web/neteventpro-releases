@@ -810,3 +810,10 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel2); }
 #saveAll.pulse { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3b82f6) 45%, transparent); }
 .upbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .upbar .spacer { flex: 1; }
+
+/* SNMP polling 1.53: sub-tabs of Settings, reading editor */
+.subtabs { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 12px; }
+.subtabs button { background: none; border: 1px solid var(--line); border-radius: 14px; padding: 3px 12px; color: var(--muted); cursor: pointer; }
+.subtabs button.on { color: var(--text); background: var(--panel); font-weight: 600; border-color: var(--accent); }
+.rdh { margin: 14px 0 4px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
+.rdal { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
