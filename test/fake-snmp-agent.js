@@ -72,7 +72,7 @@ function startAgent(opts = {}) {
       sock.send(tlv(T.SEQUENCE, Buffer.concat([tlv(T.INTEGER, encSigned(ver)), tlv(T.OCTETS, Buffer.from(community)), pdu])), rinfo.port, rinfo.address);
     } catch { /* ignore */ }
   });
-  return new Promise((res) => sock.bind(0, '127.0.0.1', () => res({ sock, port: sock.address().port, seen, close: () => sock.close(), setTime: (t) => { bootsTime = t; }, set: (oid, value) => { const h = MIB.find((m) => cmp(m.oid, B.parseOid(oid)) === 0); if (h) h.value = value; }, mib: MIB })));
+  return new Promise((res) => sock.bind(opts.port || 0, opts.host || '127.0.0.1', () => res({ sock, port: sock.address().port, seen, close: () => sock.close(), setTime: (t) => { bootsTime = t; }, set: (oid, value) => { const h = MIB.find((m) => cmp(m.oid, B.parseOid(oid)) === 0); if (h) h.value = value; }, mib: MIB })));
 }
 
 

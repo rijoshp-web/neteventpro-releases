@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.52.6
+- **Table metrics no longer show an average.** The summary card of a metric with several rows (one value per row) showed the average of the rows (for example 10 for 22, 6, 6, 6). It now shows a summary of the rows: with a lookup "All 4 OK" or "1 Critical, 3 OK" (coloured by the worst row); without one the lowest and highest value.
+- **Fake SNMP device for trying things on one PC:** `node tools/fake-device.js` (UDP 1161, v2c, community `public`) with interfaces, CPU, uptime and a 4-row table; commands `hot`, `critical`, `cool`, `down n`, `up n`. Guide: `docs/FAKE-DEVICE.md`.
+- Tests: the probe polling test uses its own ports (it collided with another test on slow machines and made the GitHub publish fail); the publish workflow retries the tests once.
+
 ## 1.52.5
 Fix: a device whose profile has no Uptime value showed "–" for uptime, and a table metric with a lookup (for example "Temperature Normal (22)") lost its graph.
 - Uptime is always read, whatever the profile.

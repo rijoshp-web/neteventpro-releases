@@ -13,14 +13,14 @@ test('a probe polls a device for the server: test, readings, interfaces, no-answ
   const agent = await startAgent({ mib: MIB });
   const d1 = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-pp-c-')), d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-pp-p-'));
   const spawnSrv = (dir, env) => spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, NETEVENTPRO_DATA: dir, NODE_NO_WARNINGS: '1', ...env }, stdio: 'ignore' });
-  const central = spawnSrv(d1, { NETEVENTPRO_UDP_PORT: '5841', NETEVENTPRO_TCP_PORT: '5841', NETEVENTPRO_WEB_PORT: '8841', NETEVENTPRO_SNMP_PORT: '5842' });
+  const central = spawnSrv(d1, { NETEVENTPRO_UDP_PORT: '5861', NETEVENTPRO_TCP_PORT: '5861', NETEVENTPRO_WEB_PORT: '8861', NETEVENTPRO_SNMP_PORT: '5862' });
   let probe = null;
   t.after(async () => { central.kill(); probe?.kill(); try { agent.close(); } catch { /* closed */ } await sleep(800); for (const d of [d1, d2]) { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }); } catch { /* temp folder: the system cleans it */ } } });
-  const api = async (p, body) => { const r = await fetch('http://127.0.0.1:8841' + p, body === undefined ? { headers: H } : { method: 'POST', headers: H, body: JSON.stringify(body) }); const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch { /* */ } return { status: r.status, json: j, text: txt }; };
+  const api = async (p, body) => { const r = await fetch('http://127.0.0.1:8861' + p, body === undefined ? { headers: H } : { method: 'POST', headers: H, body: JSON.stringify(body) }); const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch { /* */ } return { status: r.status, json: j, text: txt }; };
   for (let i = 0; i < 160; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
   const pr = await api('/api/probes', { name: 'SiteP' }); assert.ok(pr.json?.token, pr.text);
-  fs.writeFileSync(path.join(d2, 'config.json'), JSON.stringify({ mode: 'probe', probe: { server: 'http://127.0.0.1:8841', token: pr.json.token, name: 'SiteP' } }));
-  probe = spawnSrv(d2, { NETEVENTPRO_UDP_PORT: '5843', NETEVENTPRO_TCP_PORT: '5843', NETEVENTPRO_WEB_PORT: '8843', NETEVENTPRO_SNMP_PORT: '5844' });
+  fs.writeFileSync(path.join(d2, 'config.json'), JSON.stringify({ mode: 'probe', probe: { server: 'http://127.0.0.1:8861', token: pr.json.token, name: 'SiteP' } }));
+  probe = spawnSrv(d2, { NETEVENTPRO_UDP_PORT: '5863', NETEVENTPRO_TCP_PORT: '5863', NETEVENTPRO_WEB_PORT: '8863', NETEVENTPRO_SNMP_PORT: '5864' });
 
   await api('/api/poll/settings', { missesBeforeDown: 1 });
   const add = await api('/api/poll/devices', { name: 'Far-Switch', host: '127.0.0.1', port: agent.port, version: 'v2c', community: 'public', intervalSec: 10, timeoutMs: 800, retries: 0, profile: 'auto', ifMode: 'auto', via: pr.json.id });
@@ -46,9 +46,9 @@ test('a probe polls a device for the server: test, readings, interfaces, no-answ
   assert.ok(alarm, 'no-answer alarm raised from the probe result');
 
   // a probe result for a device that is not the probe's is refused
-  const bad = await fetch('http://127.0.0.1:8841/api/probe/pollresults', { method: 'POST', headers: { ...H, authorization: 'Bearer ' + pr.json.token }, body: JSON.stringify({ results: [{ dev: 'nope', res: { ok: true, ts: Date.now(), readings: [] } }] }) });
+  const bad = await fetch('http://127.0.0.1:8861/api/probe/pollresults', { method: 'POST', headers: { ...H, authorization: 'Bearer ' + pr.json.token }, body: JSON.stringify({ results: [{ dev: 'nope', res: { ok: true, ts: Date.now(), readings: [] } }] }) });
   assert.equal((await bad.json()).accepted, 0);
-  assert.equal((await fetch('http://127.0.0.1:8841/api/probe/pollcfg', { method: 'POST', headers: { ...H, authorization: 'Bearer nep_wrong_token_value' }, body: '{}' })).status, 401);
+  assert.equal((await fetch('http://127.0.0.1:8861/api/probe/pollcfg', { method: 'POST', headers: { ...H, authorization: 'Bearer nep_wrong_token_value' }, body: '{}' })).status, 401);
 });
 
 test('probe poller keeps results while the link is down and sends them in order afterwards', async () => {
