@@ -22,7 +22,7 @@ test('probe mode runs the lean program and forwards what it receives', async (t)
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
   t.after(() => { child.kill(); main.close(); });
   const web = (p, o = {}) => fetch('http://127.0.0.1:8831' + p, o);
-  for (let i = 0; i < 40; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }
+  for (let i = 0; i < 160; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }
 
   const page = await web('/'); assert.equal(page.status, 200); assert.match(await page.text(), /Probe/);
   assert.equal((await web('/api/state')).status, 404, 'the full dashboard API is not served by a probe');

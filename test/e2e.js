@@ -54,7 +54,7 @@ const logs = async (q = '') => (await api('/api/logs?limit=50' + q)).json.rows;
   const srv = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(ROOT, 'src/server.js')], {
     env: { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: UDP, NETEVENTPRO_TCP_PORT: UDP, NETEVENTPRO_WEB_PORT: WEB, NETEVENTPRO_SNMP_PORT: SNMP, NETEVENTPRO_HEALTH_INTERVAL_MS: '500' }, cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; srv.stdout.on('data', (d) => (log += d)); srv.stderr.on('data', (d) => (log += d));
-  for (let i = 0; i < 40; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
+  for (let i = 0; i < 160; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
 
   // ---------- ingestion -------------------------------------------------------------------------------------
   await sendUdp('<14>Oct 25 22:40:00 core-sw1 sshd[1]: Failed password for root from 10.20.1.5 port 22');

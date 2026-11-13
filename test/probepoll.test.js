@@ -17,7 +17,7 @@ test('a probe polls a device for the server: test, readings, interfaces, no-answ
   let probe = null;
   t.after(async () => { central.kill(); probe?.kill(); try { agent.close(); } catch { /* closed */ } await sleep(800); for (const d of [d1, d2]) { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }); } catch { /* temp folder: the system cleans it */ } } });
   const api = async (p, body) => { const r = await fetch('http://127.0.0.1:8841' + p, body === undefined ? { headers: H } : { method: 'POST', headers: H, body: JSON.stringify(body) }); const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch { /* */ } return { status: r.status, json: j, text: txt }; };
-  for (let i = 0; i < 40; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
+  for (let i = 0; i < 160; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
   const pr = await api('/api/probes', { name: 'SiteP' }); assert.ok(pr.json?.token, pr.text);
   fs.writeFileSync(path.join(d2, 'config.json'), JSON.stringify({ mode: 'probe', probe: { server: 'http://127.0.0.1:8841', token: pr.json.token, name: 'SiteP' } }));
   probe = spawnSrv(d2, { NETEVENTPRO_UDP_PORT: '5843', NETEVENTPRO_TCP_PORT: '5843', NETEVENTPRO_WEB_PORT: '8843', NETEVENTPRO_SNMP_PORT: '5844' });

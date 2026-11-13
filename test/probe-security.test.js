@@ -49,7 +49,7 @@ test('the probe page: sign-in, lockout of guessing, encrypted queue and token on
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
   t.after(() => { child.kill(); main.close(); });
   const web = (p, o = {}) => fetch('http://127.0.0.1:8841' + p, o);
-  for (let i = 0; i < 40; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }
+  for (let i = 0; i < 160; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }
   const cfgText = () => fs.readFileSync(path.join(dir, 'config.json'), 'utf8');
   assert.ok(!cfgText().includes('nep_plain_token') && /enc1:/.test(cfgText()), 'the token is encrypted in config.json after start');
   let r = await web('/api/probe/view'); let v = await r.json(); assert.equal(v.auth.passwordSet, false); assert.equal(v.security.rateLimit, 0);

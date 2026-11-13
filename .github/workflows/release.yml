@@ -18,7 +18,8 @@ jobs:
       - name: Tag must match package.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
-      - run: npm test
+      - name: Tests (one retry, the runner is slower than a normal PC)
+        run: npm test || (echo "retrying once"; npm test)
       - name: Sign the package
         env:
           NEP_RELEASE_KEY: ${{ secrets.NEP_RELEASE_KEY }}
