@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.54.1
+- **Pick from MIB** in the reading editor now has the full search: a **MIB file** drop-down, a search box (name, module, file name or OID; several words must all match), paging through all results with the total shown, and the syntax column. Before, it listed only the first 40 matches.
+
 ## 1.54.0
 **Value meanings are now rules, so levels work for every reading** (temperature, voltage, battery, humidity, signal, load… from any vendor), not only fixed status codes.
 - A reading's meanings are an ordered list of rules: *equal to*, *below*, *at or below*, *above*, *at or above*, *between*. The first rule that fits wins (move rules with the arrows). Example: at or above 25 = Critical, at or above 22 = Warning, below 22 = Normal.
