@@ -7,6 +7,7 @@ const net = require('node:net');
 const { SnmpClient, SnmpError, toNumber, toText, oidStr } = require('./snmpclient');
 const { Collector, OID, IF, BUILTIN, IF_KEYS, BASE_KEYS, HOSTRE, detectProfile, vendorOf, target } = require('./pollcore');
 const V = require('./snmpv3');
+const { matchItem } = require('./readings');
 
 const id8 = () => crypto.randomBytes(5).toString('hex');
 const lower = (s) => String(s || '').trim().toLowerCase();
@@ -142,7 +143,7 @@ class Polling {
     for (const l of Array.isArray(list) ? list.slice(0, 100) : []) {
       if (l && (l.builtin || l.owner)) continue; const name = String(l.name || '').trim().slice(0, 80); if (!name) continue;
       const id = /^l[a-z0-9]{4,12}$/.test(l.id || '') && !seen.has(l.id) ? l.id : 'l' + id8(); seen.add(id);
-      const items = []; for (const it of (l.items || []).slice(0, 200)) { const v = Number(it.v); if (!Number.isFinite(v) || items.some((x) => x.v === v)) continue; items.push({ v, label: String(it.label || v).slice(0, 60), state: ['ok', 'warn', 'crit', 'unk'].includes(it.state) ? it.state : 'unk' }); }
+      const items = require('./readings').cleanItems(l.items, 200);
       out.push({ id, name, items });
     }
     out.push(...(this.cfg.lookups || []).filter((l) => l.owner));
@@ -157,16 +158,19 @@ class Polling {
   }
   textsOf(rt) { const o = {}; for (const [key, v] of (rt.texts || new Map())) { const i = key.indexOf('|'), k = key.slice(0, i), inst = key.slice(i + 1); (o[k] ||= {})[inst] = { s: v.s, ts: v.ts, since: v.since }; } return o; }
   lookupsUsed() { const o = {}; for (const [k, mi] of this.lookupMetrics()) { const l = this.lookup(mi.lookup); if (l) o[k] = { id: l.id, name: l.name, items: l.items }; } return o; }
-  lookupMetrics() { const out = new Map(); for (const p of this.profiles()) for (const m of p.metrics) if (m.lookup && m.on !== false && !out.has(m.k)) out.set(m.k, { lookup: m.lookup, label: m.label || m.k }); return out; }
+  lookupMetrics() { const out = new Map(); for (const p of this.profiles()) for (const m of p.metrics) if (m.lookup && m.on !== false && !out.has(m.k)) out.set(m.k, { lookup: m.lookup, label: m.label || m.k, unit: m.unit || '' }); return out; }
   /** a value that has a lookup: its state (warn or crit) raises an alarm for that row, and it clears when the state is ok again */
   lookupAlarms(d, rt, ts, readings) {
     const lm = this.lookupMetrics(); if (!lm.size) return;
     for (const r of readings) {
       const mi = lm.get(r.k); if (!mi) continue; const lk = this.lookup(mi.lookup); if (!lk) continue;
-      const it = lk.items.find((x) => x.v === Math.round(r.v)), state = it ? it.state : 'unk', bad = state === 'warn' || state === 'crit';
-      const key = `lk|${d.id}|${r.k}|${r.inst}`, st = this.fire.get(key) || { firing: false }, who = `[${mi.label}${r.inst ? ' ' + r.inst : ''}]`;
-      if (bad && (!st.firing || st.state !== state)) { st.firing = true; st.state = state; this.say(d, state === 'crit' ? 3 : 4, `${who} ${mi.label}${r.inst ? ' ' + r.inst : ''} is ${it ? it.label : r.v} (${state === 'crit' ? 'critical' : 'warning'}, value ${r.v})`, 'lookup'); }
-      else if (!bad && st.firing) { st.firing = false; this.say(d, 6, `${who} CLEARED: ${mi.label}${r.inst ? ' ' + r.inst : ''} is ${it ? it.label : r.v}`, 'lookup'); }
+      const key = `lk|${d.id}|${r.k}|${r.inst}`, st = this.fire.get(key) || { firing: false }, it = matchItem(lk.items, r.v, st.item), state = it ? it.state : 'unk', bad = state === 'warn' || state === 'crit';
+      const nm = `${mi.label}${r.inst ? ' ' + r.inst : ''}`, who = `[${nm}]`, shown = it ? it.label : r.v, val = (Number.isInteger(r.v) ? r.v : Math.round(r.v * 100) / 100) + (mi.unit ? ' ' + mi.unit : ''), tag = (x) => (lk.owner ? `lk-${r.k}-${x}` : 'lookup');
+      if (bad && (!st.firing || st.state !== state)) {
+        if (st.firing && lk.owner) this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state));   /* warning and critical have their own rule (and recipients) */
+        st.firing = true; st.state = state; st.item = it; this.say(d, state === 'crit' ? 3 : 4, `${who} ${nm} is ${shown} (${state === 'crit' ? 'critical' : 'warning'}, value ${val})`, tag(state));
+      } else if (!bad && st.firing) { st.firing = false; this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state)); }
+      else if (bad) st.item = it;
       if (st.firing) this.fire.set(key, st); else this.fire.delete(key);
     }
   }
@@ -193,6 +197,10 @@ class Polling {
     const c = this.cfg, out = [], act = (profiles, extra = {}) => ({ alarm: true, profiles: Array.isArray(profiles) ? profiles : [], ...extra });
     out.push({ id: 'poll-noanswer', name: 'No SNMP answer', enabled: true, source: 'syslog', match: { tag: 'poll-noanswer' }, actions: act(c.noAnswerProfiles, { clearText: ['/^CLEARED:/'] }) });
     out.push({ id: 'poll-lookup', name: 'SNMP value state (lookup)', enabled: true, source: 'syslog', match: { tag: 'poll-lookup' }, actions: act(c.lookupProfiles ?? c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
+    for (const l of c.lookups || []) {   /* a reading with its own value meanings: warning and critical each have their own rule, so each can tell different people */
+      if (!l.owner || !l.rk) continue;
+      for (const [st, nmx, tell] of [['warn', 'warning', l.tellWarn], ['crit', 'critical', l.tellCrit]]) out.push({ id: `poll-lk-${l.rk}-${st}`, name: `${l.name} ${nmx}`.slice(0, 100), enabled: true, source: 'syslog', match: { tag: `poll-lk-${l.rk}-${st}` }, actions: act(tell ?? c.lookupProfiles ?? c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
+    }
     for (const t of c.thresholds || []) {
       if (!t || t.enabled === false || !t.id) continue;
       out.push({ id: 'poll-' + t.id, name: String(t.name || 'SNMP threshold').slice(0, 100), enabled: true, source: 'syslog', match: { tag: 'poll-' + t.id },

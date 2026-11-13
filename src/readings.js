@@ -11,6 +11,26 @@ const num = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ?
 const OIDRE = /^\d+(\.\d+)+$/;
 const OPS = ['>', '<', '>=', '<=', '=', '!='];
 const own = (id) => 'dev-' + id;
+const IOPS = ['=', '<', '<=', '>', '>=', 'between'];
+/** value meanings are rules, the first one that fits wins: equals (status codes), below, above, between. `clear` (optional) keeps a state until the value is back past it. */
+function cleanItems(list, max = 60) {
+  const out = [];
+  for (const it of Array.isArray(list) ? list.slice(0, max) : []) {
+    const op = IOPS.includes(it.op) ? it.op : '=', v = Number(it.v); if (!Number.isFinite(v)) continue; const v2 = Number(it.v2);
+    if (op === 'between' && !Number.isFinite(v2)) continue; if (op === '=' && out.some((x) => x.op === '=' && x.v === v)) continue;
+    const cl = it.clear === '' || it.clear === null || it.clear === undefined ? null : Number(it.clear);
+    out.push({ op, v, ...(op === 'between' ? { v2 } : {}), label: String(it.label || v).slice(0, 60), state: ['ok', 'warn', 'crit', 'unk'].includes(it.state) ? it.state : 'unk', ...(Number.isFinite(cl) && op !== '=' && op !== 'between' ? { clear: cl } : {}) });
+  }
+  return out;
+}
+/** the rule that fits a value; `prev` (the rule that applied at the last poll) is held while the value has not passed its `clear` value */
+function matchItem(items, val, prev) {
+  if (!Array.isArray(items) || !Number.isFinite(val)) return null;
+  const hit = (x) => { const op = x.op || '=', v = +x.v; return op === '=' ? Math.round(val) === v : op === '<' ? val < v : op === '<=' ? val <= v : op === '>' ? val > v : op === '>=' ? val >= v : op === 'between' ? val >= v && val <= +x.v2 : false; };
+  const i = items.findIndex(hit);
+  if (prev) { const pi = items.findIndex((x) => x.op === prev.op && x.v === prev.v && x.label === prev.label); if (pi >= 0 && (i < 0 || i > pi) && items[pi].clear !== undefined) { const c = items[pi].clear, o = items[pi].op; if ((o === '>' || o === '>=') ? val >= c : val <= c) return items[pi]; } }
+  return i >= 0 ? items[i] : null;
+}
 
 /** one reading as the poller wants it (the same shape a custom profile metric has, plus offset and display) */
 function metricOf(r) {
@@ -28,7 +48,7 @@ module.exports = (Polling) => {
     let k = /^r[a-z0-9]{5,12}$/.test(r.k || '') && !used.has(r.k) ? r.k : 'r' + rid(); used.add(k);
     const t = r.t === 'walk' ? 'walk' : 'oid', dtype = ['number', 'counter', 'ticks', 'text'].includes(r.dtype) ? r.dtype : 'number';
     const agg = ['avg', 'max', 'min', 'sum', 'each'].includes(r.agg) ? r.agg : t === 'walk' ? 'each' : 'avg', d = r.disp || {};
-    const items = []; for (const it of Array.isArray(r.items) ? r.items.slice(0, 60) : []) { const v = Number(it.v); if (!Number.isFinite(v) || items.some((x) => x.v === v)) continue; items.push({ v, label: String(it.label || v).slice(0, 60), state: ['ok', 'warn', 'crit', 'unk'].includes(it.state) ? it.state : 'unk' }); }
+    const items = cleanItems(r.items), tl = (x) => (Array.isArray(x) ? x.map(String).slice(0, 20) : undefined);
     const ids = new Set(), alarms = [];
     for (const a of Array.isArray(r.alarms) ? r.alarms.slice(0, 12) : []) {
       const textOp = ['changed', 'equals', 'notequals', 'contains', 'notcontains'].includes(a.textOp) ? a.textOp : ''; if (dtype === 'text' && !textOp) continue;
@@ -39,7 +59,7 @@ module.exports = (Polling) => {
     }
     const fin = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(+x) ? null : +x);
     return { k, label: String(r.label || 'Reading').trim().slice(0, 60) || 'Reading', unit: String(r.unit || '').slice(0, 10), t, oid, agg, nameOid: t === 'walk' && agg === 'each' && OIDRE.test(String(r.nameOid || '').trim()) ? String(r.nameOid).trim() : '',
-      scale: Number.isFinite(+r.scale) && +r.scale !== 0 ? +r.scale : 1, offset: Number.isFinite(+r.offset) ? +r.offset : 0, dtype, items, lookup: !items.length && /^l[a-z0-9]{4,12}$|^b-[a-z0-9]+$/.test(r.lookup || '') ? r.lookup : '', on: r.on !== false,
+      scale: Number.isFinite(+r.scale) && +r.scale !== 0 ? +r.scale : 1, offset: Number.isFinite(+r.offset) ? +r.offset : 0, dtype, items, ...(items.length && tl(r.tellWarn) ? { tellWarn: tl(r.tellWarn) } : {}), ...(items.length && tl(r.tellCrit) ? { tellCrit: tl(r.tellCrit) } : {}), lookup: !items.length && /^l[a-z0-9]{4,12}$|^b-[a-z0-9]+$/.test(r.lookup || '') ? r.lookup : '', on: r.on !== false,
       disp: { graph: d.graph !== false && dtype !== 'text', style: d.style === 'area' ? 'area' : 'line', card: !!d.card, bar: !!d.bar, min: fin(d.min), max: fin(d.max), dec: fin(d.dec) === null ? null : Math.round(num(d.dec, 1, 0, 4)) }, alarms };
   };
 
@@ -59,9 +79,10 @@ module.exports = (Polling) => {
     const used = new Set(), clean = list.map((r) => this.cleanReading(r, used)), c = this.cfg;
     const oldT = (c.thresholds || []).filter((t) => t.owner === id), thresholds = (c.thresholds || []).filter((t) => t.owner !== id), lookups = (c.lookups || []).filter((l) => l.owner !== id);
     for (const r of clean) {
-      if (r.items.length) lookups.push({ id: 'l' + r.k.slice(1), name: `${r.label} (${d.name})`.slice(0, 80), items: r.items, owner: id });
+      if (r.items.length) lookups.push({ id: 'l' + r.k.slice(1), name: `${r.label} (${d.name})`.slice(0, 80), items: r.items, owner: id, rk: r.k, ...(r.tellWarn ? { tellWarn: r.tellWarn } : {}), ...(r.tellCrit ? { tellCrit: r.tellCrit } : {}) });
       for (const a of r.alarms) thresholds.push({ id: 't' + a.id, name: r.label, enabled: a.enabled, k: r.k, op: a.op, textOp: a.textOp, text: a.text, value: a.value, clearValue: a.clearValue, forSec: a.forSec, severity: a.severity, perInstance: r.t === 'walk' && r.agg === 'each', scope: 'devices', devices: [id], profiles: a.tell, owner: id });
     }
+    for (const l of (c.lookups || []).filter((x) => x.owner === id)) if (!lookups.some((x) => x.id === l.id)) { for (const st of ['warn', 'crit']) this.clearAlarms(`poll-lk-${l.rk}-${st}`); for (const fk of [...this.fire.keys()]) if (fk.startsWith('lk|' + id + '|' + l.rk + '|')) this.fire.delete(fk); }
     for (const t of oldT) { const now = thresholds.find((x) => x.id === t.id); if (!now || now.enabled === false || now.k !== t.k) { this.clearAlarms('poll-' + t.id); for (const fk of [...this.fire.keys()]) if (fk.startsWith(t.id + '|')) this.fire.delete(fk); } }
     const readings = { ...(c.readings || {}) }; if (clean.length) readings[id] = clean; else delete readings[id];
     const devices = this.devices().map((x) => (x.id === id ? { ...x, profile: clean.length ? own(id) : x.profile === own(id) ? 'basic' : x.profile } : x));
@@ -113,7 +134,7 @@ module.exports = (Polling) => {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; const rt = this.state(d), mine = this.readingsOf(id);
     const bid = d.profile && d.profile !== 'auto' && !String(d.profile).startsWith('dev-') ? d.profile : rt.detected || 'generic', bp = this.profiles().find((x) => x.id === bid && !x.own);
     return { readings: mine, own: mine.length > 0, builtin: bp ? { id: bp.id, name: bp.name } : null, builtinSets: this.profiles().filter((x) => x.builtin && x.id !== 'basic').map((x) => ({ id: x.id, name: x.name })),
-      devices: this.devices().filter((x) => x.id !== id).map((x) => ({ id: x.id, name: x.name, count: this.readingsOf(x.id).length })), templates: this.templates() };
+      lookupTell: this.lookupTell(), devices: this.devices().filter((x) => x.id !== id).map((x) => ({ id: x.id, name: x.name, count: this.readingsOf(x.id).length })), templates: this.templates() };
   };
 
   /** read one OID of a stored device now and show the raw value and the calculated one (nothing is saved) */
@@ -135,8 +156,9 @@ module.exports = (Polling) => {
   P.dropReadings = function (id) {
     const c = this.cfg; if (!(c.readings || {})[id] && !(c.thresholds || []).some((t) => t.owner === id) && !(c.lookups || []).some((l) => l.owner === id)) return;
     for (const t of (c.thresholds || []).filter((x) => x.owner === id)) this.clearAlarms('poll-' + t.id);
+    for (const l of (c.lookups || []).filter((x) => x.owner === id)) for (const st of ['warn', 'crit']) this.clearAlarms(`poll-lk-${l.rk}-${st}`);
     const readings = { ...(c.readings || {}) }; delete readings[id];
     this.config.update({ polling: { ...c, readings, thresholds: (c.thresholds || []).filter((t) => t.owner !== id), lookups: (c.lookups || []).filter((l) => l.owner !== id) } });
   };
 };
-module.exports.OIDRE = OIDRE;
+module.exports.OIDRE = OIDRE; module.exports.cleanItems = cleanItems; module.exports.matchItem = matchItem;

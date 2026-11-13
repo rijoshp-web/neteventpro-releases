@@ -59,3 +59,24 @@ test('readings: copy from a device, templates, built-in sets, removing a device'
     assert.ok(pl.deleteTemplate(tid)); assert.equal(pl.templates().length, 0);
   } finally { await a.close(); }
 });
+
+test('value meanings as rules: below / above / between, hold until the clear value, own recipients for warning and critical', async () => {
+  const a = await startAgent({ mib: MIB }), { pl, msgs, cfg } = setup(), OID = '1.3.6.1.4.1.99999.1.2.0';
+  try {
+    const d = dev(pl, a.port, 'Rules');
+    const [r] = pl.saveReadings(d.id, [{ label: 'Room temp', unit: '°C', t: 'oid', oid: OID, tellWarn: ['p-log'], tellCrit: ['p-mail'], items: [
+      { op: '>=', v: 25, label: 'Critical', state: 'crit' }, { op: '>=', v: 22, label: 'Warning', state: 'warn', clear: 20 }, { op: 'between', v: 5, v2: 21.9, label: 'Normal', state: 'ok' }, { op: '<', v: 5, label: 'Too cold', state: 'warn' }] }]);
+    assert.equal(r.items.length, 4); assert.equal(r.items[1].clear, 20);
+    const rules = pl.rules().filter((x) => x.id.startsWith('poll-lk-' + r.k)); assert.equal(rules.length, 2);
+    assert.deepEqual(rules.find((x) => x.id.endsWith('-warn')).actions.profiles, ['p-log']); assert.deepEqual(rules.find((x) => x.id.endsWith('-crit')).actions.profiles, ['p-mail']);
+    const poll = async (v) => { a.set(OID, v); msgs.length = 0; await pl.pollDevice(pl.devices()[0]); return msgs.map((m) => m.message + ' #' + m.tags[1]); };
+    let m = await poll(20); assert.equal(m.length, 0, 'normal: nothing');
+    m = await poll(23); assert.equal(m.length, 1); assert.match(m[0], /Warning \(warning, value 23 °C\) #poll-lk-.*-warn/);
+    m = await poll(21); assert.equal(m.length, 0, 'held at warning until it is back below 20');
+    m = await poll(26); assert.equal(m.length, 2); assert.match(m[0], /CLEARED.*-warn/); assert.match(m[1], /critical.*-crit/);
+    m = await poll(19); assert.equal(m.length, 1); assert.match(m[0], /CLEARED.*-crit/);
+    m = await poll(3); assert.equal(m.length, 1); assert.match(m[0], /Too cold/);
+    const { matchItem } = require('../src/readings'); assert.equal(matchItem([{ v: 1, label: 'up', state: 'ok' }], 1).label, 'up', 'old fixed meanings still work');
+    pl.deleteDevice(d.id); assert.equal(pl.rules().filter((x) => x.id.startsWith('poll-lk-')).length, 0); void cfg;
+  } finally { await a.close(); }
+});

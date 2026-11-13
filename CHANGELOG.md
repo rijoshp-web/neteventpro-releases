@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.54.0
+**Value meanings are now rules, so levels work for every reading** (temperature, voltage, battery, humidity, signal, load… from any vendor), not only fixed status codes.
+- A reading's meanings are an ordered list of rules: *equal to*, *below*, *at or below*, *above*, *at or above*, *between*. The first rule that fits wins (move rules with the arrows). Example: at or above 25 = Critical, at or above 22 = Warning, below 22 = Normal.
+- **Keep until:** a rule can hold its state until the value is back past a second value (Warning from 22, kept until below 20), so alarms do not flap around the limit.
+- The word and colour show on the device page (cards, readings table, row tables); Warning and Critical raise an alarm by themselves and clear when the value is OK. Going from Warning to Critical clears the warning and raises the critical.
+- **Who is told, per state:** Warning and Critical each have their own notification boxes per reading (for example Critical e-mails, Warning only logs). Alarm rules are named after the reading ("Room A temperature (Fake-1) warning").
+- Table readings apply the rules to each row. Existing fixed meanings (1 = up, 2 = down) and the ready-made sets work as before. Rules are copied with the reading to other devices and templates.
+- Tests: new unit test (limits, between, hold, state change, recipients) and one e2e check.
+
 ## 1.53.0
 SNMP polling redesigned around the device: **Step 1** add the device with its SNMP settings, **Step 2** add its readings, each with everything that belongs to it.
 - **Readings on the device page.** Every reading has its own name, unit, OID (with a MIB picker and a **Test read** button that shows the raw and the calculated value), type (number, counter rate, uptime ticks, text), calculation (**raw × scale + offset**, new), value meanings (words and states for status numbers), any number of alarms (limit, clear value, duration, severity, who is told) and display options (graph on/off, line or filled area, card at the top, bar, top of the axis, decimals). Nothing is shared between readings, so changing one cannot affect another.
