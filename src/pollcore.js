@@ -17,6 +17,7 @@ const HR_STORAGE = { type: '1.3.6.1.2.1.25.2.3.1.2', units: '1.3.6.1.2.1.25.2.3.
 const w = (oid, o = {}) => ({ t: 'oid', oid, ...o });
 /** built-in profiles. metric = { k, label, unit, srcs: [source, ...] }: the first source that gives a number wins */
 const BUILTIN = [
+  { id: 'basic', name: 'Uptime only (add your own values)', builtin: true, metrics: [{ k: 'uptime', label: 'Uptime', unit: 's', srcs: [w(OID.sysUpTime, { scale: 0.01 })] }] },
   { id: 'generic', name: 'Generic (standard MIB-II / HOST-RESOURCES)', builtin: true, metrics: [
     { k: 'uptime', label: 'Uptime', unit: 's', srcs: [w(OID.sysUpTime, { scale: 0.01 })] },
     { k: 'cpu', label: 'CPU load', unit: '%', srcs: [{ t: 'walk', oid: '1.3.6.1.2.1.25.3.3.1.2', agg: 'avg' }] },
@@ -119,7 +120,7 @@ class Collector {
     return d / ((ts - p.ts) / 1000);
   }
   async interfaces(t, dev, ts, n, res, out) {
-    const mode = dev.ifMode || 'auto'; if (mode === 'none') return;
+    const mode = dev.ifMode || 'none'; if (mode === 'none') return;   /* nothing is polled unless it was chosen */
     const col = async (oid) => { const m = new Map(); try { const r = await this.client.walk(t, oid, { maxRows: 2000 }); for (const vb of r.vbs) m.set(vb.oid[vb.oid.length - 1], vb); } catch (e) { if (e.code === 'timeout') throw e; } return m; };
     let names = this.names.get(dev.id);
     if (!names || !names.size || n % 30 === 0) {

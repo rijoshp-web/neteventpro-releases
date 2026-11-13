@@ -23,7 +23,7 @@ test('a probe polls a device for the server: test, readings, interfaces, no-answ
   probe = spawnSrv(d2, { NETEVENTPRO_UDP_PORT: '5843', NETEVENTPRO_TCP_PORT: '5843', NETEVENTPRO_WEB_PORT: '8843', NETEVENTPRO_SNMP_PORT: '5844' });
 
   await api('/api/poll/settings', { missesBeforeDown: 1 });
-  const add = await api('/api/poll/devices', { name: 'Far-Switch', host: '127.0.0.1', port: agent.port, version: 'v2c', community: 'public', intervalSec: 10, timeoutMs: 800, retries: 0, via: pr.json.id });
+  const add = await api('/api/poll/devices', { name: 'Far-Switch', host: '127.0.0.1', port: agent.port, version: 'v2c', community: 'public', intervalSec: 10, timeoutMs: 800, retries: 0, profile: 'auto', ifMode: 'auto', via: pr.json.id });
   assert.ok(add.json?.id, add.text);
   const list = await api('/api/poll/devices'); assert.equal(list.json.devices[0].via, pr.json.id); assert.equal(list.json.probes[0].name, 'SiteP');
 

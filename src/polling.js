@@ -77,7 +77,7 @@ class Polling {
     if (res.ok) {
       rt.rtt = res.rtt; rt.sysName = res.sysName; rt.sysDescr = res.sysDescr; rt.objectId = res.objectId; rt.detected = res.detected; rt.profile = res.profile; rt.ifaces = res.ifaces || [];
       rt.error = ''; rt.lastOk = ts; rt.misses = 0; rt.pingOk = null;
-      if (res.autoSelect && !(d.ifSelected || []).length && (d.ifMode || 'auto') === 'auto') this.patchDevice(d.id, { ifMode: 'selected', ifSelected: res.autoSelect });
+      if (res.autoSelect && !(d.ifSelected || []).length && d.ifMode === 'auto') this.patchDevice(d.id, { ifMode: 'selected', ifSelected: res.autoSelect });
       const wasDown = rt.state === 'down' || rt.alarmDown; rt.state = 'up';
       if (wasDown) { rt.alarmDown = false; this.noAnswer(d, rt, false); }
       const nums = res.readings.filter((r) => r.s === undefined), txt = res.readings.filter((r) => r.s !== undefined);
@@ -258,8 +258,8 @@ class Polling {
     const version = ['v1', 'v2c', 'v3'].includes(b.version) ? b.version : 'v2c';
     const keep = (k) => (b[k] === MASK ? old?.[k] || '' : String(b[k] || '').slice(0, 200));
     const d = { id: old?.id || 'd' + id8(), name, host, port: num(b.port, 161, 1, 65535), version, community: '', user: '', level: 'authPriv', authProto: 'SHA', authPass: '', privProto: 'AES128', privPass: '',
-      profile: b.profile === undefined || b.profile === '' ? 'auto' : String(b.profile).slice(0, 40), intervalSec: num(b.intervalSec, this.cfg.defaultIntervalSec || 60, 10, 3600), timeoutMs: num(b.timeoutMs, 3000, 500, 30000), retries: Math.round(num(b.retries, 1, 0, 5)),
-      via: this.probeOk(b.via) ? String(b.via) : '', ping: !!b.ping, enabled: b.enabled !== false, site: String(b.site || '').slice(0, 60), ifMode: ['auto', 'all', 'selected', 'none'].includes(b.ifMode) ? b.ifMode : (old?.ifMode || 'auto'), ifSelected: Array.isArray(b.ifSelected) ? b.ifSelected.map(String).slice(0, 500) : (old?.ifSelected || []) };
+      profile: b.profile === undefined || b.profile === '' ? 'basic' : String(b.profile).slice(0, 40), intervalSec: num(b.intervalSec, this.cfg.defaultIntervalSec || 60, 10, 3600), timeoutMs: num(b.timeoutMs, 3000, 500, 30000), retries: Math.round(num(b.retries, 1, 0, 5)),
+      via: this.probeOk(b.via) ? String(b.via) : '', ping: !!b.ping, enabled: b.enabled !== false, site: String(b.site || '').slice(0, 60), ifMode: ['auto', 'all', 'selected', 'none'].includes(b.ifMode) ? b.ifMode : (old?.ifMode || 'none'), ifSelected: Array.isArray(b.ifSelected) ? b.ifSelected.map(String).slice(0, 500) : (old?.ifSelected || []) };
     if (version === 'v3') {
       d.user = String(b.user || '').trim().slice(0, 100); if (!d.user) bad('SNMPv3 needs a user name.');
       d.level = ['noAuthNoPriv', 'authNoPriv', 'authPriv'].includes(b.level) ? b.level : 'authPriv';
@@ -338,7 +338,7 @@ class Polling {
     for (const h of hosts) {
       const f = j.found.find((x) => x.host === h); if (!f || this.devices().some((d) => d.host === h)) continue;
       let name = String(f.name || h).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60) || h, k = name, i = 2; while (used.has(lower(k))) k = `${name.slice(0, 54)} (${i++})`; name = k; used.add(lower(name));
-      this.saveDevice({ name, host: h, port: j.port, version: j.version, via: j.via || '', ...f.cred, profile: 'auto', intervalSec: opts.intervalSec || this.cfg.defaultIntervalSec || 60, site: opts.site || '', timeoutMs: 3000, retries: 1, ifMode: 'auto', enabled: true }); n++;
+      this.saveDevice({ name, host: h, port: j.port, version: j.version, via: j.via || '', ...f.cred, profile: 'basic', ifMode: 'none', intervalSec: opts.intervalSec || this.cfg.defaultIntervalSec || 60, site: opts.site || '', timeoutMs: 3000, retries: 1, ifMode: 'auto', enabled: true }); n++;
     }
     return n;
   }

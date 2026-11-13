@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.52.4
+Fix: the device graph for a table metric (one reading per row, e.g. alarm voltages/temperatures) stayed on "Collecting data…" although the row values were shown. The graph now draws one line per row (up to 8; the Graph button on a row still shows a single row).
+- Lookup (status) metrics no longer get an empty numeric graph.
+- **Nothing is polled unless you choose it.** New devices use the new profile **Uptime only (add your own values)** and have interface polling **off**; no interface status, traffic, CPU or memory is added by itself. The device dialog has a new **Interfaces** option (Do not poll / Poll the ones that are up / Poll all) and the device page hides the Interfaces panel when it is off. Existing devices keep what they had; set **Interfaces: Do not poll** and pick a custom profile to get rid of the automatic values. ("Detect from the device" and the built-in profiles are still available if you want them.)
+
 ## 1.52.3
 Final test release of the one-click update path (no program changes).
 - GitHub workflows use Node 24 based actions (no deprecation notice).

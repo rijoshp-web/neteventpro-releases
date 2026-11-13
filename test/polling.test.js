@@ -30,7 +30,7 @@ test('poll a Cisco-like device: profile detection, readings, auto interfaces, ra
     assert.equal(t.ok, true); assert.equal(t.profile, 'cisco'); assert.equal(t.interfaces, 3); assert.equal(t.uptimeSec, 3600);
     const bad = await pl.testDevice({ name: 'x', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'wrong', timeoutMs: 300, retries: 0 }); assert.equal(bad.ok, false); assert.equal(bad.code, 'timeout');
 
-    const d = pl.saveDevice({ name: 'SW-Test', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0 });
+    const d = pl.saveDevice({ name: 'SW-Test', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0, profile: 'auto', ifMode: 'auto' });
     pl.saveThresholds([{ name: 'CPU high', k: 'cpu', op: '>', value: 50, clearValue: 40, forSec: 0, severity: 3 }, { name: 'Port down', k: 'if.status', op: '<', value: 0.5, severity: 4 }]);
     const r1 = await pl.pollDevice(pl.devices()[0]); assert.equal(r1.ok, true);
     const dd = pl.devices()[0]; assert.equal(dd.ifMode, 'selected'); assert.deepEqual(dd.ifSelected, ['Gi1/0/1', 'Gi1/0/2'].slice(0, 1));   // only the interface that is up, not the VLAN
@@ -96,7 +96,7 @@ test('discovery: ranges, finding a device, adding it with the credentials that w
 test('report summary and CSV (1.47)', async () => {
   const a = await startAgent({ mib: MIB }), { pl } = setup();
   try {
-    pl.saveDevice({ name: '=SW', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0 });
+    pl.saveDevice({ name: '=SW', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0, profile: 'auto', ifMode: 'auto' });
     const d = pl.devices()[0]; await pl.pollDevice(d); await pl.pollDevice(d);
     const sm = pl.summary(24); assert.equal(sm.rows.length, 1); assert.equal(sm.rows[0].polls, 2); assert.equal(sm.rows[0].availability, 100); assert.equal(sm.rows[0].cpuMax, 65);
     const csv = pl.csv(24); assert.match(csv, /"'=SW"/); assert.match(csv, /Availability %/);
@@ -158,4 +158,14 @@ test('1.51: lookups raise and clear alarms per row, text values, the new operato
     assert.ok(msgs.some((m) => /Firmware changed/.test(m.message) && /was "FW 1.0"/.test(m.message)), 'a changed text value raises the text threshold');
     assert.ok(msgs.some((m) => /CLEARED: Level is 7/.test(m.message)), 'the = threshold clears');
   } finally { try { a.close(); } catch { /* closed */ } }
+});
+
+test('1.52.4: a new device polls only uptime: no interfaces, CPU or memory unless chosen', async () => {
+  const a = await startAgent(MIB); const { pl } = setup();
+  try {
+    const d = pl.saveDevice({ name: 'Bare', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0 });
+    assert.strictEqual(d.profile, 'basic'); assert.strictEqual(d.ifMode, 'none');
+    await pl.pollDevice(pl.devices().find((x) => x.id === d.id));
+    const v = pl.detail(d.id); assert.deepStrictEqual(v.ifaces, []); assert.ok(!('cpu' in v.values) && !('memory' in v.values) && !v.insts['if.status']);
+  } finally { a.close(); }
 });
