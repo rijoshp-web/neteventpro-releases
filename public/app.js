@@ -78,6 +78,31 @@ function reconnectStream(why) {
 setInterval(() => { if (es && S.info && Date.now() - lastBeat > 30000) { lastBeat = Date.now(); reconnectStream('silent'); } }, 5000);
 for (const ev of ['online', 'focus', 'pageshow']) window.addEventListener(ev, () => { if (es && (!S.streamOk || es.readyState !== 1)) { retryMs = 1000; reconnectStream(ev); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && (!S.streamOk || Date.now() - lastBeat > 30000)) { retryMs = 1000; reconnectStream('visible'); } });
+/* 1.61 flood protection for the screen: the service receives, stores and alarms on every message whatever the rate; only the DRAWING is thinned.
+   Up to FLOOD_RATE messages per second (the normal case) each batch is shown at once, with no delay. Above that the page collects messages and draws the newest ones about twice a second,
+   so the browser is never buried; a note says how many were not drawn. It switches itself off as soon as the rate is back below the limit. */
+const FLOOD_RATE = 60, FLOOD_DRAW = 100, FLOOD_EVERY = 500;
+const flood = { win: 0, count: 0, rate: 0, pend: [], skipped: 0, timer: 0, last: 0, active: false };
+function floodNote(n) {
+  const now = Date.now(); if (!flood.win) flood.win = now; flood.count += n;
+  if (now - flood.win >= 1000) { flood.rate = flood.count / ((now - flood.win) / 1000); flood.win = now; flood.count = 0; }
+  else if (flood.count > FLOOD_RATE * 2) flood.rate = Math.max(flood.rate, flood.count / Math.max(0.5, (now - flood.win) / 1000));   // react inside the first second of a flood
+  return flood.rate > FLOOD_RATE;
+}
+function deliver(msgs, skipped, busy) {
+  if (!busy && !flood.timer && !flood.pend.length) { flood.active = false; listeners.forEach((fn) => fn(msgs, skipped)); return; }
+  flood.active = true; flood.pend.push(...msgs); flood.skipped += skipped;
+  if (flood.pend.length > 5000) { flood.skipped += flood.pend.length - FLOOD_DRAW; flood.pend.splice(0, flood.pend.length - FLOOD_DRAW); }
+  if (flood.timer) return;
+  const wait = Math.max(0, FLOOD_EVERY - (Date.now() - flood.last));
+  flood.timer = setTimeout(() => {
+    flood.timer = 0; flood.last = Date.now();
+    let list = flood.pend, sk = flood.skipped; flood.pend = []; flood.skipped = 0;
+    if (list.length > FLOOD_DRAW) { sk += list.length - FLOOD_DRAW; list = list.slice(-FLOOD_DRAW); }
+    S.floodNote = { at: Date.now(), skipped: sk, shown: list.length, rate: Math.round(flood.rate) };
+    listeners.forEach((fn) => fn(list, sk));
+  }, wait);
+}
 function connectStream() {
   clearTimeout(retryTimer); lastBeat = Date.now();
   if (es) { es.onerror = es.onopen = null; try { es.close(); } catch { /* already closed */ } }   // never keep two connections: every message would be counted twice
@@ -89,11 +114,12 @@ function connectStream() {
   es.addEventListener('batch', (e) => {
     if (src !== es) return; lastBeat = Date.now(); const d = JSON.parse(e.data);
     S.live.push(...d.messages); if (S.live.length > 5000) S.live.splice(0, S.live.length - 5000);
-    for (const m of d.messages) { if (m.sound) beep(m.severity); if (m.notify) desktopNotify(m); }
+    const busy = floodNote(d.messages.length + (d.skipped || 0));
+    let ns = 0; for (const m of d.messages) { if (m.sound) beep(m.severity); if (m.notify && (!busy || ns++ < 2)) desktopNotify(m); }   // in a flood: at most two desktop notifications per batch
     const nTrap = d.messages.filter((m) => m.source === 'snmp').length, nLog = d.messages.length - nTrap;
     if (S.view !== 'logs' && nLog) { S.newCount += nLog; $('#navLiveCount').textContent = S.newCount > 999 ? '999+' : S.newCount; }
     if (S.view !== 'traps' && nTrap) { S.newTraps = (S.newTraps || 0) + nTrap; $('#navTrapCount').textContent = S.newTraps > 999 ? '999+' : S.newTraps; }
-    listeners.forEach((fn) => fn(d.messages, d.skipped));
+    deliver(d.messages, d.skipped || 0, busy);
   });
   es.onerror = () => { S.streamOk = false; renderStatus(); if (es.readyState === 2) reconnectStream('closed'); }; // while the browser is still retrying it reports readyState 0; after it gives up we start over
   es.onopen = () => { S.streamOk = true; retryMs = 1000; lastBeat = Date.now(); renderStatus(); };
@@ -801,20 +827,29 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
       render(); setMode();
     } catch (e) { toast(e.message, true); } finally { if (my === runId) $('#qGo').disabled = false; }
   };
-  const add = (msgs) => {                // new messages stream into the window that is on screen
+  const add = (msgs, skippedN) => {                // new messages stream into the window that is on screen
     if (!msgs) { clearTimeout(sortTimer); sortTimer = setTimeout(() => run(false), 300); return; }   // the live feed reconnected: reload so nothing is missed
     if (!loaded || fixedEnd()) return;
-    if (S.paused) { S.pauseBuf.push(...msgs); return info(); }
+    if (S.paused) { S.pauseBuf.push(...msgs); if (S.pauseBuf.length > 20000) S.pauseBuf.splice(0, S.pauseBuf.length - 20000); return info(); }
     const tv0 = tView(); const ok = msgs.filter((m) => !seen.has(m.id) && (m.source || 'syslog') === SRC && flt(m) && (!tv0 || !tv0.match || trapMatches(m, tv0.match))); if (!ok.length) return;
     for (const m of ok) seen.add(m.id);
     rows = ok.slice().reverse().concat(rows); if (rows.length > MAXROWS) rows.length = MAXROWS;
-    if (lastQ.total !== undefined) lastQ.total += ok.length;
+    if (lastQ.total !== undefined) lastQ.total += ok.length + (skippedN || 0);
+    floodBar(skippedN);
     if (groupMode() !== 'off' || (S.prefs.sort && cols.includes(S.prefs.sort.col))) { clearTimeout(sortTimer); sortTimer = setTimeout(() => { render(); setMode(); }, 150); return; }   // sorted view: re-sort in one go, not per message
-    const wrap = $('#logwrap'); const atTop = wrap.scrollTop < 40; const html = ok.slice(-500).reverse().map((m) => rowHtml(m, terms, cols, 'new', selOn ? sel : null)).join('');
+    const wrap = $('#logwrap'); const atTop = wrap.scrollTop < 40; const html = ok.slice(-500).reverse().map((m) => rowHtml(m, terms, cols, skippedN || flood.active ? '' : 'new', selOn ? sel : null)).join('');   // no flash animation in a flood: hundreds of animated cells make the page crawl
     const h0 = wrap.scrollHeight; tb.insertAdjacentHTML('afterbegin', html); shown += ok.length;
-    while (tb.rows.length > MAXDOM) tb.deleteRow(-1);
+    const cap = S.floodNote && Date.now() - S.floodNote.at < 4000 ? 600 : MAXDOM;   // in a flood keep the table small: a big table makes every redraw slow
+    for (let ex = tb.rows.length - cap; ex > 0; ex--) tb.lastElementChild.remove();
     if (!atTop) wrap.scrollTop += wrap.scrollHeight - h0; // keep reading position stable
     info(); setMode();
+  };
+  const floodBar = (sk) => {       // 1.61: shown only while the page is thinning the live feed
+    let bar = $('#floodBar'); const fn = S.floodNote;
+    if (!sk || !fn) { if (bar && Date.now() - (bar.dataset.at || 0) > 4000) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'floodBar'; bar.className = 'banner'; bar.style.cssText = 'position:static;margin:4px 0;font-size:12.5px'; $('#logwrap').parentElement.insertBefore(bar, $('#logwrap')); }
+    clearTimeout(bar._t); bar._t = setTimeout(() => bar.remove(), 5000); bar.dataset.at = Date.now(); bar.innerHTML = `<b>Very busy:</b> about ${fmtN(fn.rate)} messages per second are arriving, so the page shows only the newest ones (${fmtN(fn.shown)} of ${fmtN(fn.shown + sk)} in the last moment). Every message is still received, stored and checked by the rules. <button type="button" id="floodPause" class="linkish">Pause the feed</button> to read.`;
+    $('#floodPause')?.addEventListener('click', () => { if (!S.paused) setPause(true); bar.remove(); });
   };
   let tmr; const deb = () => { clearTimeout(tmr); tmr = setTimeout(() => run(false), 350); };
   $('#qRange').onchange = () => { S.range = $('#qRange').value; if (S.range === 'day') day = dayKey(); setMode(); if (S.range !== 'custom') run(false); };

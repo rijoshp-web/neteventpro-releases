@@ -920,3 +920,5 @@ tr.grow td { background: var(--bg2, rgba(128,128,128,.10)); padding: 6px 12px; }
 .heat.honey .hm-row > i.hmc.shp-hexo::after { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); inset: 2px; }
 .heat.honey .hm-row.odd > i.hmc { transform: translateX(50%); }
 .heat.honey .hm-row > span { align-self: center; z-index: 1; }
+
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }

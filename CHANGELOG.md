@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.61.0
+- **A flood no longer freezes the browser:** when more than about 60 messages per second arrive, the Logs page and the dashboard redraw at most twice a second and show the newest ones. A "Very busy" note shows the rate and how many were not drawn, with a **Pause the feed** link. Nothing is lost: every message is still stored, searchable and processed by the rules. At normal rates there is no throttling and no delay.
+- In a flood the new-row flash is switched off, the page keeps at most 600 rows, and only 2 desktop notifications per batch are raised.
+- Load test tool: `--severity 0-7` to choose the severity of the test messages.
+- Tested in headless Chromium: 500/s and 3,000/s floods, longest page stall 70 to 260 ms; the live feed is immediate again right after a flood.
+
 ## 1.60.0
 - **Polling keeps up (new System health check):** devices that are behind their schedule are counted; the check warns, and turns to Problem (with the usual health alert) when more than 20% are behind, and says what to do.
 - **Polls are no longer limited to "workers per second" and no device is starved:** the scheduler runs four times a second and always starts the device that has waited longest first. Before, a long list at a low "At the same time" setting left the devices at the end of the list unpolled (seen in a test: 121 of 200 devices answered, the rest never).
