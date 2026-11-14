@@ -910,3 +910,13 @@ tr.grow td { background: var(--bg2, rgba(128,128,128,.10)); padding: 6px 12px; }
 .hbt { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; } .hbt i { display: block; height: 100%; border-radius: 5px; }
 .pdlist { display: grid; gap: 4px; } .pdp { display: flex; justify-content: space-between; gap: 8px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; } .pdp button { padding: 0 6px; }
 .pdchk { display: grid; gap: 2px; max-height: 150px; overflow: auto; }
+
+/* honeycomb heatmap: pointy-top hexagons that touch, every second row shifted by half a cell */
+.heat.honey { gap: 0; padding-right: calc((100% - 110px) / var(--cols) / 2); }
+.heat.honey .hm-row { gap: 0; }
+.heat.honey .hm-row:not(.hm-head) { margin-top: calc((100% - 110px) / var(--cols) * -0.2887); }
+.heat.honey .hm-row:not(.hm-head):first-of-type, .heat.honey .hm-head + .hm-row { margin-top: 0; }
+.heat.honey .hm-row > i.hmc { max-width: none; max-height: none; width: 100%; aspect-ratio: 0.866; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.heat.honey .hm-row > i.hmc.shp-hexo::after { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); inset: 2px; }
+.heat.honey .hm-row.odd > i.hmc { transform: translateX(50%); }
+.heat.honey .hm-row > span { align-self: center; z-index: 1; }

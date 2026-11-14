@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.58.1
+- **Fixed:** the "Polled devices and readings" dialog was taller than small windows and hid the Add tile / Save buttons. The fields now scroll and the buttons stay in view.
+- **Heatmap hexagons are a honeycomb:** the Hexagon and Hexagon outline shapes now touch each other and every second row is shifted by half a cell.
+
 ## 1.58.0
 - **SNMP polling on the dashboard:** new tile *Polled devices and readings* (Add tile → SNMP polling). It shows device status by group, open polling alarms, or any readings you choose: one reading of one device, one table row, or **the same reading on many devices in one tile** (for example the temperature of every site). Look: table, tile grid coloured by what the value means, bar list, one big number or gauge (highest / lowest / average / total), or a graph with one line per reading. "Add all, including future devices" makes a tile follow a reading name (optionally one group), so new devices join by themselves.
 - **Tile shapes:** the tile grid and the device-status grid can be square, rounded, circle, hexagon or hexagon outline.
