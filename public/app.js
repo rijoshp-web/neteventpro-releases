@@ -1268,6 +1268,15 @@ const VENDOR_FAMILIES = { cisco: 'Cisco IOS / IOS-XE / NX-OS', dell: 'Dell switc
 const EMBED_TAB = { users: 'users', backup: 'backup', maintenance: 'maint', rules: 'rules', notifications: 'notify', sqlcopy: 'sqlcopy', reports: 'reports' };   // page -> its tab inside Settings
 const SETTINGS_TABS = [['syslog', 'Syslog'], ['snmp', 'SNMP & MIBs'], ['trapcols', 'Trap columns'], ['replace', 'Text replacement'], ['storage', 'Storage & time'], ['access', 'Access & updates'], ['look', 'Look & sound'], ['rules', 'Rules & alerts', 'rules'], ['notify', 'Notifications', 'settings'], ['sqlcopy', 'SQL Server', 'settings'], ['reports', 'Reports', 'reports'], ['probe', 'Remote probes', 'settings'], ['users', 'Users', 'users'], ['backup', 'Backup', 'backup'], ['maint', 'Maintenance', 'rules']];
 const TAB_OF = { 'sec-security': 'access', 'sec-inputs': 'syslog', 'sec-replace': 'replace', 'sec-vendor': 'syslog', 'sec-sysmsg': 'syslog', 'sec-fwd': 'syslog', 'sec-snmp': 'snmp', 'sec-trapfwd': 'snmp', 'sec-trapviews': 'trapcols', 'sec-storage': 'storage', 'sec-time': 'storage', 'sec-data': 'storage', 'sec-access': 'access', 'sec-update': 'access', 'sec-tools': 'access', 'sec-sendtest': 'syslog', 'sec-sessions': 'access', 'sec-appearance': 'look', 'sec-sound': 'look', 'sec-rules': 'rules', 'sec-notifs': 'notify', 'sec-sqlcopy': 'sqlcopy', 'sec-reports': 'reports', 'sec-probe': 'probe', 'sec-users': 'users', 'sec-backup': 'backup', 'sec-maint': 'maint' };
+const SETUP_MENU = [   // the Settings start page: groups of links to one section each (id, name, extra search words)
+  { n: 'Receiving', ic: 'download', items: [['sec-inputs', 'Syslog inputs', 'udp tcp tls port buffer 514 listen'], ['sec-snmp', 'SNMP & MIBs', 'trap community v3 engine mib 162 usm'], ['sec-trapviews', 'Trap column views', 'columns traps table'], ['sec-vendor', 'Vendor recognition', 'cisco dell hp apc eltek tags'], ['sec-replace', 'Text replacement', 'rewrite mask regex'], ['sec-sysmsg', 'System messages', 'audit own messages log']] },
+  { n: 'Forwarding and remote', ic: 'layers', items: [['sec-fwd', 'Forward syslog', 'relay collector siem northbound'], ['sec-trapfwd', 'Forward SNMP traps', 'relay manager northbound'], ['sec-probe', 'Remote probes', 'site distant network branch'], ['sec-sqlcopy', 'SQL Server', 'database copy mssql export']] },
+  { n: 'Alerts and notifications', ic: 'check', items: [['sec-rules', 'Rules & alerts', 'rule match alarm action sound'], ['sec-notifs', 'Notifications', 'email smtp smpp sms teams webhook profile recipients'], ['sec-maint', 'Maintenance windows', 'planned downtime suppress'], ['sec-reports', 'Reports', 'daily weekly schedule pdf csv']] },
+  { n: 'Users and security', ic: 'filter', items: [['sec-users', 'Users, roles and groups', 'permission password account ldap'], ['sec-security', 'Security', 'password two-factor 2fa allow ip audit https tls certificate'], ['sec-access', 'Dashboard access', 'web port https bind address'], ['sec-sessions', 'Login sessions', 'logged in who signed']] },
+  { n: 'Storage and time', ic: 'columns', items: [['sec-storage', 'Storage', 'keep days retention disk size prune old logs'], ['sec-time', 'Time (NTP)', 'clock timezone ntp server'], ['sec-data', 'Where your data is stored', 'folder path directory'], ['sec-backup', 'Backup and restore', 'export import nepbak']] },
+  { n: 'Look and sound', ic: 'look', items: [['sec-appearance', 'Appearance', 'theme colour dark light font'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
+  { n: 'Service', ic: 'views', items: [['sec-update', 'Updates', 'upgrade version install'], ['sec-tools', 'Service', 'restart stop start'], ['sec-sendtest', 'Send a test message', 'test syslog send']] },
+];
 function sessionsMount(el) {
   const box = $('#sesBox', el); if (!box) return;
   const ago = (t) => { const s2 = Math.max(0, Math.round((Date.now() - t) / 1000)); return s2 < 60 ? s2 + ' s ago' : s2 < 5400 ? Math.round(s2 / 60) + ' min ago' : s2 < 172800 ? Math.round(s2 / 3600) + ' h ago' : Math.round(s2 / 86400) + ' d ago'; };
@@ -1328,12 +1337,14 @@ function probeMount(el) {
   };
 }
 views.settings = (el) => {
+  if (!S.jump && !S.keepSec) { S.settingsSec = null; S.settingsQ = ''; } S.keepSec = false; if (S.jump) S.keepSec = false;
   let snmpCleanup = null; let c; const embedOpen = {}, embedClean = []; const rowsOf = (arr, cols) => arr.map((x, i) => `<tr data-i="${i}">${cols.map((col) => `<td>${col(x, i)}</td>`).join('')}<td><button class="danger" data-del="${i}">Remove</button></td></tr>`).join('');
   const draw = () => {
     const i = S.info, dd = i.dataDirs, sm = c.smtp, ls = i.listeners;
     const keep = { rp: $('#rpHost', el), snmp: $('#snmpHost', el), tv: $('#tvHost', el), us: $('#usersHost', el), bk: $('#backupHost', el), mt: $('#maintHost', el), ru: $('#rulesHost', el), nf: $('#notifHost', el), sq: $('#sqlHost', el), rpt: $('#reportsHost', el) };   // these two sections keep their state when the page is redrawn
     el.innerHTML = `<div class="stickyhead"><div class="page-head"><h1>Settings</h1><span class="spacer"></span><span id="dirtyMsg" class="dirtymsg" aria-live="polite"></span><label class="chk" style="margin:0" title="Show the explanation under each option"><input type="checkbox" id="showNotes" ${S.showNotes ? 'checked' : ''}> Show notes</label><button class="primary" id="saveAll" title="Saves every option on every tab of this page (Ctrl+S)">Save changes</button></div>
-    <nav class="jump tabs" role="tablist" aria-label="Settings sections">${SETTINGS_TABS.filter((t) => !t[2] || can(t[2])).map(([id, n]) => `<a href="#settings" role="tab" data-tab="${id}" class="${(S.settingsTab || 'syslog') === id ? 'on' : ''}" aria-selected="${(S.settingsTab || 'syslog') === id}">${n}</a>`).join('')}</nav></div>
+    <div class="setbar"><input type="search" id="setQ" class="grow" placeholder="Search in settings (for example: retention, port, email, password)" aria-label="Search in settings" value="${esc(S.settingsQ || '')}" autocomplete="off"><span id="setCrumb" class="setcrumb"></span></div></div>
+    <div id="setMenu" class="smenu"></div>
     <fieldset id="sec-inputs"><legend>Syslog inputs</legend><div class="form">
       <div class="field"><label>UDP</label><div><label class="chk"><input type="checkbox" id="udpEnabled" ${c.udpEnabled ? 'checked' : ''}> Receive on port</label> <input type="number" id="udpPort" class="w-sm" min="1" max="65535" value="${c.udpPort}"></div></div>
       <div class="field"><label for="udpRecvMB">UDP receive buffer</label><div><input type="number" id="udpRecvMB" class="w-sm" min="1" max="256" value="${c.udpRecvMB || 16}"> MB <span class="muted">A bigger buffer survives bursts of syslog. 16 MB is enough for hundreds of messages per second; use 64 MB or more for very large networks. System health shows what the operating system really granted.</span></div></div>
@@ -1436,7 +1447,7 @@ views.settings = (el) => {
     api('/api/update/status').then(upShow).catch(() => {});
     if (keep.tv) $('#tvHost', el).replaceWith(keep.tv); else trapViewsEditor($('#tvHost', el));
     for (const [k, id, v] of [['us', 'usersHost', 'users'], ['bk', 'backupHost', 'backup'], ['mt', 'maintHost', 'maintenance'], ['ru', 'rulesHost', 'rules'], ['nf', 'notifHost', 'notifications'], ['sq', 'sqlHost', 'sqlcopy'], ['rpt', 'reportsHost', 'reports']]) { if (keep[k]) $('#' + id, el).replaceWith(keep[k]); else { const h = $('#' + id, el); if (S.settingsTab === EMBED_TAB[v] || embedOpen[id]) { embedOpen[id] = 1; const cl = views[v](h, null, true); if (cl) embedClean.push(cl); } } }
-    if (S.jump) { if (TAB_OF[S.jump]) S.settingsTab = TAB_OF[S.jump]; S.jump = null; }
+    if (S.jump) { if (TAB_OF[S.jump]) { S.settingsTab = TAB_OF[S.jump]; S.settingsSec = S.jump; } S.jump = null; }
     el.classList.add('scompact'); el.classList.toggle('shownotes', !!S.showNotes);
     $$('fieldset[id^="sec-"]', el).forEach((f) => {   /* long explanations become a small (i) button; sections with their own Save button say so */
       f.classList.toggle('own-save', !!f.querySelector(':scope > .embed'));
@@ -1451,24 +1462,44 @@ views.settings = (el) => {
     probeMount(el); sessionsMount(el); securityMount(el);
     api('/api/snmp').then((r) => { const e = $('#v3Engine', el); if (e) e.textContent = r.engineId || '-'; }).catch(() => {});
   };
-  const showTab = () => {      // one group of sections at a time; all stay in the page so Save settings keeps every value
-    const tab = SETTINGS_TABS.some(([id]) => id === S.settingsTab) ? S.settingsTab : 'syslog';
-    $$('fieldset[id^="sec-"]', el).forEach((f) => { f.hidden = (TAB_OF[f.id] || 'syslog') !== tab; });
-    $$('nav.tabs a', el).forEach((a) => { const on = a.dataset.tab === tab; a.classList.toggle('on', on); a.setAttribute('aria-selected', on); });
+  const secAllowed = (id) => { const t = SETTINGS_TABS.find((x) => x[0] === TAB_OF[id]); return !t || !t[2] || can(t[2]); };
+  const secName = (id) => { for (const g of SETUP_MENU) for (const it of g.items) if (it[0] === id) return [g.n, it[1]]; return ['', id]; };
+  const link = (id, group) => `<a href="#settings" data-tab="${TAB_OF[id] || 'syslog'}" data-sec="${id}">${esc(secName(id)[1])}</a>${group ? `<span class="sgroup">${esc(group)}</span>` : ''}`;
+  const drawMenu = () => {      // the start page (groups of links) or, while something is typed, the matching sections
+    const host = $('#setMenu', el); if (!host) return; const q = String(S.settingsQ || '').trim().toLowerCase();
+    if (!q) { host.innerHTML = SETUP_MENU.map((g) => { const its = g.items.filter((it) => secAllowed(it[0])); return its.length ? `<section class="sgrp"><h3>${ico(g.ic)}<span>${esc(g.n)}</span></h3>${its.map((it) => `<div>${link(it[0])}</div>`).join('')}</section>` : ''; }).join(''); return; }
+    const terms = q.split(/\s+/), hits = [];
+    for (const g of SETUP_MENU) for (const it of g.items) {
+      if (!secAllowed(it[0])) continue; const f = $('#' + it[0], el), body = f ? f.textContent.toLowerCase().replace(/\s+/g, ' ') : '', head = (it[1] + ' ' + g.n + ' ' + it[2]).toLowerCase();
+      if (!terms.every((t) => head.includes(t) || body.includes(t))) continue;
+      const nm = it[1].toLowerCase(); hits.push({ id: it[0], g: g.n, rank: terms.every((t) => nm.includes(t)) ? 0 : terms.every((t) => head.includes(t)) ? 1 : 2 });
+    }
+    hits.sort((x, y) => x.rank - y.rank);
+    host.innerHTML = hits.length ? `<section class="sgrp wide"><h3>${ico('search')}<span>${hits.length} setting${hits.length === 1 ? '' : 's'} found</span></h3>${hits.map((h) => `<div>${link(h.id, h.g)}${h.rank === 2 ? '<span class="sgroup">found in the text of this section</span>' : ''}</div>`).join('')}</section>` : `<section class="sgrp wide"><h3>${ico('search')}<span>Nothing found</span></h3><div class="muted">Try another word, for example “retention”, “port”, “email” or “password”.</div></section>`;
+  };
+  const showTab = () => {      // one section at a time (or the start page); every section stays in the page so Save changes keeps every value
+    const sec = S.settingsSec && secAllowed(S.settingsSec) && $('#' + S.settingsSec, el) ? S.settingsSec : null; if (!sec) S.settingsSec = null;
+    $$('fieldset[id^="sec-"]', el).forEach((f) => { f.hidden = f.id !== sec; });
+    const m = $('#setMenu', el); if (m) m.hidden = !!sec; const q = $('#setQ', el); if (q) q.hidden = !!sec;
+    const cr = $('#setCrumb', el); if (cr) { cr.hidden = !sec; cr.innerHTML = sec ? `<a href="#settings" data-menu="1">← All settings</a> <span class="muted">›</span> <b>${esc(secName(sec)[0])}</b> <span class="muted">›</span> <b>${esc(secName(sec)[1])}</b>` : ''; }
+    if (!sec) drawMenu();
   };
   const collect = (sel) => $$(sel + ' tr', el).map((tr) => Object.fromEntries($$('[data-f]', tr).map((x) => [x.dataset.f, x.value])));
   const sync = () => { c.forwardTargets = collect('#fwRows').map((t) => ({ ...t, port: +t.port, enabled: true })); c.trapForwardTargets = collect('#tfRows').map((t) => ({ ...t, port: +t.port, enabled: true })); };
   let dirty = false;
   const setDirty = (v) => { dirty = v; const m = $('#dirtyMsg', el), b = $('#saveAll', el); if (m) { m.textContent = v ? '● Unsaved changes' : '✓ All changes saved'; m.classList.toggle('on', v); } if (b) b.classList.toggle('pulse', v); };
-  const onEdit = (e) => { const t = e.target; if (!t || !t.closest || t.closest('.embed, .jump') || /^(showNotes|themeSel|dashSel|soundOn|sndNormal|sndCrit|sndVol|tSev|tMsg|ntpResult)$/.test(t.id)) return; if (!dirty) setDirty(true); };
+  const onEdit = (e) => { const t = e.target; if (!t || !t.closest || t.closest('.embed, .jump') || /^(setQ|showNotes|themeSel|dashSel|soundOn|sndNormal|sndCrit|sndVol|tSev|tMsg|ntpResult)$/.test(t.id)) return; if (!dirty) setDirty(true); };
   el.addEventListener('input', onEdit); el.addEventListener('change', onEdit);
+  el.addEventListener('input', (e) => { if (e.target.id === 'setQ') { S.settingsQ = e.target.value; drawMenu(); } });
+  el.addEventListener('keydown', (e) => { if (e.target.id !== 'setQ') return; if (e.key === 'Escape') { e.target.value = ''; S.settingsQ = ''; drawMenu(); } else if (e.key === 'Enter') { const a = $('#setMenu a[data-sec]', el); if (a) a.click(); } });
   const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && $('#saveAll', el)) { e.preventDefault(); $('#saveAll', el).click(); } };
   const onLeave = (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
   document.addEventListener('keydown', onKey); window.addEventListener('beforeunload', onLeave);
   const load = async () => { c = await api('/api/config'); dirty = false; draw(); };
   el.addEventListener('click', async (e) => {
     if (e.target.closest('#rpHost, #snmpHost, #tvHost, #usersHost, #backupHost, #maintHost, #rulesHost, #notifHost, #sqlHost, #reportsHost')) return;   // those sections handle their own clicks
-    const tabA = e.target.closest('a[data-tab]'); if (tabA) { e.preventDefault(); S.settingsTab = tabA.dataset.tab; const hid = { users: ['usersHost', 'users'], backup: ['backupHost', 'backup'], maint: ['maintHost', 'maintenance'], rules: ['rulesHost', 'rules'], notify: ['notifHost', 'notifications'], sqlcopy: ['sqlHost', 'sqlcopy'], reports: ['reportsHost', 'reports'] }[S.settingsTab]; if (hid && !embedOpen[hid[0]]) { embedOpen[hid[0]] = 1; const cl = views[hid[1]]($('#' + hid[0], el), null, true); if (cl) embedClean.push(cl); } showTab(); window.scrollTo?.(0, 0); return; }
+    if (e.target.closest('a[data-menu]')) { e.preventDefault(); S.settingsSec = null; S.settingsQ = ''; const q = $('#setQ', el); if (q) q.value = ''; showTab(); window.scrollTo?.(0, 0); return; }
+    const tabA = e.target.closest('a[data-tab]'); if (tabA) { e.preventDefault(); S.settingsTab = tabA.dataset.tab; S.settingsSec = tabA.dataset.sec || null; const hid = { users: ['usersHost', 'users'], backup: ['backupHost', 'backup'], maint: ['maintHost', 'maintenance'], rules: ['rulesHost', 'rules'], notify: ['notifHost', 'notifications'], sqlcopy: ['sqlHost', 'sqlcopy'], reports: ['reportsHost', 'reports'] }[S.settingsTab]; if (hid && !embedOpen[hid[0]]) { embedOpen[hid[0]] = 1; const cl = views[hid[1]]($('#' + hid[0], el), null, true); if (cl) embedClean.push(cl); } showTab(); window.scrollTo?.(0, 0); return; }
     const id = e.target.id; sync();
     if (e.target.dataset.copy !== undefined) return copyText(e.target.dataset.copy);
     if (id === 'showNotes') { S.showNotes = e.target.checked; el.classList.toggle('shownotes', S.showNotes); return; }
@@ -1521,7 +1552,7 @@ function profMenu(attr, profs, chosen) {
 function route() {
   const rawHash = location.hash.slice(1) || 'dashboard'; let name = rawHash.split('?')[0]; S.hq = new URLSearchParams(rawHash.split('?')[1] || '');
   if (name === 'live' || name === 'search') name = 'logs';                                   // old bookmarks
-  if (EMBED_TAB[name] && S.info?.me?.perms?.includes('settings')) { S.settingsTab = EMBED_TAB[name]; name = 'settings'; history.replaceState(null, '', '#settings'); }
+  if (EMBED_TAB[name] && S.info?.me?.perms?.includes('settings')) { S.settingsTab = EMBED_TAB[name]; S.settingsSec = { users: 'sec-users', backup: 'sec-backup', maint: 'sec-maint', rules: 'sec-rules', notify: 'sec-notifs', sqlcopy: 'sec-sqlcopy', reports: 'sec-reports' }[S.settingsTab] || null; S.keepSec = true; name = 'settings'; history.replaceState(null, '', '#settings'); }
   if (name === 'snmp') { name = 'settings'; S.jump = 'sec-snmp'; history.replaceState(null, '', '#settings'); }
   if (name === 'replace') { name = 'settings'; S.jump = 'sec-replace'; history.replaceState(null, '', '#settings'); }
   const VIEW_PERM = { rules: 'rules', maintenance: 'rules', notifications: 'settings', sqlcopy: 'settings', settings: 'settings', reports: 'reports', users: 'users', backup: 'backup', polling: 'polling' };   // a typed address cannot open a page the account has no right to

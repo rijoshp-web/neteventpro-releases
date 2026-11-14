@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.65.0
+- **Settings has a new start page:** a menu in three columns with groups (Receiving, Forwarding and remote, Alerts and notifications, Users and security, Storage and time, Look and sound, Service) and a link for every section. Click a link to open that section; **← All settings** at the top goes back. The old row of tabs is gone; nothing was removed.
+- **Search in settings:** type a word (retention, port, email, password...) to list the matching sections, also by words inside the section; Enter opens the first one, Esc clears.
+- **Save changes** still saves every option on every section, whichever one is open. Old links (#users, #backup, #rules and so on) open their section directly.
+
 ## 1.64.0
 - **A polling alarm that is no longer open is raised again while the value is still bad.** Before, the polling engine remembered "already in alarm" and stayed silent after the alarm had been deleted or cleared by hand (or refused because the alarm list was full), until the value had gone back to normal. Now, about 30 seconds after raising it, each poll checks that the alarm is really open (or acknowledged); if not, it is raised again. Applies to alarm limits, readings' own alarms and value-meaning (warning / critical) alarms. Found when two rows of a table stayed silent after their alarms had been deleted.
 - Clearing an alarm by hand while the device is still faulty therefore brings it back at the next poll. Acknowledge it instead to keep it quiet.
