@@ -18,10 +18,11 @@
     const devId = () => S.hq?.get('d') || '';
     const go = (h) => { location.hash = h; };
     const head = (extra = '') => `<div class="page-head"><h1>SNMP polling</h1>${extra}</div>`;
+    const ADV = ['lookups', 'templates', 'profiles'], advOn = () => { try { return localStorage.getItem('ne.pollAdv') === '1'; } catch (e) { return false; } };
     const SETS = ['settings', 'thresholds', 'lookups', 'templates', 'profiles'];
     const tabs = () => `<div class="tabs" role="tablist">${[['overview', 'Devices'], ['reports', 'Reports'], ['settings', 'Settings']].map(([k, n]) => `<button role="tab" data-t="${k}" class="tab${(SETS.includes(tab) ? 'settings' : tab) === k ? ' on' : ''}">${n}</button>`).join('')}</div>` +
-      (SETS.includes(tab) && !devId() ? `<div class="subtabs">${[['settings', 'General'], ['thresholds', 'Alarm limits'], ['lookups', 'Value meanings'], ['templates', 'Templates'], ['profiles', 'Shared sets (advanced)']].map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>` : '');
-    const wireTabs = () => $$('.tabs button, .subtabs button', el).forEach((b) => { b.onclick = () => { tab = b.dataset.t; if (devId()) go('#polling'); else render(); }; });
+      (SETS.includes(tab) && !devId() ? `<div class="subtabs">${[['settings', 'General'], ['thresholds', 'Alarm limits'], ...(advOn() || ADV.includes(tab) ? [['lookups', 'Value meanings'], ['templates', 'Templates'], ['profiles', 'Shared sets']] : [])].map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}<button class="linkish" id="advTog" title="Value meanings, templates and shared reading sets: only needed for special devices">${advOn() || ADV.includes(tab) ? 'Hide advanced' : 'Advanced…'}</button></div>` : '');
+    const wireTabs = () => $$('.tabs button, .subtabs button', el).forEach((b) => { b.onclick = () => { if (b.id === 'advTog') { try { localStorage.setItem('ne.pollAdv', advOn() || ADV.includes(tab) ? '0' : '1'); } catch (e) { /* kept for this page only */ } if (ADV.includes(tab)) tab = 'settings'; return render(); } tab = b.dataset.t; if (devId()) go('#polling'); else render(); }; });
     const stop = () => { clearInterval(timer); timer = 0; };
     const every = (fn, ms) => { stop(); timer = setInterval(() => { if (alive && document.visibilityState === 'visible') fn(); }, ms); };
 

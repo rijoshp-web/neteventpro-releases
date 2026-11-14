@@ -922,3 +922,4 @@ tr.grow td { background: var(--bg2, rgba(128,128,128,.10)); padding: 6px 12px; }
 .heat.honey .hm-row > span { align-self: center; z-index: 1; }
 
 .linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.subtabs .linkish { margin-left: 14px; align-self: center; }

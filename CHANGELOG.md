@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.63.0
+- **Simpler SNMP polling → Settings:** only **General** and **Alarm limits** are shown. **Value meanings**, **Templates** and **Shared sets** (the reading profiles) are behind an **Advanced…** link, because most setups rarely need them. Nothing was removed or changed; the choice is remembered in the browser.
+
 ## 1.62.0
 - **Delete all matching alarms:** the Alarms page shows **Delete all N** when more alarms match the filters than the 300 listed. After a confirmation that shows the count, it deletes every alarm that matches the current filters (state, source, severity, period and search text) in one step, not only the 300 shown. It needs the Delete permission and is written to the audit log. Useful after test floods.
 - Test: delete by filter.
