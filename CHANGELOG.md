@@ -2,6 +2,14 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.56.0
+- **Fixed:** a removed reading left its values (for example the "4 rows" table) on the device page until the service restarted. A device page now shows only the values of readings that still exist, and removing a reading forgets its values.
+- **Edit from the visuals:** every gauge, bar, tile grid and card has a ✎ button that opens the reading's editor.
+- **Every graph is customizable**, including *Answer time*: the ⚙ button of a graph sets style (line / area), width (1 to 4 columns), height, time range, line colour and top of the axis, or hides the graph (a "Hidden graphs" line brings it back). Saved per device on the server.
+- **Resizable table columns:** drag the right edge of a column header in the polling tables; double-click resets. Widths are remembered in the browser.
+- **Polling alarms in the syslog list:** one switch in SNMP polling → Settings, "Also write polling alarms to the syslog list". Off: alarms, notifications and the Alarms page work as before, the lines are just not added to Logs.
+- Tests: removed values, layout save and cleaning, the syslog switch.
+
 ## 1.55.0
 - **No more double notifications.** SNMP polling alarms are told only by their own rules (the Tell boxes on the reading, the shared Alarm limits and the no-answer rule). Your general syslog rules no longer match them, so a rule such as "warning and worse → e-mail" does not fire a second time for the same event. The alarm lines still appear in Logs (tag *poll*) for history.
 - **See what an alarm is.** In the readings table the alarm badge is now clickable: "2 rules · 1 open" opens the list of that reading's alarm rules (condition, severity, who is told, value meanings that raise alarms) and the alarms open right now. The count now means *rules*, the open count is shown next to it, which explains the different numbers on the device list (open alarms of all readings and rows) and on the reading (rules).

@@ -106,15 +106,17 @@ class Engine extends EventEmitter {
 
     msg.id = this.nextId++; msg.seq = ++this.nextSeq[msg.source === 'snmp' ? 'snmp' : 'syslog'];
     msg.sound = res.sound; msg.notify = res.notify;
-    this.totals.bySeverity[msg.severity]++;
+    if (!msg.noLog) this.totals.bySeverity[msg.severity]++;
 
     if (!internal) this.touchDevice(msg);
 
-    this.live.push(msg);
-    if (this.live.length > cfg.liveBufferSize) this.live.splice(0, this.live.length - cfg.liveBufferSize);
-    this.pending.push(msg);
-    this.store.enqueue(msg);
-    this.rawlog.write(msg);
+    if (!msg.noLog) {   /* SNMP polling alarms can be kept out of the syslog list (Settings of SNMP polling); rules, alarms and notifications below still work */
+      this.live.push(msg);
+      if (this.live.length > cfg.liveBufferSize) this.live.splice(0, this.live.length - cfg.liveBufferSize);
+      this.pending.push(msg);
+      this.store.enqueue(msg);
+      this.rawlog.write(msg);
+    }
     if (!internal) { if (msg.source === 'snmp') this.trapForwarder.send(msg); else this.forwarder.send(msg); }
 
     // flap detection (1.40): a rule's item that keeps changing is told once as "flapping"; its single alerts are held back until it is quiet

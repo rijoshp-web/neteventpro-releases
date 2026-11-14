@@ -861,3 +861,10 @@ svg.spk { display: block; }
 #rdF .field { margin: 5px 0; } #rdF .hint { font-size: 11.5px; margin-top: 2px; }
 .rdh { margin: 10px 0 2px; padding-top: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
 .rdal { padding: 5px 8px; margin: 0 0 6px; }
+
+/* 1.56: graph options, resizable columns */
+.pchart-box .hk { display: flex; justify-content: space-between; align-items: center; }
+button.gear { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; margin-left: auto; } button.gear:hover { color: var(--text); }
+.hiddeng { font-size: 12px; color: var(--muted); }
+label.sw { display: inline-block; margin-right: 4px; } label.sw input { position: absolute; opacity: 0; } label.sw i { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; } label.sw input:checked + i { border-color: var(--text); }
+th .colr { position: absolute; right: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; } th .colr:hover { background: var(--accent); opacity: .5; }

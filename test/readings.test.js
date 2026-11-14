@@ -99,3 +99,18 @@ test('display views: new view is kept, the old card / bar tick-boxes are migrate
     assert.equal(pl.readingsOf(d.id)[1].disp.view, 'card'); assert.equal(pl.profiles().find((p) => p.own).metrics[1].disp.view, 'card');
   } finally { await a.close(); }
 });
+
+test('1.56: removed readings leave no values, layout of a device page is kept and cleaned, polling alarms can stay out of the syslog list', async () => {
+  const a = await startAgent({ mib: MIB }), { pl, msgs, cfg } = setup();
+  try {
+    const d = dev(pl, a.port, 'Lay'), [r1, r2] = pl.saveReadings(d.id, [{ label: 'A', t: 'oid', oid: '1.3.6.1.4.1.99999.1.1.0' }, { label: 'T', t: 'walk', agg: 'each', oid: '1.3.6.1.4.1.99999.2' }]);
+    await pl.pollDevice(pl.devices()[0]); let det = pl.detail(d.id); assert.ok(det.values[r1.k] !== undefined && det.insts[r2.k]);
+    pl.saveReadings(d.id, [r1]); det = pl.detail(d.id); assert.equal(det.insts[r2.k], undefined, 'values of a removed reading are gone'); assert.ok(det.values[r1.k] !== undefined);
+    const l = pl.saveLayout(d.id, { items: { ['g:' + r1.k]: { show: false, span: 9, h: 5000, style: 'area', color: '#112233' }, 'bad key': { show: false } }, order: ['g:rtt', 'x y'] });
+    assert.equal(l.items['g:' + r1.k].span, 4); assert.equal(l.items['g:' + r1.k].h, 700); assert.equal(Object.keys(l.items).length, 1); assert.deepEqual(l.order, ['g:rtt']); assert.equal(pl.detail(d.id).layout.items['g:' + r1.k].show, false);
+    pl.deleteDevice(d.id); assert.equal(cfg.polling.layouts[d.id], undefined);
+    const d2 = dev(pl, a.port, 'Quiet'); cfg.polling.alarmsInSyslog = false; msgs.length = 0; pl.say(pl.devices()[0], 3, 'x', 'noanswer'); assert.equal(msgs[0].noLog, true);
+    cfg.polling.alarmsInSyslog = true; msgs.length = 0; pl.say(pl.devices()[0], 3, 'x', 'noanswer'); assert.equal(msgs[0].noLog, undefined); void d2;
+    assert.equal(pl.saveSettings({ alarmsInSyslog: false }).alarmsInSyslog, false); assert.equal(pl.publicSettings().alarmsInSyslog, false);
+  } finally { await a.close(); }
+});

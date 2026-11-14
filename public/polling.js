@@ -288,7 +288,8 @@
       const tiles = (r) => { const rows = Object.entries(rowsOf(r)); return rows.length ? `<div class="tgrid">${rows.map(([k, v]) => { const it = lkMatch(itemsOf(r), v), s = it ? it.state : 'unk'; return `<div class="tl t-${s}" title="${esc(k)}"><span class="tn">${esc(k)}</span><b>${esc(fm(r, v))}</b>${it ? `<span class="tw">${esc(it.label)}</span>` : ''}</div>`; }).join('')}</div>` : '<span class="muted">waiting for the next poll…</span>'; };
       const KINDS = { gauge, bar: barv, big, light, tiles };
       const vs = list.filter((r) => r.disp && KINDS[r.disp.view] && r.on !== false);
-      if (vizBox) vizBox.innerHTML = vs.length ? `<div class="vizgrid">${vs.map((r) => { const s = worst(r); return `<div class="vz vz-${r.disp.view === 'tiles' ? 'wide' : 'n'} b-${s}"><div class="vz-h"><span class="sdot s-${s}"></span><b>${esc(r.label)}</b>${isTbl(r) && r.disp.view !== 'tiles' ? ' <span class="muted">(rows: ' + Object.keys(rowsOf(r)).length + ')</span>' : ''}</div>${KINDS[r.disp.view](r)}</div>`; }).join('')}</div>` : '';
+      if (vizBox) vizBox.innerHTML = vs.length ? `<div class="vizgrid">${vs.map((r) => { const s = worst(r); return `<div class="vz vz-${r.disp.view === 'tiles' ? 'wide' : 'n'} b-${s}"><div class="vz-h"><span class="sdot s-${s}"></span><b>${esc(r.label)}</b>${isTbl(r) && r.disp.view !== 'tiles' ? ' <span class="muted">(rows: ' + Object.keys(rowsOf(r)).length + ')</span>' : ''}${ed ? `<button class="gear vzE" data-k="${esc(r.k)}" title="Edit this reading (name, calculation, alarms, how it is shown)">✎</button>` : ''}</div>${KINDS[r.disp.view](r)}</div>`; }).join('')}</div>` : '';
+      $$('.vzE', vizBox || box).forEach((x) => { x.onclick = () => { const i = list.findIndex((o) => o.k === x.dataset.k); if (i >= 0) readingDialog(d.id, rd, list[i], (r) => post(list.map((o, j) => (j === i ? r : o)))); }; });
     };
 
     const detail = async () => {
@@ -341,21 +342,42 @@
       readingsPanel($('#rdPanel', el), d, dv, { lkv, rowSum });
       charts();
     };
-    const series = async (k, inst) => { try { return (await api(`/api/poll/series?id=${encodeURIComponent(devId())}&k=${encodeURIComponent(k)}&inst=${encodeURIComponent(inst || '')}&hours=${range}`)).points; } catch { return []; } };
-    const chartBox = (title, id) => `<div class="panel pchart-box"><div class="hk">${esc(title)}</div><canvas id="${id}" class="pchart"></canvas></div>`;
+    const series = async (k, inst, hours) => { try { return (await api(`/api/poll/series?id=${encodeURIComponent(devId())}&k=${encodeURIComponent(k)}&inst=${encodeURIComponent(inst || '')}&hours=${hours || range}`)).points; } catch { return []; } };
+    /* what is shown on a device page, how big and in which order is kept per device (dv.layout); every graph has its own options */
+    const layItems = () => (dv && dv.layout && dv.layout.items) || {};
+    const lay = (key) => ({ show: true, span: 1, h: 150, style: '', hours: null, color: '', max: null, min: null, ...(layItems()[key] || {}) });
+    const saveLay = async (patch) => { const items = { ...layItems() }; for (const [k, v] of Object.entries(patch)) items[k] = { ...lay(k), ...v }; const r = await api('/api/poll/layout', { method: 'POST', body: { id: devId(), layout: { items, order: (dv.layout && dv.layout.order) || [] } } }); dv.layout = r.layout; };
+    const chartBox = (title, key, id) => { const L = lay(key); return `<div class="panel pchart-box" data-key="${esc(key)}" style="grid-column: span ${L.span}"><div class="hk"><span>${esc(title)}</span>${can('polling') ? '<button class="gear" title="Options of this graph">⚙</button>' : ''}</div><canvas id="${id}" class="pchart" style="height:${L.h}px"></canvas></div>`; };
+    const graphOpts = (key, title) => { const L = lay(key), dl = dialog('Graph options: ' + title, `<div class="form" style="min-width:min(460px,86vw)">
+      <div class="field"><label for="goSt">Style</label><div><select id="goSt"><option value="">as set on the reading</option><option value="line">line</option><option value="area">filled area</option></select></div></div>
+      <div class="field"><label for="goSp">Width</label><div><select id="goSp"><option value="1">normal (1 column)</option><option value="2">wide (2 columns)</option><option value="3">extra wide (3 columns)</option><option value="4">full width</option></select></div></div>
+      <div class="field"><label for="goH">Height</label><div><select id="goH"><option value="110">small</option><option value="150">normal</option><option value="230">tall</option><option value="340">very tall</option><option value="480">huge</option></select></div></div>
+      <div class="field"><label for="goHr">Time range</label><div><select id="goHr"><option value="">same as the page</option><option value="1">1 hour</option><option value="6">6 hours</option><option value="24">24 hours</option><option value="168">7 days</option><option value="720">30 days</option></select></div></div>
+      <div class="field"><label>Line colour</label><div><span id="goCol">${['', ...COLORS].map((c) => `<label class="sw"><input type="radio" name="goC" value="${c}" ${L.color === c ? 'checked' : ''}><i style="background:${c || 'conic-gradient(#888,#ccc,#888)'}" title="${c || 'automatic'}"></i></label>`).join('')}</span></div></div>
+      <div class="field"><label for="goMax">Top of the axis</label><div><input type="number" step="any" id="goMax" style="width:90px" value="${L.max ?? ''}" placeholder="automatic"></div></div>
+      <div class="toolbar"><button id="goOk" class="primary">Save</button><button id="goHide">Hide this graph</button><button id="goReset">Reset</button><button id="goNo">Cancel</button></div></div>`);
+      dl.$('#goSt').value = L.style; dl.$('#goSp').value = String(L.span); dl.$('#goH').value = String([110, 150, 230, 340, 480].includes(L.h) ? L.h : 150); dl.$('#goHr').value = L.hours === null ? '' : String(L.hours); dl.$('#goNo').onclick = dl.close;
+      const go = async (patch) => { try { await saveLay({ [key]: patch }); dl.close(); charts(); } catch (e) { toast(e.message, true); } };
+      dl.$('#goOk').onclick = () => go({ show: true, style: dl.$('#goSt').value, span: +dl.$('#goSp').value, h: +dl.$('#goH').value, hours: dl.$('#goHr').value === '' ? null : +dl.$('#goHr').value, color: (dl.$('input[name="goC"]:checked') || {}).value || '', max: dl.$('#goMax').value === '' ? null : +dl.$('#goMax').value });
+      dl.$('#goHide').onclick = () => go({ show: false }); dl.$('#goReset').onclick = () => go({ show: true, span: 1, h: 150, style: '', hours: null, color: '', max: null, min: null });
+    };
     const charts = async () => {
       const box = $('#dvCharts', el); if (!box || !dv) return;
       const per = (m) => dv.insts && dv.insts[m.k] && Object.keys(dv.insts[m.k]).length;   /* table metrics keep one reading per row */
-      const items = [...dv.profile.metrics.filter((m) => m.k !== 'uptime' && m.dtype !== 'text' && (per(m) || !(m.srcs || []).some((x) => x.agg === 'each')) && !(m.disp && m.disp.graph === false)).map((m) => ({ disp: m.disp, k: m.k, rows: per(m) ? Object.keys(dv.insts[m.k]).slice(0, 8) : null, title: m.label + (m.unit ? ` (${m.unit})` : ''), unit: m.unit })), { k: 'rtt', title: 'Answer time (ms)', unit: 'ms' }];
-      box.innerHTML = items.map((it, i) => chartBox(it.title, 'pc' + i)).join('');
+      const all = [...dv.profile.metrics.filter((m) => m.k !== 'uptime' && m.dtype !== 'text' && (per(m) || !(m.srcs || []).some((x) => x.agg === 'each')) && !(m.disp && m.disp.graph === false)).map((m) => ({ disp: m.disp, k: m.k, rows: per(m) ? Object.keys(dv.insts[m.k]).slice(0, 8) : null, title: m.label + (m.unit ? ` (${m.unit})` : ''), unit: m.unit })), { k: 'rtt', title: 'Answer time (ms)', unit: 'ms' }].map((it) => ({ ...it, key: 'g:' + it.k }));
+      const items = all.filter((it) => lay(it.key).show !== false), hidden = all.filter((it) => lay(it.key).show === false);
+      box.innerHTML = items.map((it, i) => chartBox(it.title, it.key, 'pc' + i)).join('') + (hidden.length ? `<div class="hiddeng" style="grid-column:1/-1">Hidden graphs: ${hidden.map((it) => `<button class="sm" data-show="${esc(it.key)}">${esc(it.title)} +</button>`).join(' ')}</div>` : '');
+      $$('.pchart-box .gear', box).forEach((b) => { b.onclick = () => { const it = items.find((x) => x.key === b.closest('.pchart-box').dataset.key); graphOpts(it.key, it.title); }; });
+      $$('[data-show]', box).forEach((b) => { b.onclick = async () => { try { await saveLay({ [b.dataset.show]: { show: true } }); charts(); } catch (e) { toast(e.message, true); } }; });
       for (const [i, it] of items.entries()) {
-        const cv = $('#pc' + i, el);
+        const cv = $('#pc' + i, el), L = lay(it.key), hrs = L.hours || undefined, col = L.color || COLORS[i % COLORS.length];
         if (it.rows) {   /* one line per table row */
-          const all = await Promise.all(it.rows.map((r) => series(it.k, r))); if (!alive) return; if (!$('#pc' + i, el)) continue;
-          const byT = new Map(); all.forEach((pts, j) => pts.forEach((p) => { const o = byT.get(p.t) || { t: p.t }; o['r' + j] = p.v; byT.set(p.t, o); }));
-          sysChart(cv, [...byT.values()].sort((x, y) => x.t - y.t), it.rows.map((r, j) => ({ key: 'r' + j, color: COLORS[j % COLORS.length], name: r })), { fmt: (v) => fv(v, it.unit), step: 60 }); continue;
+          const rs = await Promise.all(it.rows.map((r) => series(it.k, r, hrs))); if (!alive) return; if (!$('#pc' + i, el)) continue;
+          const byT = new Map(); rs.forEach((pts, j) => pts.forEach((p) => { const o = byT.get(p.t) || { t: p.t }; o['r' + j] = p.v; byT.set(p.t, o); }));
+          sysChart(cv, [...byT.values()].sort((x, y) => x.t - y.t), it.rows.map((r, j) => ({ key: 'r' + j, color: COLORS[j % COLORS.length], name: r })), { max: L.max ?? undefined, fillAll: (L.style || (it.disp && it.disp.style)) === 'area', fmt: (v) => fv(v, it.unit), step: 60 }); continue;
         }
-        const pts = await series(it.k); if (!alive) return; if (!cv) continue; sysChart(cv, pts.map((p) => ({ t: p.t, v: p.v })), [{ key: 'v', color: COLORS[i % COLORS.length], name: it.title }], { max: it.disp && it.disp.max !== null && it.disp.max !== undefined ? it.disp.max : it.unit === '%' ? 100 : undefined, fillAll: !!(it.disp && it.disp.style === 'area'), fmt: (v) => fv(v, it.unit, it.disp && it.disp.dec), step: 60 });
+        const pts = await series(it.k, '', hrs); if (!alive) return; if (!cv) continue;
+        sysChart(cv, pts.map((p) => ({ t: p.t, v: p.v })), [{ key: 'v', color: col, name: it.title }], { max: L.max ?? (it.disp && it.disp.max !== null && it.disp.max !== undefined ? it.disp.max : it.unit === '%' ? 100 : undefined), fillAll: (L.style || (it.disp && it.disp.style)) === 'area', fmt: (v) => fv(v, it.unit, it.disp && it.disp.dec), step: 60 });
       }
     };
     const rowGraph = async (k, inst) => {
@@ -500,6 +522,7 @@
       const ed = can('polling'), dis = ed ? '' : 'disabled';
       el.innerHTML = head() + tabs() + `<div class="panel"><div class="form">
         <div class="field"><label>Polling</label><div><label class="chk"><input type="checkbox" id="sOn" ${s.enabled ? 'checked' : ''} ${dis}> <b>SNMP polling is on</b></label></div></div>
+        <div class="field"><label>Alarms in syslog</label><div><label class="chk"><input type="checkbox" id="sLog" ${s.alarmsInSyslog ? 'checked' : ''} ${dis}> Also write polling alarms to the syslog list (Logs)</label><div class="hint">Off: the alarms, their notifications and the Alarms page work as before, but the lines are not added to the Logs. Polling alarms never trigger your general syslog rules either way.</div></div></div>
         <div class="field"><label for="sWk">At the same time</label><div><input type="number" id="sWk" min="1" max="50" value="${s.workers}" style="width:70px" ${dis}> devices at most<div class="hint">Polls are spread out and limited, so a large list does not flood the network or this computer.</div></div></div>
         <div class="field"><label for="sGap">Pause between requests</label><div><input type="number" id="sGap" min="0" max="2000" value="${s.gapMs ?? 30}" style="width:70px" ${dis}> ms to the same device<div class="hint">A device is asked one question at a time, with this pause after each answer, and a device that does not answer is asked less and less often (up to every 10 minutes) until it answers again. Raise it for old or slow equipment.</div></div></div>
         <div class="field"><label for="sInt">Default interval</label><div><input type="number" id="sInt" min="10" max="3600" value="${s.defaultIntervalSec}" style="width:80px" ${dis}> seconds <span class="hint">for new devices</span></div></div>
@@ -514,8 +537,20 @@
           <li>Alarms from polling are normal alarms (rule names “No SNMP answer” and your threshold names). A device in a maintenance window raises none.</li>
           <li>The 5-minute averages can be copied to SQL Server (table <code>ne_poll</code>, switch it on in the SQL Server page). The Reports tab shows availability and CPU / memory / temperature per device, with CSV download.</li></ul></details>`;
       wireTabs();
-      const b = $('#sSave', el); if (b) b.onclick = async () => { try { await api('/api/poll/settings', { method: 'POST', body: { enabled: $('#sOn', el).checked, workers: +$('#sWk', el).value, gapMs: +$('#sGap', el).value, defaultIntervalSec: +$('#sInt', el).value, missesBeforeDown: +$('#sMiss', el).value, noAnswerSeverity: +$('#sSev', el).value, keepRawDays: +$('#sRaw', el).value, keepAvgDays: +$('#sAvg', el).value, noAnswerProfiles: $$('.sTellB', el).filter((o) => o.checked).map((o) => o.value) } }); toast('Saved'); } catch (e) { toast(e.message, true); } };
+      const b = $('#sSave', el); if (b) b.onclick = async () => { try { await api('/api/poll/settings', { method: 'POST', body: { alarmsInSyslog: $('#sLog', el).checked, enabled: $('#sOn', el).checked, workers: +$('#sWk', el).value, gapMs: +$('#sGap', el).value, defaultIntervalSec: +$('#sInt', el).value, missesBeforeDown: +$('#sMiss', el).value, noAnswerSeverity: +$('#sSev', el).value, keepRawDays: +$('#sRaw', el).value, keepAvgDays: +$('#sAvg', el).value, noAnswerProfiles: $$('.sTellB', el).filter((o) => o.checked).map((o) => o.value) } }); toast('Saved'); } catch (e) { toast(e.message, true); } };
     };
+
+    // ---------------- resizable table columns (1.56): drag the edge of a column header; widths are remembered in this browser ----------------
+    const colKey = (t, n) => 'nep.cols.' + tab + '.' + n + '.' + [...t.tHead.rows[0].cells].map((c) => c.textContent.trim()).join('|').slice(0, 80);
+    const colResize = () => $$('table.data', el).forEach((t, n) => {
+      if (t.dataset.cr || !t.tHead || !t.tHead.rows[0] || t.tHead.rows[0].cells.length < 3) return; t.dataset.cr = '1'; const ths = [...t.tHead.rows[0].cells], key = colKey(t, n);
+      const apply = (w) => { t.style.tableLayout = 'fixed'; t.style.width = w.reduce((a, b) => a + b, 0) + 'px'; ths.forEach((th, i) => { th.style.width = w[i] + 'px'; }); };
+      try { const w = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(w) && w.length === ths.length) apply(w); } catch { /* none */ }
+      ths.slice(0, -1).forEach((th, i) => { const h = document.createElement('span'); h.className = 'colr'; h.title = 'Drag to resize the column. Double-click to reset all.'; th.style.position = 'relative'; th.appendChild(h);
+        h.onpointerdown = (e) => { e.preventDefault(); h.setPointerCapture(e.pointerId); const w = ths.map((x) => x.offsetWidth), x0 = e.clientX, w0 = w[i];
+          h.onpointermove = (m) => { w[i] = Math.max(40, w0 + m.clientX - x0); apply(w); }; h.onpointerup = () => { h.onpointermove = h.onpointerup = null; try { localStorage.setItem(key, JSON.stringify(w)); } catch { /* ignore */ } }; };
+        h.ondblclick = () => { try { localStorage.removeItem(key); } catch { /* ignore */ } t.style.tableLayout = t.style.width = ''; ths.forEach((x) => { x.style.width = ''; }); }; }); });
+    let crT = 0; const crObs = new MutationObserver(() => { clearTimeout(crT); crT = setTimeout(colResize, 60); }); crObs.observe(el, { childList: true, subtree: true });
 
     // ---------------- routing inside the page ----------------
     const render = () => {
@@ -525,6 +560,6 @@
       else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
     };
     render();
-    return () => { alive = false; stop(); };
+    return () => { alive = false; stop(); crObs.disconnect(); };
   };
 })();

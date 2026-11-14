@@ -94,6 +94,7 @@ module.exports = (Polling) => {
     const devices = this.devices().map((x) => (x.id === id ? { ...x, profile: clean.length ? own(id) : x.profile === own(id) ? 'basic' : x.profile } : x));
     this.config.update({ polling: { ...c, readings, thresholds, lookups, devices } });
     const rt = this.state(d); rt.nextAt = 0; this.collector.forget?.(id);
+    const keep = new Set(clean.map((x) => x.k)); for (const key of [...rt.last.keys()]) { const k = key.split('|')[0]; if (k !== 'uptime' && !k.startsWith('if.') && !keep.has(k)) rt.last.delete(key); }   /* values of removed readings*/
     return clean;
   };
 
@@ -158,13 +159,26 @@ module.exports = (Polling) => {
     } catch (e) { return { ok: false, error: e.code === 'timeout' ? 'The device did not answer in time.' : e.message }; }
   };
 
+  // ---- layout of a device page: what is shown, how big, in which order (1.56) ----
+  P.layoutOf = function (id) { const l = (this.cfg.layouts || {})[id]; return l && typeof l === 'object' ? l : { items: {}, order: [] }; };
+  P.saveLayout = function (id, b) {
+    if (!this.devices().some((x) => x.id === id)) { const e = new Error('No such device.'); e.status = 404; throw e; }
+    const items = {}, KEY = /^[a-z]:[a-z0-9._-]{1,40}$/i;
+    for (const [k, v] of Object.entries((b && b.items) || {}).slice(0, 200)) { if (!KEY.test(k) || !v || typeof v !== 'object') continue;
+      const fin = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(+x) ? null : +x);
+      items[k] = { show: v.show !== false, span: Math.round(num(v.span, 1, 1, 4)), h: Math.round(num(v.h, 200, 100, 700)), style: v.style === 'area' ? 'area' : v.style === 'line' ? 'line' : '', hours: fin(v.hours) === null ? null : num(v.hours, 24, 1, 8760), color: /^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '', max: fin(v.max), min: fin(v.min), ...(v.w ? { w: Math.round(num(v.w, 0, 0, 12)) } : {}) }; }
+    const order = (Array.isArray(b && b.order) ? b.order : []).map(String).filter((k) => KEY.test(k)).slice(0, 200), layouts = { ...(this.cfg.layouts || {}) };
+    if (!Object.keys(items).length && !order.length) delete layouts[id]; else layouts[id] = { items, order };
+    this.config.update({ polling: { ...this.cfg, layouts } }); return layouts[id] || { items: {}, order: [] };
+  };
+
   /** forget everything that belongs to a device that is removed */
   P.dropReadings = function (id) {
-    const c = this.cfg; if (!(c.readings || {})[id] && !(c.thresholds || []).some((t) => t.owner === id) && !(c.lookups || []).some((l) => l.owner === id)) return;
+    const c = this.cfg; if (!(c.readings || {})[id] && !(c.layouts || {})[id] && !(c.thresholds || []).some((t) => t.owner === id) && !(c.lookups || []).some((l) => l.owner === id)) return;
     for (const t of (c.thresholds || []).filter((x) => x.owner === id)) this.clearAlarms('poll-' + t.id);
     for (const l of (c.lookups || []).filter((x) => x.owner === id)) for (const st of ['warn', 'crit']) this.clearAlarms(`poll-lk-${l.rk}-${st}`);
-    const readings = { ...(c.readings || {}) }; delete readings[id];
-    this.config.update({ polling: { ...c, readings, thresholds: (c.thresholds || []).filter((t) => t.owner !== id), lookups: (c.lookups || []).filter((l) => l.owner !== id) } });
+    const readings = { ...(c.readings || {}) }, layouts = { ...(c.layouts || {}) }; delete readings[id]; delete layouts[id];
+    this.config.update({ polling: { ...c, readings, layouts, thresholds: (c.thresholds || []).filter((t) => t.owner !== id), lookups: (c.lookups || []).filter((l) => l.owner !== id) } });
   };
 };
 module.exports.OIDRE = OIDRE; module.exports.cleanItems = cleanItems; module.exports.matchItem = matchItem;

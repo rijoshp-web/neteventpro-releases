@@ -211,7 +211,7 @@ class Polling {
   say(d, severity, text, tagId) {
     const now = Date.now(), host = d.name, tags = ['poll', 'poll-' + tagId];
     this.engine.process({ ts: now, devTs: now, srcIp: d.host, host, devKey: lower(d.name), facility: 5, severity, facilityName: 'syslog', severityName: ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'][severity] || 'info',
-      app: 'snmp-poll', pid: '', msgid: 'poll', message: text, format: 'internal', sd: null, raw: `<${5 * 8 + severity}>snmp-poll: ${text}`, tags, poll: true }, true);
+      app: 'snmp-poll', pid: '', msgid: 'poll', message: text, format: 'internal', sd: null, raw: `<${5 * 8 + severity}>snmp-poll: ${text}`, tags, poll: true, ...(this.cfg.alarmsInSyslog === false ? { noLog: true } : {}) }, true);
   }
   noAnswer(d, rt, down) {
     if (down) {
@@ -397,7 +397,7 @@ class Polling {
   // ---------- settings, profiles, thresholds (saved by the API) ----------
   saveSettings(b) {
     const c = this.cfg; const s = { enabled: b.enabled !== false, workers: Math.round(num(b.workers, c.workers || 5, 1, 50)), gapMs: Math.round(num(b.gapMs, c.gapMs ?? 30, 0, 2000)), defaultIntervalSec: num(b.defaultIntervalSec, 60, 10, 3600), keepRawDays: Math.round(num(b.keepRawDays, 7, 1, 90)), keepAvgDays: Math.round(num(b.keepAvgDays, 365, 7, 3650)),
-      missesBeforeDown: Math.round(num(b.missesBeforeDown, 3, 1, 20)), noAnswerSeverity: Math.round(num(b.noAnswerSeverity, 3, 0, 7)), noAnswerProfiles: Array.isArray(b.noAnswerProfiles) ? b.noAnswerProfiles.map(String).slice(0, 20) : c.noAnswerProfiles || [] };
+      missesBeforeDown: Math.round(num(b.missesBeforeDown, 3, 1, 20)), noAnswerSeverity: Math.round(num(b.noAnswerSeverity, 3, 0, 7)), noAnswerProfiles: Array.isArray(b.noAnswerProfiles) ? b.noAnswerProfiles.map(String).slice(0, 20) : c.noAnswerProfiles || [], alarmsInSyslog: b.alarmsInSyslog === undefined ? c.alarmsInSyslog !== false : b.alarmsInSyslog !== false };
     this.config.update({ polling: { ...c, ...s } }); return s;
   }
   saveProfiles(list, off) {
@@ -472,13 +472,13 @@ class Polling {
     const c = { total: devs.length, up: devs.filter((x) => x.state === 'up').length, down: devs.filter((x) => x.state === 'down').length, unknown: devs.filter((x) => x.state === 'unknown' || x.state === 'stale').length, off: devs.filter((x) => x.state === 'off').length, alarms: devs.reduce((a, x) => a + x.alarms, 0) };
     return { enabled: this.cfg.enabled !== false, counts: c, devices: devs, recent: this.recent.slice(0, 40), settings: this.publicSettings() };
   }
-  publicSettings() { const c = this.cfg; return { enabled: c.enabled !== false, workers: c.workers, gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [] }; }
+  publicSettings() { const c = this.cfg; return { enabled: c.enabled !== false, workers: c.workers, gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [], alarmsInSyslog: c.alarmsInSyslog !== false }; }
   detail(id) {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; const rt = this.state(d), vals = {}, inst = {};
-    for (const [key, x] of rt.last) { const [k, i] = key.split('|'); if (i) (inst[k] ||= {})[i] = x.v; else vals[k] = x.v; }
-    const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic');
+    const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic'), known = new Set(prof.metrics.map((m) => m.k));   /* a removed reading must not leave its values on the page */
+    for (const [key, x] of rt.last) { const [k, i] = key.split('|'); if (!(known.has(k) || k === 'uptime' || k.startsWith('if.'))) continue; if (i) (inst[k] ||= {})[i] = x.v; else vals[k] = x.v; }
     return { device: this.mask(d), via: d.via ? this.probeName(d.via) || d.via : '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', misses: rt.misses, downSince: rt.state === 'down' ? rt.downSince || 0 : 0, sysName: rt.sysName || '', sysDescr: rt.sysDescr || '', objectId: rt.objectId || '', profile: { id: prof.id, name: prof.name, metrics: prof.metrics.filter((m) => m.on !== false).map((m) => ({ k: m.k, label: m.label, unit: m.unit, dtype: m.dtype || ((m.srcs || []).some((x) => x.text) ? 'text' : 'number'), disp: m.disp || null, srcs: (m.srcs || []).map((x) => ({ agg: x.agg })) })) },
-      values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d), openAlarms: this.openAlarmsOf(d) };
+      values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d), openAlarms: this.openAlarmsOf(d), layout: this.layoutOf(id) };
   }
 
   // ---------- scheduler ----------
