@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.64.0
+- **A polling alarm that is no longer open is raised again while the value is still bad.** Before, the polling engine remembered "already in alarm" and stayed silent after the alarm had been deleted or cleared by hand (or refused because the alarm list was full), until the value had gone back to normal. Now, about 30 seconds after raising it, each poll checks that the alarm is really open (or acknowledged); if not, it is raised again. Applies to alarm limits, readings' own alarms and value-meaning (warning / critical) alarms. Found when two rows of a table stayed silent after their alarms had been deleted.
+- Clearing an alarm by hand while the device is still faulty therefore brings it back at the next poll. Acknowledge it instead to keep it quiet.
+- Test: re-raise after deletion; checked live against a fake device.
+
 ## 1.63.0
 - **Simpler SNMP polling → Settings:** only **General** and **Alarm limits** are shown. **Value meanings**, **Templates** and **Shared sets** (the reading profiles) are behind an **Advanced…** link, because most setups rarely need them. Nothing was removed or changed; the choice is remembered in the browser.
 

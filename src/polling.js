@@ -165,11 +165,11 @@ class Polling {
     const lm = this.lookupMetrics(); if (!lm.size) return;
     for (const r of readings) {
       const mi = lm.get(r.k); if (!mi) continue; const lk = this.lookup(mi.lookup); if (!lk) continue;
-      const key = `lk|${d.id}|${r.k}|${r.inst}`, st = this.fire.get(key) || { firing: false }, it = matchItem(lk.items, r.v, st.item), state = it ? it.state : 'unk', bad = state === 'warn' || state === 'crit';
+      const key = `lk|${d.id}|${r.k}|${r.inst}`; let st = this.fire.get(key) || { firing: false }; { const nm0 = `${(lm.get(r.k) || {}).label}${r.inst ? ' ' + r.inst : ''}`, lk0 = this.lookup((lm.get(r.k) || {}).lookup); if (lk0 && st.firing && this.stale(st, d, 'poll-' + (lk0.owner ? `lk-${r.k}-${st.state}` : 'lookup'), nm0)) st = { firing: false }; } const it = matchItem(lk.items, r.v, st.item), state = it ? it.state : 'unk', bad = state === 'warn' || state === 'crit';
       const nm = `${mi.label}${r.inst ? ' ' + r.inst : ''}`, who = `[${nm}]`, shown = it ? it.label : r.v, val = (Number.isInteger(r.v) ? r.v : Math.round(r.v * 100) / 100) + (mi.unit ? ' ' + mi.unit : ''), tag = (x) => (lk.owner ? `lk-${r.k}-${x}` : 'lookup');
       if (bad && (!st.firing || st.state !== state)) {
         if (st.firing && lk.owner) this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state));   /* warning and critical have their own rule (and recipients) */
-        st.firing = true; st.state = state; st.item = it; this.say(d, state === 'crit' ? 3 : 4, `${who} ${nm} is ${shown} (${state === 'crit' ? 'critical' : 'warning'}, value ${val})`, tag(state));
+        st.firing = true; st.at = Date.now(); st.state = state; st.item = it; this.say(d, state === 'crit' ? 3 : 4, `${who} ${nm} is ${shown} (${state === 'crit' ? 'critical' : 'warning'}, value ${val})`, tag(state));
       } else if (!bad && st.firing) { st.firing = false; this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state)); }
       else if (bad) st.item = it;
       if (st.firing) this.fire.set(key, st); else this.fire.delete(key);
@@ -209,6 +209,13 @@ class Polling {
     }
     return out;
   }
+  /** is there an open (or acknowledged) alarm of this rule for this device and row? A firing state without one (the alarm was deleted or cleared by hand, or was refused) is dropped so the next poll raises it again. */
+  stale(st, d, ruleId, inst) {
+    if (!st.firing || Date.now() - (st.at || 0) < 30000) return false;
+    const al = this.engine.alarms; if (!al) return false; const k = lower(d.name);
+    for (const r of al.open.values()) if (r.dev === k && r.rule_id === ruleId && (r.inst || '') === (inst || '')) return false;
+    return true;
+  }
   say(d, severity, text, tagId) {
     const now = Date.now(), host = d.name, tags = ['poll', 'poll-' + tagId];
     this.engine.process({ ts: now, devTs: now, srcIp: d.host, host, devKey: lower(d.name), facility: 5, severity, facilityName: 'syslog', severityName: ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'][severity] || 'info',
@@ -228,13 +235,13 @@ class Polling {
       for (const r of readings) {
         if (r.k !== t.k) continue;
         if (!t.perInstance && r.inst) continue;
-        const key = `${t.id}|${d.id}|${r.inst}`, st = this.fire.get(key) || { since: 0, firing: false };
+        const key = `${t.id}|${d.id}|${r.inst}`; let st = this.fire.get(key) || { since: 0, firing: false }; if (!t.textOp && this.stale(st, d, 'poll-' + t.id, t.perInstance ? r.inst : '')) st = { since: 0, firing: false };
         const op = OPS[t.op] ? t.op : t.op === '<' ? '<' : '>', hi = op === '>' || op === '>=', breach = OPS[op](r.v, t.value);
         const cv = t.clearValue === '' || t.clearValue === undefined || t.clearValue === null ? t.value : +t.clearValue;
         const clear = !OPS[op](r.v, cv);
         const where = r.inst ? `[${r.inst}] ` : '', fmt = (x) => (Math.abs(x) >= 1000 ? (x / 1000).toFixed(1) + 'k' : Number(x.toFixed(2))), unit = info.unit && info.unit !== '' ? (info.unit === '%' ? '%' : ' ' + info.unit) : '';
         if (!st.firing) {
-          if (breach) { if (!st.since) st.since = ts; if (ts - st.since >= num(t.forSec, 0, 0, 86400) * 1000) { st.firing = true; this.say(d, num(t.severity, 4, 0, 7), `${where}${t.name || info.label}: ${info.label} is ${fmt(r.v)}${unit} (limit ${op} ${fmt(t.value)}${unit}${t.forSec ? ` for ${Math.round(t.forSec / 60 * 10) / 10 || 0} min` : ''})`, t.id); } }
+          if (breach) { if (!st.since) st.since = ts; if (ts - st.since >= num(t.forSec, 0, 0, 86400) * 1000) { st.firing = true; st.at = Date.now(); this.say(d, num(t.severity, 4, 0, 7), `${where}${t.name || info.label}: ${info.label} is ${fmt(r.v)}${unit} (limit ${op} ${fmt(t.value)}${unit}${t.forSec ? ` for ${Math.round(t.forSec / 60 * 10) / 10 || 0} min` : ''})`, t.id); } }
           else st.since = 0;
         } else if (clear) { st.firing = false; st.since = 0; this.say(d, 6, `${where}CLEARED: ${t.name || info.label}: ${info.label} is back to ${fmt(r.v)}${unit}`, t.id); }
         else if (breach) st.since = ts;

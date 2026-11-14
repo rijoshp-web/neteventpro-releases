@@ -181,3 +181,16 @@ test('1.60 polling capacity: devices behind schedule are counted, workers rise b
   cfg.polling.workersAuto = false; assert.strictEqual(pl.workersNow(), 5);
   assert.strictEqual(pl.overview().capacity.local, 40);
 });
+
+test('1.64 polling re-raises an alarm that is no longer open while the value is still bad', () => {
+  const { pl, cfg, msgs } = setup(), d = dev(pl, 10500, 'Re-1'), rt = pl.state(pl.devices().find((x) => x.id === d.id));
+  cfg.polling.thresholds = [{ id: 't1', name: 'CPU high', k: 'cpu', op: '>', value: 10, clearValue: 9, forSec: 0, severity: 4, enabled: true }];
+  const open = new Map(); pl.engine.alarms = { open };
+  const alarms = () => msgs.filter((m) => m.tags.includes('poll-t1') && !/CLEARED/.test(m.message)).length, run = () => pl.thresholds(pl.devices().find((x) => x.id === d.id), rt, Date.now(), [{ k: 'cpu', inst: '', v: 50 }]);
+  run(); assert.strictEqual(alarms(), 1);
+  run(); assert.strictEqual(alarms(), 1);                              // no repeat while it is just still bad (and the alarm is recent)
+  const st = pl.fire.get(`t1|${d.id}|`); st.at = Date.now() - 60000;     // a minute later, and nobody has an open alarm any more (deleted or cleared by hand)
+  run(); assert.strictEqual(alarms(), 2);                              // raised again
+  const st2 = pl.fire.get(`t1|${d.id}|`); st2.at = Date.now() - 60000; open.set(1, { dev: 're-1', rule_id: 'poll-t1', inst: '' });
+  run(); assert.strictEqual(alarms(), 2);                              // an open alarm exists: nothing new
+});
