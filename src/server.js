@@ -590,6 +590,11 @@ async function main() {
       need('view');
       return json(res, { ...alarms.list({ state: String(q.state || 'active'), q: String(q.q || '').slice(0, 100), sevs: parseSevs(q.sevs), limit: clampInt(q.limit, 1, 500, 200), offset: clampInt(q.offset, 0, 1e6, 0), source: String(q.source || ''), since: clampInt(q.since || q.from, 0, 9e15, 0), to: clampInt(q.to, 0, 9e15, 0), sort: String(q.sort || '') }), counts: alarms.counts(), summary: alarms.summary(clampInt(q.since || q.from, 0, 9e15, 0) || (q.since === '0' || q.from === '0' ? 1 : Date.now() - 86400000)), canAct: who.perms.has('alarms') });
     }
+    if (p === '/api/alarms/delete-matching' && req.method === 'POST') {
+      need('delete'); const b = await readJson(req); const f = Object.fromEntries(new URLSearchParams(String(b.query || '')));
+      const n = alarms.removeMatching({ state: String(f.state || 'active'), q: String(f.q || '').slice(0, 100), sevs: parseSevs(f.sevs), source: String(f.source || ''), since: clampInt(f.since || f.from, 0, 9e15, 0), to: clampInt(f.to, 0, 9e15, 0) });
+      audit(who, `deleted ${n} alarm record(s) matching a filter`); return json(res, { ok: true, changed: n });
+    }
     if (p.startsWith('/api/alarms/') && req.method === 'POST') {
       if (p !== '/api/alarms/delete') need('alarms'); const b = await readJson(req); const by = who.name || 'admin';
       const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 500);

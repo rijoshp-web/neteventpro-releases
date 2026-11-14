@@ -121,6 +121,17 @@ class AlarmStore {
     for (const id of ids) { const r = this.byId(id); if (r && r.state !== 'cleared') this.open.delete(r.id); this.dirty.delete(id); n += Number(st.run(id).changes); }
     return n;
   }
+  /** delete every alarm record matching a filter (the same filter the list uses), in one go */
+  removeMatching(o) {
+    this.flush(); const { w, args } = this._where(o); let n = 0;
+    this.db.exec('BEGIN');
+    try {
+      for (const r of this.db.prepare(`SELECT id, state FROM alarms ${w}`).all(...args)) { if (r.state !== 'cleared') this.open.delete(r.id); this.dirty.delete(r.id); }
+      n = Number(this.db.prepare(`DELETE FROM alarms ${w}`).run(...args).changes);
+      this.db.exec('COMMIT');
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    return n;
+  }
   clear(ids, by, note) {
     let n = 0;
     for (const id of ids) { const r = this.byId(id); if (!r || r.state === 'cleared') continue; if (note) this.addNote(r, by, note); this._clear(r, by); n++; }
@@ -128,8 +139,7 @@ class AlarmStore {
   }
   note(id, by, text) { const r = this.byId(id); if (!r) return false; this.addNote(r, by, text); this.save(r); return true; }
 
-  list({ state = 'active', q = '', sevs = null, limit = 200, offset = 0, source = '', since = 0, to = 0, sort = '' } = {}) {
-    this.flush();
+  _where({ state = 'active', q = '', sevs = null, source = '', since = 0, to = 0 } = {}) {
     const where = [], args = [];
     if (state === 'active') where.push("state != 'cleared'"); else if (state === 'escalated') where.push("state != 'cleared' AND esc_ts > 0"); else if (state === 'open' || state === 'ack' || state === 'cleared') { where.push('state = ?'); args.push(state); }
     if (source === 'syslog' || source === 'snmp') { where.push('source = ?'); args.push(source); }
@@ -138,7 +148,10 @@ class AlarmStore {
     if (to > 0) { where.push('first_ts <= ?'); args.push(to); }
     if (sevs && sevs.length) where.push(`severity IN (${sevs.map(() => '?').join(',')})`), args.push(...sevs);
     if (q) { where.push("(host LIKE ? ESCAPE '\\' OR rule_name LIKE ? ESCAPE '\\' OR message LIKE ? ESCAPE '\\' OR src_ip LIKE ? ESCAPE '\\')"); const like = '%' + String(q).replace(/[\\%_]/g, '\\$&') + '%'; args.push(like, like, like, like); }
-    const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    return { w: where.length ? 'WHERE ' + where.join(' AND ') : '', args };
+  }
+  list(o = {}) {
+    this.flush(); const { limit = 200, offset = 0, sort = '' } = o, { w, args } = this._where(o);
     const rows = this.db.prepare(`SELECT * FROM alarms ${w} ORDER BY ${orderBy(sort)} LIMIT ? OFFSET ?`).all(...args, Math.min(500, limit), Math.max(0, offset));
     const total = this.db.prepare(`SELECT COUNT(*) AS n FROM alarms ${w}`).get(...args).n;
     return { alarms: rows.map(view), total };

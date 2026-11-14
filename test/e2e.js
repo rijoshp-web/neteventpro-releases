@@ -558,6 +558,8 @@ END`;
   const pa = r.json.alarms.filter((a) => a.rule === 'Port down' && a.device === 'swport');
   r = await api('/api/alarms/delete', { method: 'POST', body: JSON.stringify({ ids: [pa[0].id, pa[1].id] }) }); check('alarms can be deleted', r.status === 200 && r.json.changed === 2, r.text);
   r = await api('/api/alarms?state=active&limit=200'); check('the deleted alarms are gone', r.json.alarms.filter((a) => a.rule === 'Port down' && a.device === 'swport').length === 2);
+  r = await api('/api/alarms/delete-matching', { method: 'POST', body: JSON.stringify({ query: 'state=active&q=swport' }) }); check('alarms matching a filter are deleted in one go', r.status === 200 && r.json.changed === 2, r.text);
+  r = await api('/api/alarms?state=active&limit=200&q=swport'); check('nothing matching the filter is left', r.json.total === 0, JSON.stringify(r.json?.total));
   await put({ rules: rulesBefore });
   // message numbers: syslog and traps are numbered separately
   rows = await logs('&source=syslog&limit=5'); const trs = await logs('&source=snmp&limit=5');

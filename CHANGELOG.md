@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.62.0
+- **Delete all matching alarms:** the Alarms page shows **Delete all N** when more alarms match the filters than the 300 listed. After a confirmation that shows the count, it deletes every alarm that matches the current filters (state, source, severity, period and search text) in one step, not only the 300 shown. It needs the Delete permission and is written to the audit log. Useful after test floods.
+- Test: delete by filter.
+
 ## 1.61.0
 - **A flood no longer freezes the browser:** when more than about 60 messages per second arrive, the Logs page and the dashboard redraw at most twice a second and show the newest ones. A "Very busy" note shows the rate and how many were not drawn, with a **Pause the feed** link. Nothing is lost: every message is still stored, searchable and processed by the rules. At normal rates there is no throttling and no delay.
 - In a flood the new-row flash is switched off, the page keeps at most 600 rows, and only 2 desktop notifications per batch are raised.

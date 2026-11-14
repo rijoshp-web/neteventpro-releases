@@ -48,7 +48,7 @@ function openAlarmColumns(anchor, onChange) {
 }
 
 views.alarms = (el) => {
-  let data = { alarms: [], total: 0, counts: {}, canAct: false }, state = ['active', 'open', 'ack', 'escalated', 'cleared'].includes(S.alarmState) ? S.alarmState : 'active', sevs = S.alarmSevs || '', src = S.alarmSrc || '', range = S.alarmRange = 'day', day = dayKey(), cFrom = S.alarmFrom || '', cTo = S.alarmTo || '', seq = 0, sort = S.alarmSort || '', q = sessionStorage.getItem('sp.alarmQ') || '', timer, selected = new Set(), lastOpen = null, busy = false, lastSig = '', pressed = false;
+  let data = { alarms: [], total: 0, counts: {}, canAct: false }, state = ['active', 'open', 'ack', 'escalated', 'cleared'].includes(S.alarmState) ? S.alarmState : 'active', sevs = S.alarmSevs || '', src = S.alarmSrc || '', range = S.alarmRange = 'day', day = dayKey(), cFrom = S.alarmFrom || '', cTo = S.alarmTo || '', seq = 0, sort = S.alarmSort || '', q = sessionStorage.getItem('sp.alarmQ') || '', timer, selected = new Set(), lastOpen = null, busy = false, lastSig = '', pressed = false, lastQuery = new URLSearchParams();
   const head = () => {
     const c = data.counts || {};
     el.innerHTML = `<div class="page-head"><h1>Alarms</h1><span class="muted" id="alInfo"></span></div>
@@ -64,7 +64,7 @@ views.alarms = (el) => {
       <button id="alCols" class="ib" title="Choose, show, hide and move the columns">${ico('columns')}<span class="bt">Columns</span></button>
       <button id="alCsv" class="ib" title="Download the alarms shown as a CSV file">${ico('download')}<span class="bt">Export</span></button>
       <span class="spacer"></span>
-      <span id="alBulk" class="btngroup" ${data.canAct || can('delete') ? '' : 'hidden'}><button id="alAckSel" class="ib" disabled>${ico('check')}<span class="bt">Acknowledge</span></button><button id="alClearSel" class="ib" disabled>${ico('x')}<span class="bt">Clear</span></button>${can('delete') ? `<button id="alDelSel" class="ib danger" disabled title="Delete the ticked alarms for good">${ico('x')}<span class="bt">Delete</span></button>` : ''}</span>
+      <span id="alBulk" class="btngroup" ${data.canAct || can('delete') ? '' : 'hidden'}><button id="alAckSel" class="ib" disabled>${ico('check')}<span class="bt">Acknowledge</span></button><button id="alClearSel" class="ib" disabled>${ico('x')}<span class="bt">Clear</span></button>${can('delete') ? `<button id="alDelSel" class="ib danger" disabled title="Delete the ticked alarms for good">${ico('x')}<span class="bt">Delete</span></button><button id="alDelAll" class="ib danger" hidden title="Delete every alarm that matches the filters above, not only the ones shown">${ico('x')}<span class="bt"></span></button>` : ''}</span>
     </div>
     <div class="panel alwrap" style="padding:0"><table class="data alarms" id="alTable"></table></div>`;
     $('#alState').value = state === 'cleared' ? 'active' : state; $('#alSrc').value = src; $('#alRange').value = range; setSev();
@@ -78,6 +78,7 @@ views.alarms = (el) => {
   const sortOf = () => { const m = /^([a-z]+):(asc|desc)$/.exec(sort); return m ? { col: m[1], dir: m[2] } : null; };
   const table = () => {
     const act = data.canAct, sel = act || can('delete'), rows = data.alarms, cols = alarmColList().filter((c) => c.visible && (!ACOLS[c.id].hist || hist())).map((c) => c.id), shown = new Set(cols), sd = sortOf();
+    { const b = $('#alDelAll'); if (b) { b.hidden = !(data.total > rows.length); b.querySelector('.bt').textContent = `Delete all ${fmtN(data.total)}`; } }
     $('#alInfo').textContent = `${fmtN(data.total)} alarm${data.total === 1 ? '' : 's'}${data.total > rows.length ? ` · showing ${rows.length}` : ''}`;
     let arrowDone = false;      // the date and time columns sort the same way: only the first one shows the arrow
     const th = (id) => { const d = ACOLS[id], on = sd && sd.col === d.sort && !arrowDone; if (on) arrowDone = true; return `<th data-sort="${d.sort}" tabindex="0" class="sortable" aria-sort="${on ? (sd.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="Click to sort by ${esc(d.label.toLowerCase())}">${esc(d.short || d.label)}<span class="arr">${on ? (sd.dir === 'asc' ? '▲' : '▼') : ''}</span></th>`; };
@@ -101,7 +102,7 @@ views.alarms = (el) => {
     if (busy && !force) return; busy = true; const mine = ++seq;     // a choice made by the person always runs, and only the newest answer is shown
     try {
       const p = new URLSearchParams({ state, q, limit: 300 }); if (src) p.set('source', src); if (!hist()) { /* active alarms are shown whatever their age */ } else if (range === 'day') { const b = dayBounds(day); p.set('from', String(b.from)); if (day !== dayKey()) p.set('to', String(b.to)); } else if (range === 'custom') { if (cFrom) p.set('from', String(new Date(cFrom).getTime())); if (cTo) p.set('to', String(new Date(cTo).getTime())); } else if (range === '0') p.set('from', '0'); else if (range) p.set('from', String(Date.now() - +range)); if (sort) p.set('sort', sort); if (sevSetOf(sevs).length && sevSetOf(sevs).length < 8) p.set('sevs', sevs);
-      const got = await api('/api/alarms?' + p); if (mine !== seq) return; data = got;
+      lastQuery = new URLSearchParams(p); lastQuery.delete('limit'); lastQuery.delete('sort'); const got = await api('/api/alarms?' + p); if (mine !== seq) return; data = got;
       const open = data.counts.open || 0; if (lastOpen !== null && open > lastOpen) beep(data.counts.worstOpen); lastOpen = open;
       const ids = new Set(data.alarms.map((a) => a.id)); for (const id of [...selected]) if (!ids.has(id)) selected.delete(id);
       $('#alBulk').hidden = !(data.canAct || can('delete')); const sig = JSON.stringify([data.alarms, data.total, state]); chips(); if (sig !== lastSig && (force || !pressed)) { lastSig = sig; table(); } setBadge(data.counts); summary();
@@ -145,6 +146,7 @@ views.alarms = (el) => {
     if (t.closest('#alCsv')) return csv();
     if (t.id === 'alGo' || t.closest('#alGo')) { q = $('#alQ').value.trim(); return load(true); }
     if (t.closest('[data-t]')) { const h = t.closest('[data-t]').dataset.t === 'hist'; if (h === hist()) return; state = S.alarmState = h ? 'cleared' : 'active'; $('#alState').value = 'active'; selected.clear(); lastSig = ''; chips(); return load(true); }
+    if (t.closest('#alDelAll')) { const n = data.total; if (await askConfirm(`Delete all ${fmtN(n)} alarm records that match the filters now shown (not only the ${fmtN(data.alarms.length)} in the list)? This cannot be undone. Open alarms among them disappear without being cleared.`, `Delete ${fmtN(n)}`)) { try { const r = await api('/api/alarms/delete-matching', { method: 'POST', body: { query: lastQuery.toString() } }); toast(`${fmtN(r.changed)} alarm record(s) deleted.`); selected.clear(); lastSig = ''; await load(true); } catch (e) { toast(e.message, true); } } return; }
     if (t.closest('#alDelSel')) { if (await askConfirm(`Delete ${selected.size} alarm record(s) for good? This cannot be undone. Open alarms among them disappear without being cleared.`, 'Delete')) { await act('/api/alarms/delete', [...selected]); lastSig = ''; } return; }
     if (t.closest('#alAckSel')) return act('/api/alarms/ack', [...selected]);
     if (t.closest('#alClearSel')) { if (await askConfirm(`Clear ${selected.size} alarm(s)? They move to “Cleared”.`, 'Clear')) act('/api/alarms/clear', [...selected]); return; }
