@@ -172,6 +172,73 @@ module.exports = (Polling) => {
     this.config.update({ polling: { ...this.cfg, layouts } }); return layouts[id] || { items: {}, order: [] };
   };
 
+  /* ---------- 1.58: polled data on the dashboard ---------- */
+  const IDRE = /^[A-Za-z0-9_.-]{1,40}$/;
+  const txt = (v, n) => String(v ?? '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, n);
+  /** the settings of a dashboard "Polled devices" tile, cleaned (used when a dashboard is saved and when the tile asks for its data) */
+  const cleanPollSpec = function (c) {
+    c = c && typeof c === 'object' ? c : {}; const o = {};
+    o.src = ['readings', 'status', 'alarms'].includes(c.src) ? c.src : 'readings';
+    o.view = ['table', 'tiles', 'bars', 'big', 'gauge', 'line'].includes(c.view) ? c.view : (o.src === 'readings' ? 'table' : 'tiles');
+    if (['square', 'round', 'circle', 'hex', 'hexo'].includes(c.shape)) o.shape = c.shape;
+    if (['first', 'avg', 'min', 'max', 'sum'].includes(c.agg)) o.agg = c.agg;
+    const g = txt(c.group, 40); if (g) o.group = g;
+    o.hours = Math.round(num(c.hours, 6, 1, 168));
+    if (c.max !== undefined && c.max !== '' && c.max !== null && Number.isFinite(+c.max)) o.max = +c.max;
+    o.picks = (Array.isArray(c.picks) ? c.picks : []).slice(0, 40).map((x) => {
+      if (!x || typeof x !== 'object') return null; const k = {};
+      if (IDRE.test(x.dev || '')) k.dev = x.dev; if (IDRE.test(x.k || '')) k.k = x.k;
+      const row = txt(x.row, 80), label = txt(x.label, 80), gg = txt(x.group, 40); if (row) k.row = row; if (label) k.label = label; if (gg) k.group = gg;
+      return (k.label || (k.dev && k.k)) ? k : null; }).filter(Boolean);
+    return o;
+  };
+
+  P.cleanPollSpec = cleanPollSpec;
+  module.exports.cleanPollSpec = cleanPollSpec;
+  /** what the dashboard can choose from: devices with their readings and rows, the reading names that exist on several devices, and the groups */
+  P.pollCatalog = function () {
+    const devices = this.devices().map((d) => {
+      const rt = this.state(d), own = this.readingsOf(d.id), prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic');
+      const list = own.length ? own : prof.metrics.filter((m) => m.k !== 'uptime' && !String(m.k).startsWith('if.'));
+      return { id: d.id, name: d.name, group: d.group || '', readings: list.map((r) => { const rows = []; for (const [key] of rt.last) { const i = key.indexOf('|'); if (key.slice(0, i) === r.k && key.slice(i + 1)) rows.push(key.slice(i + 1)); } for (const [key] of (rt.texts || new Map())) { const i = key.indexOf('|'); if (key.slice(0, i) === r.k && key.slice(i + 1) && !rows.includes(key.slice(i + 1))) rows.push(key.slice(i + 1)); }
+        return { k: r.k, label: r.label || r.k, unit: r.unit || '', rows: rows.slice(0, 60) }; }) };
+    });
+    const labels = {}; for (const d of devices) for (const r of d.readings) { const k = r.label.toLowerCase(); (labels[k] ||= { label: r.label, devices: 0 }).devices++; }
+    return { devices, labels: Object.values(labels).sort((a, b) => b.devices - a.devices || a.label.localeCompare(b.label)), groups: [...new Set(devices.map((d) => d.group).filter(Boolean))].sort() };
+  };
+
+  /** the data of one dashboard tile */
+  P.pollTile = function (spec) {
+    const s = this.cleanPollSpec(spec), devs = this.devices(), out = { src: s.src, view: s.view, at: Date.now() };
+    const inGroup = (d, g) => !g || (d.group || '') === g;
+    if (s.src === 'status' || s.src === 'alarms') {
+      const rows = devs.filter((d) => inGroup(d, s.group)).map((d) => { const rt = this.state(d); return { id: d.id, name: d.name, group: d.group || '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, alarms: this.alarmCount(d) }; });
+      out.devices = rows; out.alarms = rows.reduce((n, r) => n + r.alarms, 0); out.groups = {};
+      for (const r of rows) { const g = out.groups[r.group] ||= { n: 0, up: 0, down: 0, alarms: 0 }; g.n++; if (r.state === 'up') g.up++; if (r.state === 'down') g.down++; g.alarms += r.alarms; }
+      return out;
+    }
+    const picks = s.picks.length ? s.picks : [], entries = [];
+    const add = (d, k, label, unit, items, disp, row) => {
+      const rt = this.state(d), have = []; for (const [key, x] of rt.last) { const i = key.indexOf('|'); if (key.slice(0, i) === k) have.push([key.slice(i + 1), x.v]); }
+      const texts = []; for (const [key, x] of (rt.texts || new Map())) { const i = key.indexOf('|'); if (key.slice(0, i) === k) texts.push([key.slice(i + 1), x.s]); }
+      const named = have.filter(([i]) => i), rows = row ? have.filter(([i]) => i === row) : named.length ? named : have.filter(([i]) => !i);
+      const base = { dev: d.id, devName: d.name, group: d.group || '', k, label, unit: unit || '', dec: disp && Number.isFinite(+disp.dec) ? +disp.dec : null, max: disp && disp.max !== null && disp.max !== undefined && Number.isFinite(+disp.max) ? +disp.max : null, down: rt.state === 'down' };
+      for (const [i, v] of rows) { const it = matchItem(items, v); entries.push({ ...base, row: i, v, state: it ? it.state : 'unk', meaning: it ? it.label : '' }); }
+      if (!rows.length) for (const [i, t] of texts.filter(([i2]) => !row || i2 === row)) entries.push({ ...base, row: i, v: null, text: t, state: 'unk', meaning: '' });
+    };
+    for (const p of picks) {
+      for (const d of devs) {
+        if (p.label ? !inGroup(d, p.group || s.group) : d.id !== p.dev) continue;
+        const rt = this.state(d), own = this.readingsOf(d.id), prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic');
+        const r = p.label ? [...own, ...prof.metrics].find((x) => String(x.label || x.k).toLowerCase() === p.label.toLowerCase()) : [...own, ...prof.metrics].find((x) => x.k === p.k);
+        if (r) add(d, r.k, r.label || r.k, r.unit, r.items || (r.lookup ? ((this.cfg.lookups || []).find((l) => l.id === r.lookup) || {}).items : null), r.disp, p.row);
+      }
+    }
+    out.entries = entries.slice(0, 200);
+    if (s.view === 'line') { const to = Date.now(), from = to - s.hours * 3600000; out.series = out.entries.slice(0, 8).map((e) => ({ name: e.devName + (e.row ? ' · ' + e.row : '') + (picks.every((p) => p.label === picks[0].label) ? '' : ' · ' + e.label), unit: e.unit, pts: this.series(e.dev, e.k, e.row || '', from, to, 60).map((x) => [x.t, x.v]) })); out.from = from; out.to = to; }
+    return out;
+  };
+
   /** forget everything that belongs to a device that is removed */
   P.dropReadings = function (id) {
     const c = this.cfg; if (!(c.readings || {})[id] && !(c.layouts || {})[id] && !(c.thresholds || []).some((t) => t.owner === id) && !(c.lookups || []).some((l) => l.owner === id)) return;

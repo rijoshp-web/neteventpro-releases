@@ -139,6 +139,9 @@ const logs = async (q = '') => (await api('/api/logs?limit=50' + q)).json.rows;
     views: [{ name: 'v'.repeat(500), range: 'weird', filter: { severityMax: 99, host: 'h' }, cols: ['host', 'a b'], sort: { col: 'host', dir: 'sideways' }, group: 'x' }] } });
   const ud = r.json?.config?.uiPrefs || {};
   check('saved dashboard tiles and views are validated', r.status === 200 && ud.dash.tiles.length === 1 && ud.dash.tiles[0].w === 12 && ud.dash.tiles[0].x === 0 && ud.dash.tiles[0].y === 0 && ud.dash.tiles[0].cfg.filter.severityMax === 23 && !('evil' in ud.dash.tiles[0].cfg.filter) && ud.views[0].name.length === 60 && ud.views[0].range === 'live' && ud.views[0].cols.length === 1 && ud.views[0].group === 'off', JSON.stringify(ud).slice(0, 300));
+  r = await put({ uiPrefs: { dash: { tiles: [{ id: 'pl1', type: 'poll', title: 'T', x: 0, y: 0, w: 6, h: 6, cfg: { poll: { src: 'readings', view: 'tiles', shape: 'hex', picks: [{ label: 'Temperature', group: 'Core' }, { dev: '../bad', k: 'x' }] } } }, { id: 'hm1', type: 'heat', title: 'H', x: 0, y: 6, w: 6, h: 6, cfg: { mode: 'hostTime', shape: 'hexo', theme: 'traffic' } }, { id: 'hm2', type: 'heat', title: 'H2', x: 6, y: 6, w: 6, h: 6, cfg: { shape: 'x', theme: 'y' } }] } } });
+  { const ud2 = r.json?.config?.uiPrefs || {}; const tl = ((ud2.dash || {}).tiles) || [];
+    check('poll tile and heatmap shape/theme are saved and cleaned', tl.length === 3 && tl[0].cfg.poll.shape === 'hex' && tl[0].cfg.poll.picks.length === 1 && tl[1].cfg.shape === 'hexo' && tl[1].cfg.theme === 'traffic' && !('shape' in tl[2].cfg) && !('theme' in tl[2].cfg), JSON.stringify(tl).slice(0, 300)); }
   // a failing self-check is announced as a log message (needs the same state on two looks in a row; the test shortens the interval to 0.5 s)
   r = await put({ diskWarnPercent: 90, diskCritPercent: 1 });
   await sleep(3500);

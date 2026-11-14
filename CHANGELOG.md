@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.58.0
+- **SNMP polling on the dashboard:** new tile *Polled devices and readings* (Add tile → SNMP polling). It shows device status by group, open polling alarms, or any readings you choose: one reading of one device, one table row, or **the same reading on many devices in one tile** (for example the temperature of every site). Look: table, tile grid coloured by what the value means, bar list, one big number or gauge (highest / lowest / average / total), or a graph with one line per reading. "Add all, including future devices" makes a tile follow a reading name (optionally one group), so new devices join by themselves.
+- **Tile shapes:** the tile grid and the device-status grid can be square, rounded, circle, hexagon or hexagon outline.
+- **Heatmap:** *Busiest devices over time* gets a cell shape (square, rounded, circle, hexagon, hexagon outline) and colour themes (blue as before, traffic light, heat, cool, greys) with a colour scale under the map.
+- Tests: tile data across devices, groups and rows; dashboard saving of the new settings.
+
 ## 1.57.0
 - **Move and resize tiles and graphs:** on a device page choose *Edit layout*. Drag a tile or graph onto another to change places, pull the corner handle to change width (12 columns) and height, then *Save layout*. The arrangement is kept on the server per device and is the same for every user. *Reset layout* returns to the standard arrangement; on a phone everything stacks full width.
 - **Groups of polled devices:** new *Group* field on a device (with suggestions from existing groups). The device list has a chip per group showing devices up / total and open alarms, a "Show group headings" switch with up / no-answer / alarm counts per group, and the search also finds a group name.

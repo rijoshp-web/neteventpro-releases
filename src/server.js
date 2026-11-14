@@ -38,6 +38,7 @@ const { parseRecipients, validAddress, addrOf } = require('./mailer');
 const { sendSms, cleanNumber } = require('./smpp');
 const { SqlCopy } = require('./sqlcopy');
 const { Polling } = require('./polling');
+const { cleanPollSpec } = require('./readings');
 
 const VERSION = require('../package.json').version;
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -342,6 +343,8 @@ async function main() {
       if (p === '/api/poll/overview' && req.method === 'GET') { need('polling'); return json(res, polling.overview()); }
       if (p === '/api/poll/devices' && req.method === 'GET') { need('polling'); return json(res, { devices: polling.devices().map((d) => polling.mask(d)), profiles: polling.profiles().filter((x) => !x.own).map((x) => ({ id: x.id, name: x.name })), probes: (cfg.probes || []).map((x) => ({ id: x.id, name: x.name })) }); }
       if (p === '/api/poll/device' && req.method === 'GET') { need('polling'); const d = polling.detail(url.searchParams.get('id') || ''); if (!d) throw new HttpError(404, 'No such device.'); return json(res, d); }
+      if (p === '/api/poll/catalog' && req.method === 'GET') { need('polling'); return json(res, polling.pollCatalog()); }
+      if (p === '/api/poll/tile' && req.method === 'POST') { need('polling'); const b = await readJson(req); return json(res, polling.pollTile(b)); }
       if (p === '/api/poll/series' && req.method === 'GET') {
         need('polling'); const id = url.searchParams.get('id') || '', k = str(url.searchParams.get('k'), 40), inst = str(url.searchParams.get('inst'), 200), hours = Math.min(24 * 365, Math.max(1, +url.searchParams.get('hours') || 24)), to = Date.now();
         if (!polling.devices().some((d) => d.id === id)) throw new HttpError(404, 'No such device.');
@@ -1037,7 +1040,7 @@ function sanitizeRules(list) {
   });
 }
 
-const TILE_TYPES = ['kpi', 'trend', 'sevbars', 'top', 'latest', 'rate', 'io', 'health', 'silent', 'pie', 'line', 'heat', 'gauge', 'snmpstatus', 'section', 'bar', 'treemap', 'table', 'bargauge', 'statspark', 'text', 'alarm'];
+const TILE_TYPES = ['kpi', 'trend', 'sevbars', 'top', 'latest', 'rate', 'io', 'health', 'silent', 'pie', 'line', 'heat', 'gauge', 'snmpstatus', 'section', 'bar', 'treemap', 'table', 'bargauge', 'statspark', 'text', 'alarm', 'poll'];
 const KPI_METRICS = ['total', 'errors', 'warnings', 'hosts', 'perMinute', 'count', 'received', 'eps', 'devices', 'silent', 'stored', 'dbSize', 'dropped', 'diskFree', 'alActive', 'alOpen', 'alAck', 'alEsc', 'alRaised', 'alCleared', 'alAvgClear', 'dvAll', 'dvReporting', 'dvSilent', 'dvMuted', 'dvOverdue', 'dvAlarms', 'dvSyslog', 'dvTrap'];
 /** a tile filter: only these keys, only text or small numbers */
 function cleanTileFilter(f) {
@@ -1162,6 +1165,9 @@ function sanitizeDashPrefs(d) {
       for (const k of ['max', 'warn', 'crit']) if (c[k] !== undefined && c[k] !== '' && Number.isFinite(+c[k])) cfg[k] = Math.min(1e12, Math.max(0, +c[k]));
       Object.assign(cfg, sanitizeTileLook(c));
       const f = cleanTileFilter(c.filter); if (Object.keys(f).length) cfg.filter = f;
+      if (t.type === 'poll') { cfg.poll = cleanPollSpec(c.poll); }
+      if (['square', 'round', 'circle', 'hex', 'hexo'].includes(c.shape)) cfg.shape = c.shape;
+      if (['blue', 'traffic', 'heat', 'cool', 'mono'].includes(c.theme)) cfg.theme = c.theme;
       const w = Math.min(12, Math.max(1, Math.round(+t.w) || 4));
       return { id: t.id, type: t.type, title: String(t.title || '').slice(0, 60), x: Math.min(12 - w, Math.max(0, Math.round(+t.x) || 0)), y: Math.min(999, Math.max(0, Math.round(+t.y) || 0)), w, h: Math.min(40, Math.max(1, Math.round(+t.h) || 4)), cfg };
     });

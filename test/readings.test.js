@@ -123,3 +123,25 @@ test('1.57 device group is kept and the layout keeps widths and order', () => {
   assert.strictEqual(lay.items['v:r11111111'].w, 5); assert.strictEqual(lay.items['g:rtt'].w, 12); assert.deepStrictEqual(lay.order, ['g:rtt', 'v:r11111111']);
   assert.deepStrictEqual(pl.layoutOf(d.id).order, ['g:rtt', 'v:r11111111']);
 });
+
+test('1.58 dashboard tile data: one reading across devices, groups, rows and status', async () => {
+  const a = await startAgent({ mib: MIB }), { pl } = setup();
+  try {
+    const d1 = dev(pl, a.port, 'Box-1'), d2 = dev(pl, a.port, 'Box-2');
+    pl.saveDevice({ ...pl.devices().find((x) => x.id === d1.id), group: 'Core' });
+    const rd = [{ label: 'Room temperature', unit: '°C', t: 'oid', oid: '1.3.6.1.4.1.99999.1.1.0', scale: 5, items: [{ op: '>=', v: 25, label: 'Hot', state: 'crit' }, { op: '<', v: 25, label: 'Fine', state: 'ok' }] }, { label: 'Door', t: 'walk', oid: '1.3.6.1.4.1.99999.2', agg: 'each' }];
+    pl.saveReadings(d1.id, rd); pl.saveReadings(d2.id, rd);
+    await pl.pollDevice(pl.devices().find((x) => x.id === d1.id)); await pl.pollDevice(pl.devices().find((x) => x.id === d2.id));
+    const cat = pl.pollCatalog(); assert.ok(cat.labels.some((l) => l.label === 'Room temperature' && l.devices === 2)); assert.deepStrictEqual(cat.groups, ['Core']);
+    assert.ok(cat.devices[0].readings.find((r) => r.label === 'Door').rows.length === 2);
+    const all = pl.pollTile({ src: 'readings', picks: [{ label: 'Room temperature' }] });
+    assert.strictEqual(all.entries.length, 2); assert.ok(all.entries.every((e) => e.v === 20 && e.state === 'ok' && e.meaning === 'Fine'));
+    assert.strictEqual(pl.pollTile({ src: 'readings', picks: [{ label: 'Room temperature', group: 'Core' }] }).entries.length, 1);
+    assert.strictEqual(pl.pollTile({ src: 'readings', picks: [{ dev: d2.id, k: cat.devices.find((x) => x.id === d2.id).readings.find((r) => r.label === 'Door').k }] }).entries.length, 2);
+    const one = pl.pollTile({ src: 'readings', picks: [{ dev: d2.id, k: cat.devices.find((x) => x.id === d2.id).readings.find((r) => r.label === 'Door').k, row: cat.devices[0].readings.find((r) => r.label === 'Door').rows[0] }] });
+    assert.strictEqual(one.entries.length, 1);
+    const st = pl.pollTile({ src: 'status', group: 'Core' }); assert.strictEqual(st.devices.length, 1); assert.strictEqual(st.groups.Core.up, 1);
+    const ln = pl.pollTile({ src: 'readings', view: 'line', picks: [{ label: 'Room temperature' }] }); assert.strictEqual(ln.series.length, 2);
+    assert.deepStrictEqual(pl.cleanPollSpec({ picks: [{ dev: '../x', k: 'a' }, { label: 'T<b>' }], shape: 'hex', view: 'nope' }).picks, [{ label: 'Tb' }]);
+  } finally { a.close(); }
+});

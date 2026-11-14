@@ -67,6 +67,7 @@ const TYPES = {
   pie: { label: 'Pie / donut chart', desc: 'Share of messages by severity, device, process or facility.', w: 4, h: 8, minW: 3, minH: 6 },
   line: { label: 'Line graph', desc: 'Messages over time as lines (by severity group, or all messages), with an optional filled area.', w: 8, h: 8, minW: 3, minH: 5 },
   heat: { label: 'Heatmap', desc: 'Busiest devices over time, or weekday against hour of day, shaded by message count.', w: 8, h: 8, minW: 4, minH: 5 },
+  poll: { label: 'Polled devices and readings', desc: 'SNMP polling on the dashboard: device status by group, open polling alarms, or any readings (for example the temperature of many devices in one table, tile grid, bar list, gauge or graph).', w: 6, h: 8, minW: 2, minH: 3 },
   snmpstatus: { label: 'SNMP trap receiver', desc: 'Whether the trap port is listening, and how many traps came in.', w: 6, h: 3, minW: 3, minH: 3 },
   bar: { label: 'Bar chart', desc: 'Columns or bars: the busiest devices, processes, severities or facilities. Click a bar to open the messages.', w: 6, h: 8, minW: 3, minH: 5 },
   treemap: { label: 'Treemap', desc: 'Rectangles sized by message count, like Power BI: see at a glance which devices or processes dominate.', w: 6, h: 8, minW: 3, minH: 5 },
@@ -370,6 +371,7 @@ views.dashboard = (el) => {
       const r = range(), reqs = requests(), t = getTiles();
       const jobs = [];
       if (reqs.length && (force || r.rolling || !data)) jobs.push(api('/api/dash', { method: 'POST', body: { from: r.from, to: r.to, tiles: reqs } }).then((d) => { data = d; }));
+      if (t.some((x) => x.type === 'poll')) jobs.push(loadPoll(t));
       if (t.some((x) => x.type === 'health' || (x.type === 'kpi' && x.cfg?.metric === 'diskFree'))) jobs.push(api('/api/health').then((h) => { health = h; }));
       if (t.some((x) => x.type === 'silent')) jobs.push(api('/api/devices').then((d) => { devices = d; }));
       if (t.some((x) => x.type === 'alarm')) jobs.push(loadAlarms());
@@ -538,6 +540,7 @@ views.dashboard = (el) => {
       else if (t.type === 'text') setHtml(t.id, textHtml(t));
       else if (t.type === 'io' && st) setHtml(t.id, ioHtml(st));
       else if (t.type === 'snmpstatus') setHtml(t.id, snmpStatusHtml());
+      else if (t.type === 'poll') setHtml(t.id, pollHtml(t));
       else if (t.type === 'health') setHtml(t.id, healthTile());
       else if (t.type === 'silent') setHtml(t.id, silentTile());
       else if (t.type === 'alarm') setHtml(t.id, alarmHtml(t));
@@ -649,16 +652,19 @@ views.dashboard = (el) => {
     const lg = $('.legend', wbOf(t.id)); if (lg) lg.innerHTML = lines.length > 1 && ch.legend !== 'hide' ? lines.map((l) => `<span class="muted"><span class="dot" style="background:${l.color};margin-right:5px"></span>${l.name}</span>`).join('') : '';
   }
   function drawLine(t) { const ls = lineSeries(t); if (ls) drawLines(t, ls.lines, ls.d, { stack: false }); }
+  const THEMES = { blue: [], traffic: ['#30a46c', '#f5a524', '#e5484d'], heat: ['#fff3b0', '#fb923c', '#b91c1c'], cool: ['#2dd4bf', '#3b82f6', '#7c3aed'], mono: ['#334155', '#94a3b8', '#f1f5f9'] };
+  const themeCol = (theme, r) => { const st = THEMES[theme] || THEMES.traffic, x = Math.min(1, Math.max(0, r)) * (st.length - 1), i = Math.min(st.length - 2, Math.floor(x)), f = x - i, a = parseInt(st[i].slice(1), 16), b = parseInt(st[i + 1].slice(1), 16); const m = (sh) => Math.round(((a >> sh) & 255) * (1 - f) + ((b >> sh) & 255) * f); return `rgb(${m(16)},${m(8)},${m(0)})`; };
   function heatHtml(t) {
     const d = data?.tiles?.[t.id]; if (!d) return '<div class="muted">Loading…</div>'; if (d.error) return `<div class="muted">${esc(d.error)}</div>`;
     const dow = t.cfg?.mode === 'dowHour', cells = d.cells || [], max = Math.max(1, ...cells.flat());
     if (!cells.flat().some((v) => v)) return `<div class="muted">${noData(t)}</div>`;
-    const shade = (v) => `background:${v ? `color-mix(in srgb, var(--accent) ${Math.max(10, Math.round(v / max * 100))}%, transparent)` : 'transparent'}`;
+    const shape = t.cfg?.shape || 'square', theme = t.cfg?.theme || 'blue';
+    const shade = (v) => `--c:${v ? (theme === 'blue' ? `color-mix(in srgb, var(--accent) ${Math.max(10, Math.round(v / max * 100))}%, transparent)` : themeCol(theme, v / max)) : 'transparent'}`;
     const cols = dow ? 24 : (cells[0] ? cells[0].length : 1), labels = dow ? DOWN : d.hosts;
     const head = dow ? `<div class="hm-row hm-head"><span></span>${Array.from({ length: 24 }, (_, h) => `<i>${h % 6 === 0 ? h : ''}</i>`).join('')}</div>` : '';
-    const rows = cells.map((row, ri) => `<div class="hm-row"><span class="trunc" title="${esc(labels[ri])}">${esc(labels[ri])}</span>${row.map((v, ci) => { const tip = dow ? `${DOWN[ri]} ${String(ci).padStart(2, '0')}:00 — ${fmtN(v)} messages` : (() => { const ts = (d.firstBucket + ci) * d.bucketMs; return `${labels[ri]} · ${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)} — ${fmtN(v)} messages`; })(); return `<i style="${shade(v)}" title="${esc(tip)}"></i>`; }).join('')}</div>`).join('');
+    const rows = cells.map((row, ri) => `<div class="hm-row"><span class="trunc" title="${esc(labels[ri])}">${esc(labels[ri])}</span>${row.map((v, ci) => { const tip = dow ? `${DOWN[ri]} ${String(ci).padStart(2, '0')}:00 — ${fmtN(v)} messages` : (() => { const ts = (d.firstBucket + ci) * d.bucketMs; return `${labels[ri]} · ${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)} — ${fmtN(v)} messages`; })(); return `<i class="hmc shp-${shape}${v ? '' : ' z'}" style="${shade(v)}" title="${esc(tip)}"></i>`; }).join('')}</div>`).join('');
     const foot = dow ? '' : `<div class="hm-row hm-head"><span></span><i style="grid-column:span ${Math.ceil(cols / 2)};text-align:left">${esc(dateOf(d.firstBucket * d.bucketMs).slice(5) + ' ' + timeOf(d.firstBucket * d.bucketMs, false).slice(0, 5))}</i><i style="grid-column:span ${Math.floor(cols / 2) || 1};text-align:right">${esc(dateOf(data.to).slice(5) + ' ' + timeOf(data.to, false).slice(0, 5))}</i></div>`;
-    return `<div class="heat" style="--cols:${cols}">${head}${rows}${foot}</div><div class="muted" style="font-size:11.5px;margin-top:4px">Darker = more messages (most in one cell: ${fmtN(max)})</div>`;
+    return `<div class="heat" style="--cols:${cols}">${head}${rows}${foot}</div><div class="muted" style="font-size:11.5px;margin-top:4px;display:flex;gap:6px;align-items:center">0 <span class="hmleg" style="background:linear-gradient(90deg, ${theme === 'blue' ? 'transparent, var(--accent)' : THEMES[theme].join(',')})"></span> ${fmtN(max)} messages in one cell</div>`;
   }
   const nOf = (m, d) => { if (!d || d.error) return null; return m === 'perMinute' ? Math.round(d.n / Math.max(1, (data.to - data.from) / 60000) * 10) / 10 : d.n; };
   const calcUnit = (c) => ({ pct: '%', deltaPct: '%', perMin: '/min', perHour: '/h', perDay: '/day' }[c.calc?.op] || '');
@@ -894,6 +900,7 @@ views.dashboard = (el) => {
         ${t.type === 'bar' ? K.sel('Direction', 'cfg.orient', [['h', 'Horizontal bars'], ['v', 'Vertical columns']], { def: 'h' }) : ''}
         ${t.type === 'pie' ? K.sel('Shape', 'cfg.style', [['donut', 'Donut'], ['pie', 'Pie']], { def: 'donut' }) : ''}
         ${t.type === 'line' ? K.sel('Lines', 'cfg.mode', [['severity', 'One line per severity group'], ['total', 'All ' + DS[dsOf(t)].chip.toLowerCase() + ' (one line)']], { def: 'severity' }) : ''}
+        ${t.type === 'heat' ? K.sel('Cell shape', 'cfg.shape', [['square', 'Square'], ['round', 'Rounded square'], ['circle', 'Circle'], ['hex', 'Hexagon'], ['hexo', 'Hexagon outline']], { def: 'square' }) + K.sel('Colours', 'cfg.theme', [['blue', 'Blue (accent colour)'], ['traffic', 'Traffic light (green, amber, red)'], ['heat', 'Heat (yellow to dark red)'], ['cool', 'Cool (teal, blue, purple)'], ['mono', 'Greys']], { def: 'blue' }) : ''}
         ${t.type === 'heat' ? K.sel('Shows', 'cfg.mode', [['hostTime', 'Busiest devices over time'], ['dowHour', 'Weekday against hour of day']], { def: 'hostTime' }) : ''}
         ${['top', 'latest', 'pie', 'heat', 'bar', 'treemap', 'table', 'bargauge'].includes(t.type) ? K.num(t.type === 'pie' ? 'Slices' : 'Rows', 'cfg.n', { min: 1, max: t.type === 'pie' ? 12 : t.type === 'heat' ? 20 : TOPLIKE[t.type] || 50, ph: '8' }) : ''}
         ${t.type === 'text' ? K.fld('Text', `<textarea data-p="cfg.text" rows="6" style="width:100%" maxlength="2000" placeholder="# Heading&#10;Plain text, **bold**, - bullets and [links](https://example.com)">${esc(c.text || '')}</textarea>`) : ''}
@@ -1028,15 +1035,117 @@ views.dashboard = (el) => {
       io: sv([0, 1, 2].map((i) => `<circle cx="18" cy="${18 + i * 18}" r="5" fill="${['#30a46c', '#30a46c', '#f5a524'][i]}"/><rect x="30" y="${15 + i * 18}" width="${[70, 56, 62][i]}" height="6" rx="3" fill="${M}" opacity=".35"/>`).join('')),
       health: sv(`<path d="M12 40 L34 40 L42 20 L54 58 L64 32 L72 40 L108 40" fill="none" stroke="${A}" stroke-width="2.4" stroke-linejoin="round"/>`),
       silent: sv([0, 1, 2].map((i) => `<rect x="12" y="${12 + i * 17}" width="${[56, 44, 50][i]}" height="7" rx="3" fill="${M}" opacity=".4"/><rect x="82" y="${12 + i * 17}" width="26" height="7" rx="3" fill="#e5484d" opacity=".8"/>`).join('')),
+      poll: sv([0, 1, 2, 3].map((i) => `<rect x="12" y="${12 + i * 14}" width="58" height="7" rx="3" fill="${M}" opacity=".4"/><circle cx="90" cy="${15 + i * 14}" r="5" fill="${['#30a46c', '#30a46c', '#f5a524', '#e5484d'][i]}"/>`).join('')),
       snmpstatus: sv(`<circle cx="26" cy="36" r="9" fill="#30a46c"/><rect x="42" y="28" width="62" height="7" rx="3" fill="${M}" opacity=".4"/><rect x="42" y="40" width="40" height="6" rx="3" fill="${M}" opacity=".25"/>`),
       text: sv(`<rect x="14" y="14" width="60" height="9" rx="2" fill="${M}" opacity=".7"/>` + [0, 1, 2].map((i) => `<rect x="14" y="${30 + i * 11}" width="${[92, 84, 60][i]}" height="5" rx="2.5" fill="${M}" opacity=".3"/>`).join(''))
     };
   })();
-  const GALLERY = [['Numbers', ['kpi', 'statspark', 'gauge', 'bargauge']], ['Charts', ['trend', 'line', 'bar', 'pie', 'treemap', 'heat', 'sevbars']], ['Rankings, tables and lists', ['top', 'table', 'latest', 'silent']], ['Status and notes', ['rate', 'io', 'health', 'snmpstatus', 'text']]];
+  const GALLERY = [['Numbers', ['kpi', 'statspark', 'gauge', 'bargauge']], ['Charts', ['trend', 'line', 'bar', 'pie', 'treemap', 'heat', 'sevbars']], ['Rankings, tables and lists', ['top', 'table', 'latest', 'silent']], ['Status and notes', ['rate', 'io', 'health', 'snmpstatus', 'text']], ['SNMP polling', ['poll']]];
   const DS_HINT = { events: 'Counts, busiest devices / processes, severity, latest messages and charts over time.', alarms: 'Active, acknowledged, escalated, cleared alarms; by rule, device, severity; latest alarms.', devices: 'How many devices are reporting, silent, muted, overdue; by vendor, status or group.', system: 'Message rate now, database size, free disk space, messages dropped.' };
+  // ---------- 1.58: polled devices and readings ----------
+  const pollData = new Map();
+  async function loadPoll(list) {
+    await Promise.all(list.filter((x) => x.type === 'poll').map(async (x) => { try { pollData.set(x.id, await api('/api/poll/tile', { method: 'POST', body: x.cfg?.poll || {} })); } catch (e) { pollData.set(x.id, { error: e.message || 'Cannot read the polling data.' }); } }));
+  }
+  const PST = { ok: 'var(--ok)', warn: 'var(--s4)', crit: 'var(--bad)', unk: 'var(--muted)' };
+  const DEVST = { up: 'ok', down: 'crit', stale: 'warn', unknown: 'unk', off: 'unk' };
+  const WORSE = ['unk', 'ok', 'warn', 'crit'];
+  const pfmt = (e, v = e.v) => (e.text !== undefined && v === null ? esc(e.text) : Number.isFinite(v) ? esc((e.dec !== null && e.dec !== undefined ? v.toFixed(e.dec) : String(Math.round(v * 100) / 100)) + (e.unit ? ' ' + e.unit : '')) : '–');
+  function pollHtml(t) {
+    const d = pollData.get(t.id), sp = t.cfg?.poll || {}, shape = sp.shape || 'square'; if (!d) return '<div class="muted">Loading…</div>'; if (d.error) return `<div class="muted">${esc(d.error)}</div>`;
+    const cell = (name, big, small, col, tip) => `<div class="pcell shp-${shape}" style="--c:${col}" title="${esc(tip || name)}"><span class="pn">${esc(name)}</span><b>${big}</b>${small ? `<span class="tw">${small}</span>` : ''}</div>`;
+    if (d.src === 'status' || d.src === 'alarms') {
+      const rows = d.devices || []; if (!rows.length) return '<div class="muted">No polled device' + (sp.group ? ' in this group' : '') + ' yet.</div>';
+      const sum = Object.entries(d.groups).sort((a, b) => a[0].localeCompare(b[0]));
+      const head = d.src === 'alarms' ? `<div class="bigv" style="color:${d.alarms ? 'var(--s3)' : 'var(--ok)'}">${d.alarms}</div><div class="muted" style="margin-bottom:6px">open polling alarm${d.alarms === 1 ? '' : 's'}</div>` : `<div class="muted" style="margin-bottom:6px">${rows.filter((r) => r.state === 'up').length} of ${rows.length} up${rows.some((r) => r.state === 'down') ? ` · <b style="color:var(--bad)">${rows.filter((r) => r.state === 'down').length} no answer</b>` : ''}${d.alarms ? ` · <b style="color:var(--s3)">${d.alarms} alarm${d.alarms === 1 ? '' : 's'}</b>` : ''}</div>`;
+      const shown = d.src === 'alarms' ? rows.filter((r) => r.alarms) : rows;
+      if (sp.view === 'table' || d.src === 'alarms') return head + (shown.length ? `<table class="data"><thead><tr><th>Device</th>${sum.length > 1 || sum[0]?.[0] ? '<th>Group</th>' : ''}<th>Status</th><th class="num-r">Answer</th><th class="num-r">Alarms</th></tr></thead><tbody>${shown.map((r) => `<tr><td><a href="#polling?d=${esc(r.id)}">${esc(r.name)}</a></td>${sum.length > 1 || sum[0]?.[0] ? `<td class="muted">${esc(r.group)}</td>` : ''}<td><span class="sdot" style="background:${PST[DEVST[r.state] || 'unk']}"></span> ${esc(r.state)}</td><td class="num-r">${r.rtt === null ? '–' : r.rtt + ' ms'}</td><td class="num-r">${r.alarms || ''}</td></tr>`).join('')}</tbody></table>` : '');
+      const by = {}; rows.forEach((r) => (by[r.group] ||= []).push(r));
+      return head + Object.keys(by).sort().map((g) => `${Object.keys(by).length > 1 || g ? `<div class="pgh">${esc(g || 'No group')} <span class="muted">${by[g].filter((r) => r.state === 'up').length}/${by[g].length}</span></div>` : ''}<div class="ptiles">${by[g].map((r) => `<a href="#polling?d=${esc(r.id)}" class="pa">${cell(r.name, esc(r.state), r.alarms ? r.alarms + ' alarm' + (r.alarms === 1 ? '' : 's') : '', PST[r.alarms && r.state === 'up' ? 'warn' : DEVST[r.state] || 'unk'], r.name + ' · ' + r.state)}</a>`).join('')}</div>`).join('');
+    }
+    const es = d.entries || []; if (!es.length) return '<div class="muted">Nothing to show yet. Edit the tile and choose readings, or wait for the next poll.</div>';
+    const same = es.every((e) => e.label === es[0].label), nm = (e) => e.devName + (e.row ? ' · ' + e.row : '') + (same ? '' : ' · ' + e.label), col = (e) => PST[e.state];
+    const nums = es.map((e) => e.v).filter(Number.isFinite), worst = es.reduce((w, e) => (WORSE.indexOf(e.state) > WORSE.indexOf(w) ? e.state : w), 'unk');
+    const agg = () => { if (!nums.length) return null; const a = sp.agg || 'max'; return a === 'first' ? es.find((e) => Number.isFinite(e.v)).v : a === 'avg' ? nums.reduce((x, y) => x + y, 0) / nums.length : a === 'min' ? Math.min(...nums) : a === 'sum' ? nums.reduce((x, y) => x + y, 0) : Math.max(...nums); };
+    const e0 = es[0];
+    if (sp.view === 'big') { const v = agg(); return `<div class="bigv" style="color:${worst === 'unk' ? 'inherit' : PST[worst]}">${pfmt(e0, v)}</div><div class="muted">${esc(same ? e0.label : 'readings')} · ${{ first: 'first', avg: 'average', min: 'lowest', max: 'highest', sum: 'total' }[sp.agg || 'max']} of ${es.length}</div>`; }
+    if (sp.view === 'gauge') { const v = agg(), mx = sp.max || e0.max || Math.max(100, ...nums), f = Math.min(1, Math.max(0, (v || 0) / mx)), a = Math.PI * (1 - f), x = 60 + 48 * Math.cos(a), y = 62 - 48 * Math.sin(a); return `<svg viewBox="0 0 120 76" style="width:100%;max-height:100%"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="var(--line)" stroke-width="10" stroke-linecap="round"/><path d="M12 62 A48 48 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${worst === 'unk' ? 'var(--accent)' : PST[worst]}" stroke-width="10" stroke-linecap="round"/><text x="60" y="60" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">${pfmt(e0, v)}</text></svg><div class="muted" style="text-align:center">${esc(same ? e0.label : 'readings')} · ${es.length} value${es.length === 1 ? '' : 's'}</div>`; }
+    if (sp.view === 'bars') { const mx = sp.max || Math.max(...es.map((e) => e.max || 0), ...nums, 1); return `<div class="hbars">${es.map((e) => `<div class="hb" title="${esc(nm(e))}"><span class="trunc">${esc(nm(e))}</span><span class="hbt"><i style="width:${Math.min(100, Math.max(0, (e.v || 0) / mx * 100))}%;background:${e.state === 'unk' ? 'var(--accent)' : col(e)}"></i></span><b>${pfmt(e)}</b></div>`).join('')}</div>`; }
+    if (sp.view === 'tiles') return `<div class="ptiles">${es.map((e) => cell(nm(e), pfmt(e), esc(e.meaning || ''), e.state === 'unk' ? 'var(--accent)' : col(e), nm(e) + ' · ' + pfmt(e))).join('')}</div>`;
+    if (sp.view === 'line') {
+      const ser = d.series || []; if (!ser.some((x) => x.pts.length)) return '<div class="muted">No history for this period yet.</div>';
+      const all = ser.flatMap((x) => x.pts), x0 = d.from, x1 = d.to, ys = all.map((p) => p[1]).filter(Number.isFinite), lo = Math.min(0, ...ys), hi = Math.max(...ys, sp.max || 0, lo + 1), X = (x) => 4 + (x - x0) / (x1 - x0 || 1) * 392, Y = (y) => 128 - (y - lo) / (hi - lo) * 120;
+      return `<svg viewBox="0 0 400 134" preserveAspectRatio="none" style="width:100%;height:calc(100% - 38px);min-height:90px"><line x1="4" x2="396" y1="128" y2="128" stroke="var(--line)"/><line x1="4" x2="396" y1="8" y2="8" stroke="var(--line)" stroke-dasharray="3 4"/>${ser.map((x, i) => `<polyline fill="none" stroke="${PAL[i % PAL.length]}" stroke-width="1.8" vector-effect="non-scaling-stroke" points="${x.pts.filter((p) => Number.isFinite(p[1])).map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join(' ')}"/>${x.pts.length < 3 ? x.pts.filter((p) => Number.isFinite(p[1])).map((p) => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3" fill="${PAL[i % PAL.length]}"/>`).join('') : ''}`).join('')}</svg><div class="legend">${ser.map((x, i) => `<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:${PAL[i % PAL.length]}"></i>${esc(x.name)}</span>`).join('')}</div><div class="muted" style="font-size:11px">${esc(String(Math.round(lo * 10) / 10))} – ${esc(String(Math.round(hi * 10) / 10))}${esc(ser[0].unit ? ' ' + ser[0].unit : '')} · last ${sp.hours || 6} h</div>`;
+    }
+    const grp = es.some((e) => e.group);
+    return `<table class="data"><thead><tr><th>Device</th>${grp ? '<th>Group</th>' : ''}${same ? '' : '<th>Reading</th>'}<th class="num-r">${same ? esc(e0.label) : 'Value'}</th></tr></thead><tbody>${es.map((e) => `<tr><td><a href="#polling?d=${esc(e.dev)}">${esc(e.devName)}</a>${e.row ? ` <span class="muted">${esc(e.row)}</span>` : ''}</td>${grp ? `<td class="muted">${esc(e.group)}</td>` : ''}${same ? '' : `<td>${esc(e.label)}</td>`}<td class="num-r"><span class="sdot" style="background:${col(e)}"></span> <b>${pfmt(e)}</b>${e.meaning ? ` <span class="muted">${esc(e.meaning)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
+  }
+  async function pollDialog(existing) {
+    let cat; try { cat = await api('/api/poll/catalog'); } catch (e) { return toast(e.message || 'Cannot read the polled devices.', true); }
+    const t = existing ? structuredClone(existing) : { id: 'u' + Date.now().toString(36), type: 'poll', title: '', x: 0, y: 0, w: TYPES.poll.w, h: TYPES.poll.h, cfg: {} };
+    const sp = t.cfg.poll = { src: 'readings', view: 'table', hours: 6, picks: [], ...(t.cfg.poll || {}) }; sp.picks = [...(sp.picks || [])];
+    const back = document.createElement('div'); back.className = 'modal-back';
+    const opt = (v, l, cur) => `<option value="${esc(v)}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`;
+    back.innerHTML = `<form class="modal pe" role="dialog" aria-modal="true" aria-label="Polled devices tile" style="max-width:680px"><h3 style="margin:0 0 2px">${existing ? 'Edit tile' : 'Add: Polled devices and readings'}</h3><p class="muted" style="margin:0 0 10px">${esc(TYPES.poll.desc)}</p><div class="form" id="pdBody"></div>
+      <div class="toolbar" style="margin:12px 0 0"><span class="spacer"></span><button type="button" id="mCancel">Cancel</button><button type="submit" class="primary">${existing ? 'Save' : 'Add tile'}</button></div></form>`;
+    document.body.appendChild(back); const close = () => back.remove(), body = $('#pdBody', back), devById = Object.fromEntries(cat.devices.map((d) => [d.id, d]));
+    let selDev = cat.devices[0]?.id || '', selLabel = cat.labels[0]?.label || '';
+    const pickText = (p) => p.label ? `Every “${p.label}” reading${p.group || sp.group ? ' of group ' + (p.group || sp.group) : ' of every device'} (new devices join by themselves)` : `${devById[p.dev]?.name || p.dev} · ${(devById[p.dev]?.readings.find((r) => r.k === p.k) || { label: p.k }).label}${p.row ? ' · ' + p.row : ''}`;
+    const draw = () => {
+      const dv = devById[selDev], rd = dv?.readings || [], isR = sp.src === 'readings', lv = cat.devices.filter((d) => d.readings.some((r) => r.label.toLowerCase() === selLabel.toLowerCase()));
+      body.innerHTML = `<div class="field"><label for="pdT">Title</label><div><input id="pdT" type="text" maxlength="60" value="${esc(t.title || '')}" placeholder="${esc(TYPES.poll.label)}"></div></div>
+        <div class="field"><label for="pdS">Show</label><div><select id="pdS">${opt('readings', 'Readings (any device, any reading)', sp.src)}${opt('status', 'Device status (up / no answer, by group)', sp.src)}${opt('alarms', 'Open polling alarms', sp.src)}</select></div></div>
+        <div class="field"><label for="pdV">Look</label><div><select id="pdV">${(isR ? [['table', 'Table'], ['tiles', 'Tile grid (coloured by what the value means)'], ['bars', 'Bar list'], ['big', 'One big number'], ['gauge', 'Gauge'], ['line', 'Graph (one line per reading)']] : sp.src === 'status' ? [['tiles', 'Tile grid'], ['table', 'Table']] : [['table', 'Table']]).map(([v, l]) => opt(v, l, sp.view)).join('')}</select></div></div>
+        ${sp.view === 'tiles' ? `<div class="field"><label for="pdSh">Tile shape</label><div><select id="pdSh">${[['square', 'Square'], ['round', 'Rounded square'], ['circle', 'Circle'], ['hex', 'Hexagon'], ['hexo', 'Hexagon outline']].map(([v, l]) => opt(v, l, sp.shape || 'square')).join('')}</select></div></div>` : ''}
+        ${['big', 'gauge'].includes(sp.view) && isR ? `<div class="field"><label for="pdA">Combine values</label><div><select id="pdA">${[['max', 'Highest'], ['min', 'Lowest'], ['avg', 'Average'], ['sum', 'Total'], ['first', 'First one']].map(([v, l]) => opt(v, l, sp.agg || 'max')).join('')}</select></div></div>` : ''}
+        ${['gauge', 'bars', 'line'].includes(sp.view) && isR ? `<div class="field"><label for="pdM">Top of the scale</label><div><input id="pdM" type="number" step="any" style="width:100px" value="${sp.max ?? ''}" placeholder="automatic"></div></div>` : ''}
+        ${sp.view === 'line' ? `<div class="field"><label for="pdH">Time range</label><div><select id="pdH">${[[1, '1 hour'], [6, '6 hours'], [24, '24 hours'], [168, '7 days']].map(([v, l]) => opt(v, l, sp.hours)).join('')}</select></div></div>` : ''}
+        ${!isR ? `<div class="field"><label for="pdG">Only group</label><div><select id="pdG">${opt('', 'All devices', sp.group || '')}${cat.groups.map((g) => opt(g, g, sp.group || '')).join('')}</select></div></div>` : ''}
+        ${isR ? `<div class="field"><label>Readings shown</label><div><div id="pdList" class="pdlist">${sp.picks.length ? sp.picks.map((p, i) => `<div class="pdp"><span>${esc(pickText(p))}</span><button type="button" data-rm="${i}" title="Remove">✕</button></div>`).join('') : '<span class="muted">None yet. Add one below.</span>'}</div></div></div>
+        <details class="og" open><summary>Add one reading of one device</summary><div class="form">
+          <div class="field"><label for="pdD">Device</label><div><select id="pdD">${cat.devices.map((d) => opt(d.id, d.name + (d.group ? ' (' + d.group + ')' : ''), selDev)).join('')}</select></div></div>
+          <div class="field"><label for="pdR">Reading</label><div><select id="pdR">${rd.map((r) => opt(r.k, r.label + (r.unit ? ' (' + r.unit + ')' : ''), '')).join('')}</select></div></div>
+          <div class="field"><label for="pdW">Rows</label><div><select id="pdW"><option value="">All rows (or the single value)</option>${(rd[0] ? rd[0].rows : []).map((r) => opt(r, r, '')).join('')}</select></div></div>
+          <div class="toolbar"><button type="button" id="pdAdd">Add</button></div></div></details>
+        <details class="og"><summary>Same reading on many devices</summary><div class="form">
+          <div class="field"><label for="pdL">Reading name</label><div><select id="pdL">${cat.labels.map((l) => opt(l.label, l.label + ' (' + l.devices + ' device' + (l.devices === 1 ? '' : 's') + ')', selLabel)).join('')}</select></div></div>
+          <div class="field"><label>Devices</label><div class="pdchk">${lv.map((d) => `<label><input type="checkbox" class="pdc" value="${esc(d.id)}" checked> ${esc(d.name)}${d.group ? ' <span class="muted">' + esc(d.group) + '</span>' : ''}</label>`).join('') || '<span class="muted">No device has this reading.</span>'}</div></div>
+          <div class="toolbar"><button type="button" id="pdAddC">Add the ticked devices</button>${cat.groups.length ? `<select id="pdLG" aria-label="Group">${opt('', 'every device', '')}${cat.groups.map((g) => opt(g, 'group ' + g, '')).join('')}</select>` : ''}<button type="button" id="pdAddA" title="New devices that have this reading join automatically">Add all, including future devices</button></div></div></details>` : ''}
+        <div class="field"><label for="pdWd">Width</label><div><input id="pdWd" type="number" min="${TYPES.poll.minW}" max="12" style="width:70px" value="${t.w}"> <span class="muted">of 12 columns</span> &nbsp; <label for="pdHt" style="display:inline">Height</label> <input id="pdHt" type="number" min="${TYPES.poll.minH}" max="40" style="width:70px" value="${t.h}"> <span class="muted">rows</span></div></div>`;
+      const $b = (id) => $('#' + id, body);
+      $b('pdT').oninput = (e) => { t.title = e.target.value; };
+      $b('pdS').onchange = (e) => { sp.src = e.target.value; sp.view = sp.src === 'readings' ? 'table' : 'tiles'; draw(); };
+      $b('pdV').onchange = (e) => { sp.view = e.target.value; draw(); };
+      if ($b('pdSh')) $b('pdSh').onchange = (e) => { sp.shape = e.target.value; }; if ($b('pdA')) $b('pdA').onchange = (e) => { sp.agg = e.target.value; };
+      if ($b('pdM')) $b('pdM').onchange = (e) => { if (e.target.value === '') delete sp.max; else sp.max = +e.target.value; }; if ($b('pdH')) $b('pdH').onchange = (e) => { sp.hours = +e.target.value; };
+      if ($b('pdG')) $b('pdG').onchange = (e) => { if (e.target.value) sp.group = e.target.value; else delete sp.group; };
+      $b('pdWd').onchange = (e) => { t.w = +e.target.value; }; $b('pdHt').onchange = (e) => { t.h = +e.target.value; };
+      if (isR) {
+        $$('[data-rm]', body).forEach((b) => { b.onclick = () => { sp.picks.splice(+b.dataset.rm, 1); draw(); }; });
+        $b('pdD').onchange = (e) => { selDev = e.target.value; draw(); $b('pdD').focus(); };
+        $b('pdR').onchange = (e) => { const r = rd.find((x) => x.k === e.target.value); $b('pdW').innerHTML = '<option value="">All rows (or the single value)</option>' + (r ? r.rows : []).map((x) => opt(x, x, '')).join(''); };
+        $b('pdR').dispatchEvent(new Event('change'));
+        $b('pdAdd').onclick = () => { if (!$b('pdR').value) return toast('This device has no readings yet. Add them on its page first.', true); sp.picks.push({ dev: selDev, k: $b('pdR').value, ...($b('pdW').value ? { row: $b('pdW').value } : {}) }); draw(); };
+        $b('pdL').onchange = (e) => { selLabel = e.target.value; draw(); };
+        $b('pdAddC').onclick = () => { for (const c of $$('.pdc:checked', body)) { const d = devById[c.value], r = d.readings.find((x) => x.label.toLowerCase() === selLabel.toLowerCase()); if (r && !sp.picks.some((p) => p.dev === d.id && p.k === r.k && !p.row)) sp.picks.push({ dev: d.id, k: r.k }); } draw(); };
+        $b('pdAddA').onclick = () => { const g = $b('pdLG') ? $b('pdLG').value : ''; sp.picks.push({ label: selLabel, ...(g ? { group: g } : {}) }); draw(); };
+      }
+    };
+    draw();
+    back.addEventListener('mousedown', (e) => { if (e.target === back) close(); }); back.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    $('#mCancel', back).onclick = close;
+    $('form', back).onsubmit = (e) => {
+      e.preventDefault(); if (sp.src === 'readings' && !sp.picks.length) return toast('Add at least one reading.', true);
+      if (sp.src !== 'readings') sp.picks = []; if (!t.title) t.title = sp.src === 'status' ? 'Polled devices' : sp.src === 'alarms' ? 'Polling alarms' : 'Polled readings';
+      t.w = Math.min(12, Math.max(TYPES.poll.minW, Math.round(+t.w) || TYPES.poll.w)); t.h = Math.min(40, Math.max(TYPES.poll.minH, Math.round(+t.h) || TYPES.poll.h));
+      const list = getTiles(); if (existing) list[list.findIndex((x) => x.id === existing.id)] = t; else { t.y = Math.max(0, ...list.map((x) => x.y + x.h)); list.push(t); }
+      if (t.x + t.w > 12) t.x = 12 - t.w; settle(list, t.id); saveTiles(); close(); frames(); load();
+    };
+  }
+
   function addMenu() {
     const back = document.createElement('div'); back.className = 'modal-back';
-    const works = (k) => (VIS_DS[k] ? [...new Set(VIS_DS[k].map((x) => ({ events: 'Syslog / traps', alarms: 'Alarms', devices: 'Devices', system: 'System' }[x])))].join(' · ') : 'Fixed content');
+    const works = (k) => (k === 'poll' ? 'SNMP polling' : VIS_DS[k] ? [...new Set(VIS_DS[k].map((x) => ({ events: 'Syslog / traps', alarms: 'Alarms', devices: 'Devices', system: 'System' }[x])))].join(' · ') : 'Fixed content');
     const card = (k) => `<button type="button" class="vcard" data-type="${k}" aria-label="${esc(TYPES[k].label)}"><span class="vthumb">${THUMB[k] || ''}</span><b>${esc(TYPES[k].label)}</b><span class="muted vdesc">${esc(TYPES[k].desc)}</span><span class="vworks">${esc(works(k))}</span></button>`;
     const stepOne = () => `<h3 style="margin:0 0 4px">Add a tile</h3><p class="muted" style="margin:0 0 10px">Step 1 of 3 – pick a visual. Next you choose the data it shows, then colours and options.</p><input type="search" id="vFind" placeholder="Search visuals…" aria-label="Search visuals" style="width:100%;margin-bottom:8px">
       <div class="gallery" id="vGal">${GALLERY.map(([g, ks]) => `<div class="gcat"><h4>${g}</h4><div class="gitems">${ks.map(card).join('')}</div></div>`).join('')}</div><div class="toolbar" style="margin:12px 0 0"><span class="spacer"></span><button type="button" id="mCancel">Cancel</button></div>`;
@@ -1051,7 +1160,7 @@ views.dashboard = (el) => {
     back.addEventListener('input', (e) => { if (e.target.id !== 'vFind') return; const f = e.target.value.trim().toLowerCase(); for (const b of $$('.vcard', back)) b.hidden = !!f && !(`${TYPES[b.dataset.type].label} ${TYPES[b.dataset.type].desc} ${works(b.dataset.type)}`.toLowerCase().includes(f)); for (const g of $$('.gcat', back)) g.hidden = !$$('.vcard:not([hidden])', g).length; });
     back.addEventListener('click', (e) => {
       if (e.target.id === 'mBack') return show(stepOne());
-      const b = e.target.closest('button[data-type]'); if (b) { picked = b.dataset.type; if (!VIS_DS[picked]) { close(); return tileDialog(null, picked); } const kinds = [...new Set(VIS_DS[picked])]; return show(stepTwo(picked)); }
+      const b = e.target.closest('button[data-type]'); if (b) { picked = b.dataset.type; if (picked === 'poll') { close(); return pollDialog(null); } if (!VIS_DS[picked]) { close(); return tileDialog(null, picked); } const kinds = [...new Set(VIS_DS[picked])]; return show(stepTwo(picked)); }
       const d = e.target.closest('button[data-ds]'); if (d) { close(); tileDialog(null, picked, d.dataset.ds); }
     });
   }
@@ -1092,7 +1201,7 @@ views.dashboard = (el) => {
     const a = e.target.closest('button[data-a]:not([data-a=seccfg])');
     if (a) { const tid = a.closest('.widget').dataset.id, list = getTiles(), t = list.find((x) => x.id === tid);
       if (a.dataset.a === 'del') { list.splice(list.indexOf(t), 1); settle(list, null); saveTiles(); frames(); }
-      if (a.dataset.a === 'cfg') tileDialog(t); return; }
+      if (a.dataset.a === 'cfg') { if (t.type === 'poll') pollDialog(t); else tileDialog(t); } return; }
     const sc = e.target.closest('button[data-a=seccfg]'); if (sc) return secDialog(structuredClone(getTiles().find((x) => x.id === sc.dataset.sid)));
     const pl = e.target.closest('.pl[data-key]'); if (pl && !editing) { const tt = getTiles().find((x) => x.id === pl.closest('.widget').dataset.id); return drillTile(tt, byOf(tt), pl.dataset.key); }
     const dk = e.target.closest('[data-dk]'); if (dk && !editing) { const tt = getTiles().find((x) => x.id === dk.dataset.tid); if (tt) return drillTile(tt, byOf(tt), dk.dataset.dk); }
