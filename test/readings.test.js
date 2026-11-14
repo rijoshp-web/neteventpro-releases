@@ -213,3 +213,17 @@ test('1.65.2 input checks: bad port, unknown reading in an alarm limit, too many
   assert.doesNotThrow(() => pl.saveThresholds([{ name: 'ok', k: 'rtt', op: '>', value: 1 }]));
   assert.throws(() => pl.saveThresholds(Array.from({ length: 201 }, (_, i) => ({ name: 't' + i, k: 'rtt', op: '>', value: 1 }))), /At most 200/);
 });
+
+test('1.65.3 a shared / built-in lookup ends the old alarm when the state changes (critical -> warning -> critical)', async () => {
+  const a = await startAgent({ mib: MIB }), { pl, msgs } = setup();
+  try {
+    const d = dev(pl, a.port, 'Lk-1'); pl.saveReadings(d.id, [{ label: 'Port', t: 'oid', oid: '1.3.6.1.4.1.99999.1.1.0', lookup: 'b-ifstatus' }]);
+    const poll = async (v) => { a.set('1.3.6.1.4.1.99999.1.1.0', v); msgs.length = 0; await pl.pollDevice(pl.devices().find((x) => x.id === d.id)); return msgs.map((m) => (/CLEARED/.test(m.message) ? 'clear' : 'raise') + ':' + m.tags.filter((t) => t !== 'poll').join(',')); };
+    assert.deepEqual(await poll(2), ['raise:poll-lookup']);                       // down: critical
+    assert.deepEqual(await poll(2), []);                                          // unchanged: nothing
+    assert.deepEqual(await poll(3), ['clear:poll-lookup', 'raise:poll-lookup']);  // testing: warning; the critical alarm must end
+    assert.deepEqual(await poll(7), ['clear:poll-lookup', 'raise:poll-lookup']);  // lower layer down: critical again
+    assert.deepEqual(await poll(1), ['clear:poll-lookup']);                       // up: everything ends
+    assert.deepEqual(await poll(1), []);
+  } finally { a.close(); }
+});

@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.65.3
+- **Fixed: a change between two alarm states left the old alarm open** for the built-in lookups (interface status, colour, battery, up/down and so on) and for lookups made on the Lookups tab. For example an interface going from *down* (critical) to *testing* (warning) showed both alarms until it came up; the same for warning to critical. The old alarm now ends when the state changes, like it already did for the lookups made on a single reading.
+- Found by testing about 275 alarm and lookup cases (all six operators, clear values, hold times, table rows, text alarms, every value of the 7 built-in lookups, own lookup rules with every operator). Everything else behaved correctly.
+- Test: critical -> warning -> critical -> up on a built-in lookup.
+
 ## 1.65.2
 - **SNMP polling input checks** (found by testing on a real laptop):
   - A port outside 1 to 65535 (for example 0) is refused with a clear message. Before, 0 was quietly saved as port 1 and the device never answered. Leaving the port empty still means 161.

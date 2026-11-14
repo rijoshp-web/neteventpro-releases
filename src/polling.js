@@ -168,7 +168,7 @@ class Polling {
       const key = `lk|${d.id}|${r.k}|${r.inst}`; let st = this.fire.get(key) || { firing: false }; { const nm0 = `${(lm.get(r.k) || {}).label}${r.inst ? ' ' + r.inst : ''}`, lk0 = this.lookup((lm.get(r.k) || {}).lookup); if (lk0 && st.firing && this.stale(st, d, 'poll-' + (lk0.owner ? `lk-${r.k}-${st.state}` : 'lookup'), nm0)) st = { firing: false }; } const it = matchItem(lk.items, r.v, st.item), state = it ? it.state : 'unk', bad = state === 'warn' || state === 'crit';
       const nm = `${mi.label}${r.inst ? ' ' + r.inst : ''}`, who = `[${nm}]`, shown = it ? it.label : r.v, val = (Number.isInteger(r.v) ? r.v : Math.round(r.v * 100) / 100) + (mi.unit ? ' ' + mi.unit : ''), tag = (x) => (lk.owner ? `lk-${r.k}-${x}` : 'lookup');
       if (bad && (!st.firing || st.state !== state)) {
-        if (st.firing && lk.owner) this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state));   /* warning and critical have their own rule (and recipients) */
+        if (st.firing) this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state));   /* the old state's alarm ends when the state changes (warning -> critical or back): warning and critical of an own lookup have their own rule (and recipients), the shared and built-in lookups use one rule and the row name */
         st.firing = true; st.at = Date.now(); st.state = state; st.item = it; this.say(d, state === 'crit' ? 3 : 4, `${who} ${nm} is ${shown} (${state === 'crit' ? 'critical' : 'warning'}, value ${val})`, tag(state));
       } else if (!bad && st.firing) { st.firing = false; this.say(d, 6, `${who} CLEARED: ${nm} is ${shown}`, tag(st.state)); }
       else if (bad) st.item = it;
