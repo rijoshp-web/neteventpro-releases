@@ -94,7 +94,7 @@ class Store {
     this.queue = [];
     this.timer = setInterval(() => this.flush(), 250);
     this.timer.unref?.();
-    this.droppedOnOverflow = 0;
+    this.droppedOnOverflow = 0; this.peak = 0; this.peakAt = Date.now(); this.lastPeak = 0;   // 1.60: the longest the write queue was, in the last hour
     this.search = new Reader(this.file);                     // searches, exports, backups
     this.statsReader = new Reader(this.file, { maxPending: 4 }); // dashboard numbers (kept apart so a long search never freezes the dashboard)
   }
@@ -116,10 +116,13 @@ class Store {
 
   enqueue(m) {
     if (this.queue.length > 200000) { this.droppedOnOverflow++; return; } // safety valve
-    this.queue.push(m);
+    this.queue.push(m); if (this.queue.length > this.peak) this.peak = this.queue.length;
   }
 
+  /** the longest the write queue got during the last one to two hours (a writer that falls behind shows here long before messages are dropped) */
+  peakQueue() { return Math.max(this.peak, this.lastPeak); }
   flush() {
+    if (Date.now() - this.peakAt > 3600000) { this.lastPeak = this.peak; this.peak = 0; this.peakAt = Date.now(); }
     if (!this.queue.length) return;
     const batch = this.queue;
     this.queue = [];

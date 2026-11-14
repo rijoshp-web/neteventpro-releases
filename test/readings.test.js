@@ -168,3 +168,16 @@ test('1.59 a long gap is reported as a suspended service, not as a busy one', ()
   assert.strictEqual(h.lag.reduce((m, x) => Math.max(m, x[1]), 0), 0);   // the gap must not show as "processing delay"
   h.lastTick = Date.now() - 3000; h.tick(); assert.strictEqual(h.suspends.length, 1); assert.ok(h.lag[h.lag.length - 1][1] >= 2000);   // a 3 s stall is still "busy"
 });
+
+test('1.60 polling capacity: devices behind schedule are counted, workers rise by themselves', () => {
+  const { pl, cfg } = setup(), ds = [];
+  for (let i = 0; i < 40; i++) ds.push(dev(pl, 10000 + i, 'Late-' + i));
+  const rt = pl.state(pl.devices().find((x) => x.id === ds[0].id)); rt.nextAt = Date.now() - 120000; rt.busy = false; rt.misses = 0;
+  const cp = pl.capacity(); assert.strictEqual(cp.local, 40); assert.strictEqual(cp.late, 1); assert.ok(cp.maxLateSec >= 119);
+  rt.misses = 5; assert.strictEqual(pl.capacity().late, 0);          // a device that does not answer is not "behind", it is down
+  assert.strictEqual(pl.workersNow(), 5);                             // no poll measured yet: the setting
+  pl.pollMs = 8000; for (const d of pl.devices()) pl.saveDevice({ ...d, intervalSec: 30 });
+  assert.ok(pl.workersNow() > 5 && pl.workersNow() <= 50, 'workers ' + pl.workersNow());
+  cfg.polling.workersAuto = false; assert.strictEqual(pl.workersNow(), 5);
+  assert.strictEqual(pl.overview().capacity.local, 40);
+});

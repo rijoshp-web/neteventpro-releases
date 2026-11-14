@@ -59,7 +59,7 @@ const DEFAULTS = {
   trapForwardTargets: [],         // northbound SNMP: [{ name, host, port:162, community, version:'v2c'|'v1', minSeverity, enabled }]
   forwardTargets: [],             // [{ name, host, port, protocol:'udp'|'tcp', enabled:true }]
   replacements: [],               // [{ id, enabled, find, replace, regex, wholeWord, matchCase, scope }]
-  polling: { enabled: true, workers: 5, gapMs: 30, defaultIntervalSec: 60, keepRawDays: 7, keepAvgDays: 365, missesBeforeDown: 3, noAnswerSeverity: 3, noAnswerProfiles: [], devices: [], profiles: [], profileOff: {}, thresholds: [] },   // SNMP polling (see polling.js)
+  polling: { enabled: true, workers: 5, workersAuto: true, gapMs: 30, defaultIntervalSec: 60, keepRawDays: 7, keepAvgDays: 365, missesBeforeDown: 3, noAnswerSeverity: 3, noAnswerProfiles: [], devices: [], profiles: [], profileOff: {}, thresholds: [] },   // SNMP polling (see polling.js)
   smtp: { host: '', port: 587, security: 'starttls', user: '', password: '', from: '', to: '', cc: '', allowSelfSigned: false, maxPerHour: 30 },
   rules: [
     {

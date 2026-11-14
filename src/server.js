@@ -99,7 +99,7 @@ async function main() {
   const maint = new Maintenance(config); engine.maint = maint;
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
-  const polling = new Polling(config, store, engine); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
+  const polling = new Polling(config, store, engine); health.polling = polling; engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
   const guard = new LoginGuard(); const authCache = new Map();

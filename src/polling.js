@@ -71,7 +71,8 @@ class Polling {
   /** one poll of one device made by this computer; never throws */
   async pollDevice(d) {
     const rt = this.state(d); rt.busy = true;
-    try { return this.apply(d, await this.collector.collect(d, this.profiles())); } finally { rt.busy = false; }
+    const t0 = Date.now();
+    try { return this.apply(d, await this.collector.collect(d, this.profiles())); } finally { rt.busy = false; const ms = Date.now() - t0; this.pollMs = this.pollMs ? this.pollMs * 0.95 + ms * 0.05 : ms; }
   }
   /** takes what a poll found (made here or by a probe) into the state, the stored readings, the thresholds and the no-answer alarm */
   apply(d, res) {
@@ -396,7 +397,7 @@ class Polling {
 
   // ---------- settings, profiles, thresholds (saved by the API) ----------
   saveSettings(b) {
-    const c = this.cfg; const s = { enabled: b.enabled !== false, workers: Math.round(num(b.workers, c.workers || 5, 1, 50)), gapMs: Math.round(num(b.gapMs, c.gapMs ?? 30, 0, 2000)), defaultIntervalSec: num(b.defaultIntervalSec, 60, 10, 3600), keepRawDays: Math.round(num(b.keepRawDays, 7, 1, 90)), keepAvgDays: Math.round(num(b.keepAvgDays, 365, 7, 3650)),
+    const c = this.cfg; const s = { enabled: b.enabled !== false, workers: Math.round(num(b.workers, c.workers || 5, 1, 50)), workersAuto: b.workersAuto === undefined ? c.workersAuto !== false : b.workersAuto !== false, gapMs: Math.round(num(b.gapMs, c.gapMs ?? 30, 0, 2000)), defaultIntervalSec: num(b.defaultIntervalSec, 60, 10, 3600), keepRawDays: Math.round(num(b.keepRawDays, 7, 1, 90)), keepAvgDays: Math.round(num(b.keepAvgDays, 365, 7, 3650)),
       missesBeforeDown: Math.round(num(b.missesBeforeDown, 3, 1, 20)), noAnswerSeverity: Math.round(num(b.noAnswerSeverity, 3, 0, 7)), noAnswerProfiles: Array.isArray(b.noAnswerProfiles) ? b.noAnswerProfiles.map(String).slice(0, 20) : c.noAnswerProfiles || [], alarmsInSyslog: b.alarmsInSyslog === undefined ? c.alarmsInSyslog !== false : b.alarmsInSyslog !== false };
     this.config.update({ polling: { ...c, ...s } }); return s;
   }
@@ -470,9 +471,9 @@ class Polling {
         cpu: this.latest(rt, 'cpu'), memory: this.latest(rt, 'memory'), temperature: this.latest(rt, 'temperature'), battery: this.latest(rt, 'battery'), ifMon: ifs.filter((i) => i.monitored).length, ifUp: ifs.filter((i) => i.monitored && i.status === 'up').length, alarms: this.alarmCount(d) };
     });
     const c = { total: devs.length, up: devs.filter((x) => x.state === 'up').length, down: devs.filter((x) => x.state === 'down').length, unknown: devs.filter((x) => x.state === 'unknown' || x.state === 'stale').length, off: devs.filter((x) => x.state === 'off').length, alarms: devs.reduce((a, x) => a + x.alarms, 0) };
-    return { enabled: this.cfg.enabled !== false, counts: c, devices: devs, recent: this.recent.slice(0, 40), settings: this.publicSettings() };
+    return { enabled: this.cfg.enabled !== false, counts: c, devices: devs, recent: this.recent.slice(0, 40), settings: this.publicSettings(), capacity: this.capacity() };
   }
-  publicSettings() { const c = this.cfg; return { enabled: c.enabled !== false, workers: c.workers, gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [], alarmsInSyslog: c.alarmsInSyslog !== false }; }
+  publicSettings() { const c = this.cfg; return { enabled: c.enabled !== false, workers: c.workers, workersAuto: c.workersAuto !== false, workersNow: this.workersNow(), gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [], alarmsInSyslog: c.alarmsInSyslog !== false }; }
   detail(id) {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; const rt = this.state(d), vals = {}, inst = {};
     const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic'), known = new Set(prof.metrics.map((m) => m.k));   /* a removed reading must not leave its values on the page */
@@ -481,20 +482,43 @@ class Polling {
       values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d), openAlarms: this.openAlarmsOf(d), layout: this.layoutOf(id) };
   }
 
+  // ---------- 1.60: capacity and keeping up ----------
+  /** the devices this computer polls itself (not through a probe) */
+  localDevices() { return this.devices().filter((d) => d.enabled !== false && !d.via); }
+  /** how many polls may run at once: the setting, raised automatically (up to 50) when the polls would not finish in time at that number */
+  workersNow() {
+    const c = this.cfg, base = num(c.workers, 5, 1, 50); if (c.workersAuto === false) return base;
+    const loc = this.localDevices(); if (!loc.length || !this.pollMs) return base;
+    const perSec = loc.reduce((n, d) => n + 1 / Math.max(10, d.intervalSec || 60), 0), need = Math.ceil(perSec * Math.max(0.25, this.pollMs / 1000) * 2) + 1;   // twice what is needed on average: room for a slow device
+    return Math.max(base, Math.min(50, need));
+  }
+  /** is polling keeping up with its schedule? Devices whose turn came long ago and are still not polled are "late" */
+  capacity() {
+    const now = Date.now(), loc = this.localDevices(); let late = 0, maxLate = 0, probes = 0, reqS = 0;
+    for (const d of this.devices()) if (d.enabled !== false && d.via) probes++;
+    for (const d of loc) { const rt = this.state(d), step = Math.max(10, d.intervalSec || 60) * 1000; reqS += 4 / (step / 1000); if (!rt.nextAt || rt.busy || (rt.misses || 0) >= 3) continue; const l = now - rt.nextAt; if (l > Math.max(10000, step * 0.5)) { late++; maxLate = Math.max(maxLate, l); } }
+    return { local: loc.length, viaProbe: probes, late, maxLateSec: Math.round(maxLate / 1000), workers: num(this.cfg.workers, 5, 1, 50), workersNow: this.workersNow(), avgPollMs: Math.round(this.pollMs || 0), running: this.running, reqPerSec: Math.round(reqS * 10) / 10 };
+  }
+
   // ---------- scheduler ----------
   start() {
     this.recover(); this.rollup();
-    this.timer = setInterval(() => this.tick(), 1000); this.timer.unref?.();
+    this.timer = setInterval(() => this.tick(), 250); this.timer.unref?.();
     this.maintTimer = setInterval(() => this.rollup(), 600000); this.maintTimer.unref?.();
   }
   stop() { clearInterval(this.timer); clearInterval(this.maintTimer); }
   tick() {
-    const c = this.cfg; if (c.enabled === false) return; const now = Date.now(), cap = num(c.workers, 5, 1, 50); this.client.gapMs = num(c.gapMs, 30, 0, 2000);
+    const c = this.cfg; if (c.enabled === false) return; const now = Date.now(), cap = this.workersNow(); this.client.gapMs = num(c.gapMs, 30, 0, 2000);
+    const due = [];
     for (const d of this.devices()) {
-      if (this.running >= cap) break; if (d.enabled === false || d.via) continue;       // a device polled through a probe is polled by that probe
+      if (d.enabled === false || d.via) continue;       // a device polled through a probe is polled by that probe
       const rt = this.state(d); if (rt.busy) continue;
       if (!rt.nextAt) { rt.nextAt = now + Math.floor(Math.random() * Math.min(10000, (d.intervalSec || 60) * 1000)); continue; }      // first poll after a short random delay: not all at once
-      if (now < rt.nextAt) continue;
+      if (now >= rt.nextAt) due.push([rt.nextAt, d, rt]);
+    }
+    due.sort((a, b) => a[0] - b[0]);   // 1.60: the device that has waited longest goes first, so a long list never starves the devices at its end
+    for (const [, d, rt] of due) {
+      if (this.running >= cap) break;
       // a device that does not answer is asked less and less often (2x, 4x, 8x ... up to 10 minutes) so a dead address costs nothing, and normal speed returns with its first answer
       const step = (d.intervalSec || 60) * 1000, back = rt.misses >= 3 ? Math.min(step * 2 ** Math.min(rt.misses - 2, 5), Math.max(step, 600000)) : step;
       rt.nextAt = now + back; this.running++;

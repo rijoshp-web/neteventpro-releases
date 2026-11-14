@@ -130,11 +130,18 @@ class Health {
       if (on) add('listen-' + key, `${name} syslog input`, x.running ? 'ok' : 'bad', x.running ? `Listening on port ${x.port}.` : `Not running${x.error ? ': ' + x.error : ''}. Devices cannot send ${name} syslog.`);
     }
     if (cfg.snmp?.enabled && this.traps) { const x = this.traps.status(); add('listen-snmp', 'SNMP trap input', x.running ? 'ok' : 'bad', x.running ? `Listening on UDP port ${x.port}.` : `Not running${x.error ? ': ' + x.error : ''}. Devices cannot send traps.`); }
-    add('store', 'Database writer', st.droppedOnOverflow > 0 ? 'bad' : st.queue.length > 20000 ? 'warn' : 'ok',
-      st.droppedOnOverflow > 0 ? `${st.droppedOnOverflow} messages were dropped because the disk could not keep up.` : `${st.queue.length} messages waiting to be written.`);
+    const peakQ = st.peakQueue ? st.peakQueue() : 0;
+    add('store', 'Database writer', st.droppedOnOverflow > 0 ? 'bad' : (st.queue.length > 20000 || peakQ > 50000) ? 'warn' : 'ok',
+      st.droppedOnOverflow > 0 ? `${st.droppedOnOverflow} messages were dropped because the disk could not keep up.` : `${st.queue.length} messages waiting to be written (the most in the last hour or two: ${peakQ}).${peakQ > 50000 ? ' The writer fell far behind during a burst: use a faster disk, keep fewer days in the database, or reduce what is sent.' : ''}`);
     const recentSus = (this.suspends || []).filter((x) => x.at + x.ms > now - 900000).pop();
     if (recentSus) { const mins = recentSus.ms / 60000; add('suspend', 'Service was suspended', 'warn', `The service did not run for ${mins >= 1 ? mins.toFixed(1) + ' minutes' : Math.round(recentSus.ms / 1000) + ' seconds'} (from ${new Date(recentSus.at).toLocaleTimeString()}): the computer slept or hibernated, a virtual machine was paused, or the process was frozen. Messages sent to this server during that time were not received and polling skipped its turns. Turn off sleep and hibernation on the server (Windows: Settings → System → Power). This notice goes away 15 minutes after the gap.`, false); }
     if (cfg.udpEnabled && ls.udp && ls.udp.running && ls.udp.wantBuf) { const got = ls.udp.recvBuf, want = ls.udp.wantBuf; add('udp-buf', 'UDP receive buffer', got && got < want * 0.9 ? 'warn' : 'ok', got ? `${(got / 1048576).toFixed(1)} MB granted by the operating system${got < want * 0.9 ? ` (${(want / 1048576).toFixed(0)} MB asked for): a burst of syslog may overflow it and packets would be lost before the service sees them. On Linux raise net.core.rmem_max; Windows normally grants it` : ''}. Change it in Settings → Network (UDP receive buffer).` : 'Size not reported by the operating system.', got && got < want * 0.9); }
+    if (this.polling && this.polling.cfg.enabled !== false) {
+      const pc = this.polling.capacity();
+      if (pc.local > 0) add('poll-late', 'Polling keeps up', pc.late === 0 ? 'ok' : pc.late > Math.max(3, pc.local * 0.2) ? 'bad' : 'warn',
+        pc.late === 0 ? `${pc.local} devices polled from this computer, all on schedule (a poll takes about ${(pc.avgPollMs / 1000).toFixed(1)} s, ${pc.workersNow} at a time).`
+          : `${pc.late} of ${pc.local} devices are behind their schedule (the longest by ${pc.maxLateSec} s). Polling cannot keep up: raise "At the same time" in SNMP polling → Settings, use longer intervals or fewer readings, or poll some devices through a probe.`);
+    }
     add('lag', 'Processing delay', lagMax > 2000 ? 'bad' : lagMax > 500 ? 'warn' : 'ok', `Longest pause in the last minute: ${lagMax} ms. A long pause means the service was too busy to receive messages.`);
     add('memory', 'Memory use', mem.rss > 2 * GB ? 'bad' : mem.rss > 1 * GB ? 'warn' : 'ok', `${Math.round(mem.rss / MB)} MB in use by the service.`);
     if (smtp.host) add('email', 'Email delivery', email.lastError && email.failed > 0 ? 'warn' : 'ok', email.lastError || `${email.sent || 0} sent, ${email.failed || 0} failed.`);

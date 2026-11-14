@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.60.0
+- **Polling keeps up (new System health check):** devices that are behind their schedule are counted; the check warns, and turns to Problem (with the usual health alert) when more than 20% are behind, and says what to do.
+- **Polls are no longer limited to "workers per second" and no device is starved:** the scheduler runs four times a second and always starts the device that has waited longest first. Before, a long list at a low "At the same time" setting left the devices at the end of the list unpolled (seen in a test: 121 of 200 devices answered, the rest never).
+- **Automatic workers:** *At the same time* is raised by itself (up to 50) when the measured poll time and the number of devices need it; it can be switched off. Settings shows what is running now. In the 200-device test (20 readings each) it settled at 3 and every device answered on time.
+- **Write queue peak:** System health → Database writer also shows the longest the queue got in the last hour or two, and warns above 50,000 before any message is dropped.
+- **Where polling runs:** SNMP polling → Settings lists this computer and every probe with their device counts, answering / no answer, and the load of this computer (requests per second, poll time, workers).
+- **Guide:** new topic *Capacity and growing the system* with the measured numbers, rules of thumb, when to add probes or another server, and the test tools.
+- Tests: behind-schedule counting, automatic workers.
+
 ## 1.59.0
 - **Fewer packets to every polled device:** the first source of each single-value reading is now asked in batches of up to 8 objects per SNMP request. 20 readings need about 3 packets instead of 20 (measured: 200 devices × 20 readings all answered within 20 seconds). A device that cannot answer a batch (too big, unknown object) is handled automatically and anything not in a batch is asked alone as before.
 - **Read-only reminder:** the device dialog warns when the community looks like a read-write one (private, write, rw ...). NetEventPro itself only sends read requests (GET, GETNEXT, GETBULK); it has no way to change a device.
