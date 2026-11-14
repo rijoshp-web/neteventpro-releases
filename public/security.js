@@ -1,5 +1,5 @@
 'use strict';
-// Settings → Access & updates → Security (1.43): password policy, account lockout, web allow-list, two-factor sign-in and the audit log.
+// Settings → Security (1.43): password policy, account lockout, web allow-list, two-factor sign-in and the audit log.
 // Loaded after app.js (shares $, esc, api, toast, askConfirm, dateOf, timeOf).
 function securityMount(el) {
   const box = $('#secBox', el); if (!box) return;

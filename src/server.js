@@ -261,7 +261,7 @@ async function main() {
       const url = new URL(req.url, 'http://localhost');
       const q = Object.fromEntries(url.searchParams);
 
-      // who may open the dashboard (Settings → Access → Security). This computer itself is always allowed, so a wrong list can be fixed on the server.
+      // who may open the dashboard (Settings → Security). This computer itself is always allowed, so a wrong list can be fixed on the server.
       const pol = policy();
       if (state.https && pol.hsts) res.setHeader('strict-transport-security', 'max-age=31536000');
       if (pol.webAllow.length && !url.pathname.startsWith('/api/probe/p') && url.pathname !== '/api/probe/ingest') { const rip = remoteIp(req); if (!isLoopbackIp(rip) && !webFilter.allows(rip)) return send(res, 403, 'This address is not allowed to open the dashboard'); }
@@ -387,7 +387,7 @@ async function main() {
       if (p === '/api/poll/lookups' && POST) { need('polling'); const b = await readJson(req); const out = polling.saveLookups(b.lookups); if (Array.isArray(b.tell)) polling.setLookupTell(b.tell); audit(who, `saved the SNMP polling lookups (${out.filter((x) => !x.builtin).length} own)`); return json(res, { ok: true, lookups: out }); }
       if (p === '/api/poll/lookups/fromenums' && POST) { need('polling'); const b = await readJson(req); const id = polling.lookupFromEnums(b.name, b.enums); return json(res, { ok: !!id, id }); }
       if (p === '/api/poll/thresholds' && req.method === 'GET') { need('polling'); return json(res, { thresholds: (polling.cfg.thresholds || []).filter((t) => !t.owner), keys: polling.keyList(), notifProfiles: (cfg.notifProfiles || []).map((x) => ({ id: x.id, name: x.name })) }); }
-      if (p === '/api/poll/thresholds' && POST) { need('polling'); const b = await readJson(req); const out = polling.saveThresholds(b.thresholds); audit(who, `saved the SNMP polling thresholds (${out.length})`); return json(res, { ok: true }); }
+      if (p === '/api/poll/thresholds' && POST) { need('polling'); const b = await readJson(req); const out = wrap(() => polling.saveThresholds(b.thresholds)); audit(who, `saved the SNMP polling thresholds (${out.length})`); return json(res, { ok: true }); }
       throw new HttpError(404, 'Unknown request.');
     }
     if (p === '/api/probes' && req.method === 'GET') { need('settings'); return json(res, { probes: probes.list(), local: probe.status() }); }
@@ -449,12 +449,12 @@ async function main() {
       const badIps = SourceFilter.validate(np.webAllow); if (badIps.length) throw new HttpError(400, `Not an IP address or range: ${badIps.slice(0, 3).join(', ')}`);
       const f = new SourceFilter(); f.load(np.webAllow); const me = remoteIp(req);
       if (np.webAllow.length && !isLoopbackIp(me) && !f.allows(me)) throw new HttpError(400, `Your own address (${me}) is not in the list, so you would lock yourself out. Add it first.`);
-      if (np.hsts && !state.https) throw new HttpError(400, 'HSTS needs the dashboard to run on HTTPS first (Settings → Access → HTTPS).');
+      if (np.hsts && !state.https) throw new HttpError(400, 'HSTS needs the dashboard to run on HTTPS first (Settings → Dashboard access → HTTPS).');
       config.update({ security: np }); audit(who, 'changed the security settings'); return json(res, { ok: true, policy: np });
     }
     if (p === '/api/security/unlock' && POST) { need('settings'); const b = await readJson(req); acct.unlock(String(b.name || '').toLowerCase()); audit(who, `unlocked the account ${cleanName(b.name)}`); return json(res, { ok: true }); }
     if (p === '/api/me/2fa/start' && POST) {
-      if (who.anonymous) throw new HttpError(400, 'Turn sign-in on first (Settings → Access → Password).');
+      if (who.anonymous) throw new HttpError(400, 'Turn sign-in on first (Settings → Dashboard access).');
       const secret = secmod.newSecret(); pending2fa.set(who.name, { secret, t: Date.now() });
       return json(res, { secret, uri: secmod.otpauthUri(secret, who.name) });
     }
@@ -1519,7 +1519,7 @@ async function sanitize(body, current) {
   if (!isLoopback(fin.webBind) && !fin.adminPasswordHash) bad('Set a dashboard password before allowing other computers to open the dashboard.');
   if (fin.snmp?.enabled && fin.udpEnabled && fin.snmp.port === fin.udpPort) bad('The SNMP trap port must be different from the UDP syslog port.');
   if (fin.tlsSyslogEnabled && [fin.webPort, fin.tcpEnabled ? fin.tcpPort : -1].includes(fin.tlsSyslogPort)) bad('The secure syslog port must be different from the TCP syslog port and from the dashboard port.');
-  if (fin.tlsSyslogEnabled && !(fin.tlsCertFile && fin.tlsKeyFile)) bad('Secure syslog needs a certificate. Set one up under Access & updates → HTTPS first.');
+  if (fin.tlsSyslogEnabled && !(fin.tlsCertFile && fin.tlsKeyFile)) bad('Secure syslog needs a certificate. Set one up under Dashboard access → HTTPS first.');
   if (fin.tcpEnabled && fin.tcpPort === fin.webPort) bad('The dashboard port must be different from the TCP syslog port.');
   for (const t of fin.trapForwardTargets || []) { if (t.enabled !== false && ['127.0.0.1', 'localhost', '::1', '0.0.0.0'].includes(String(t.host).toLowerCase()) && fin.snmp?.enabled && t.port === fin.snmp.port) bad(`Forwarding traps to ${t.host}:${t.port} would send every trap back into this receiver.`); }
   for (const t of fin.forwardTargets || []) {

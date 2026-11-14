@@ -204,3 +204,12 @@ test('1.66 a removed text table (and removing the last reading) leaves nothing o
     assert.equal(det.texts[r1.k], undefined); assert.equal(det.insts[r1.k], undefined); assert.equal(Object.keys(det.texts).includes(r1.k), false);
   } finally { a.close(); }
 });
+
+test('1.65.2 input checks: bad port, unknown reading in an alarm limit, too many alarm limits', () => {
+  const { pl } = setup(), base = { name: 'P', host: '127.0.0.1', version: 'v2c', community: 'public' };
+  for (const port of [0, -1, 70000, 1.5, 'abc']) assert.throws(() => pl.saveDevice({ ...base, port }), /port/i, 'port ' + port);
+  assert.ok(pl.saveDevice({ ...base, name: 'P1', port: 161 }).port === 161); assert.ok(pl.saveDevice({ ...base, name: 'P2' }).port === 161, 'no port = default 161');
+  assert.throws(() => pl.saveThresholds([{ name: 'x', k: 'nonsense', op: '>', value: 1 }]), /not a reading/);
+  assert.doesNotThrow(() => pl.saveThresholds([{ name: 'ok', k: 'rtt', op: '>', value: 1 }]));
+  assert.throws(() => pl.saveThresholds(Array.from({ length: 201 }, (_, i) => ({ name: 't' + i, k: 'rtt', op: '>', value: 1 }))), /At most 200/);
+});

@@ -59,7 +59,7 @@ class Probe {
 
   async tick() {
     if (!this.on || this.busy || !this.q.length || Date.now() < this.nextTry) return;
-    const c = this.cfg(); if (!c.server || !c.token) { this.fail('Set the server address and the probe token (Settings → Remote probe).'); return; }
+    const c = this.cfg(); if (!c.server || !c.token) { this.fail('Set the server address and the probe token (Settings → Remote probes).'); return; }
     this.busy = true; this.s.sending = true;
     const items = this.q.slice(0, BATCH);
     try {

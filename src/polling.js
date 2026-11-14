@@ -275,6 +275,7 @@ class Polling {
     const bad = (m) => { const e = new Error(m); e.status = 400; throw e; };
     const name = String(b.name || '').trim().slice(0, 60); if (!name) bad('Give the device a name.');
     const host = String(b.host || '').trim(); if (!host || !(HOSTRE.test(host) || net.isIP(host))) bad('Give the device address as an IP address or a host name.');
+    if (b.port !== undefined && b.port !== null && b.port !== '' && !(Number.isInteger(+b.port) && +b.port >= 1 && +b.port <= 65535)) bad('The port must be a whole number from 1 to 65535 (SNMP normally uses 161).');
     for (const o of this.devices()) if (o.id !== old?.id && lower(o.name) === lower(name)) bad(`Another polled device is already named "${name}".`);
     const version = ['v1', 'v2c', 'v3'].includes(b.version) ? b.version : 'v2c';
     const keep = (k) => (b[k] === MASK ? old?.[k] || '' : String(b[k] || '').slice(0, 200));
@@ -423,13 +424,14 @@ class Polling {
   }
   saveThresholds(list) {
     const keys = new Set(this.keyList().map((x) => x.k)), prev = new Map((this.cfg.thresholds || []).map((t) => [t.id, t])), out = [];
-    for (const t of Array.isArray(list) ? list.slice(0, 200) : []) {
+    if (Array.isArray(list) && list.length > 200) { const e = new Error('At most 200 alarm limits. Remove some first (a limit on one reading of one device is made on that device\'s page and does not count here).'); e.status = 400; throw e; }
+    for (const t of Array.isArray(list) ? list : []) {
       const name = String(t.name || '').trim().slice(0, 100); const k = String(t.k || ''); if (!name || !k) continue;
+      if (!keys.has(k)) { const e = new Error(`“${name}”: “${k.slice(0, 40)}” is not a reading NetEventPro knows. Choose the reading from the list.`); e.status = 400; throw e; }
       const id = /^t[a-z0-9]{6,12}$/.test(t.id || '') ? t.id : 't' + id8(); const textOp = ['changed', 'equals', 'notequals', 'contains', 'notcontains'].includes(t.textOp) ? t.textOp : ''; const value = textOp ? 0 : Number(t.value); if (!Number.isFinite(value)) continue;
       const cv = t.clearValue === '' || t.clearValue === undefined || t.clearValue === null ? '' : Number(t.clearValue);
       out.push({ id, name, enabled: t.enabled !== false, k, op: OPS[t.op] ? t.op : '>', textOp, text: textOp ? String(t.text || '').slice(0, 200) : '', value, clearValue: Number.isFinite(cv) ? cv : '', forSec: Math.round(num(t.forSec, 0, 0, 86400)), severity: Math.round(num(t.severity, 4, 0, 7)),
         perInstance: k.startsWith('if.') || !!t.perInstance, scope: t.scope === 'devices' ? 'devices' : 'all', devices: Array.isArray(t.devices) ? t.devices.map(String).slice(0, 500) : [], profiles: Array.isArray(t.profiles) ? t.profiles.map(String).slice(0, 20) : [], ...(prev.get(id) && prev.get(id).owner ? { owner: prev.get(id).owner } : {}) });
-      void keys;
     }
     out.push(...(this.cfg.thresholds || []).filter((t) => t.owner));   /* the alarms of device readings are edited on the device page and kept as they are */
     for (const [id, old] of prev) { const now = out.find((x) => x.id === id); if (!now || now.enabled === false || now.k !== old.k) { this.clearAlarms('poll-' + id); for (const fk of [...this.fire.keys()]) if (fk.startsWith(id + '|')) this.fire.delete(fk); } }

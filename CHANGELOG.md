@@ -2,6 +2,14 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.65.2
+- **SNMP polling input checks** (found by testing on a real laptop):
+  - A port outside 1 to 65535 (for example 0) is refused with a clear message. Before, 0 was quietly saved as port 1 and the device never answered. Leaving the port empty still means 161.
+  - An alarm limit (Alarm limits tab) on a reading name NetEventPro does not know is refused with a message. Before, it was saved and never fired.
+  - More than 200 alarm limits are refused with a message. Before, the extra ones were dropped without telling you.
+- **Menu names in messages and the guide match the new Settings menu** (for example "Settings → Syslog inputs (UDP receive buffer)", "Settings → Dashboard access → HTTPS", "Settings → Security", "Settings → Remote probes", "SNMP polling → Settings → Advanced → Templates").
+- Test: bad port, unknown reading and too many alarm limits.
+
 ## 1.65.1
 - **Fixed: removing a reading left its table on the device page.** The table of a removed reading (shown under its internal name, for example "ra295c155 4 rows") stayed until the service was restarted. It is now removed at once, also when the last reading is removed.
 - Test: removed table leaves nothing on the device page.

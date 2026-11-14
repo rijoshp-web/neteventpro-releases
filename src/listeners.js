@@ -59,7 +59,7 @@ class Listeners {
   /** syslog over TLS (RFC 5425, usually port 6514), using the same certificate as the HTTPS dashboard */
   startTls(cfg) {
     const st = this.status.tls; st.error = null; st.port = cfg.tlsSyslogPort;
-    if (!cfg.tlsCertFile || !cfg.tlsKeyFile) { st.running = false; st.error = 'Secure syslog needs a certificate: Settings → Access & updates → HTTPS (create or choose one), then save.'; return Promise.resolve(); }
+    if (!cfg.tlsCertFile || !cfg.tlsKeyFile) { st.running = false; st.error = 'Secure syslog needs a certificate: Settings → Dashboard access → HTTPS (create or choose one), then save.'; return Promise.resolve(); }
     let opts; try { opts = { cert: fs.readFileSync(cfg.tlsCertFile), key: fs.readFileSync(cfg.tlsKeyFile), minVersion: 'TLSv1.2' }; } catch (e) { st.running = false; st.error = 'Cannot read the certificate files: ' + e.message; return Promise.resolve(); }
     return this.startTcp(cfg.tlsSyslogPort, cfg.syslogBind, opts);
   }

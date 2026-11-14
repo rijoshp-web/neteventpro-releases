@@ -660,7 +660,7 @@ function drawClock() {
   if (!el) return;
   const state = c.ok ? 'ok' : c.enabled ? 'warn' : 'off';
   const tip = c.ok ? `Synchronised with NTP server ${c.server || ''} (stratum ${c.stratum}). This PC's clock differs by ${c.offsetMs} ms. Last sync ${new Date(c.lastSync).toLocaleTimeString()}.`
-    : c.enabled ? `The NTP server did not answer${c.error ? ': ' + c.error : ''}. Showing the NetEventPro computer's own clock.` : "Showing the NetEventPro computer's own clock. Set up an NTP server in Settings → Time.";
+    : c.enabled ? `The NTP server did not answer${c.error ? ': ' + c.error : ''}. Showing the NetEventPro computer's own clock.` : "Showing the NetEventPro computer's own clock. Set up an NTP server in Settings → Time (NTP).";
   const sig = `${date}|${state}|${tip}`;
   if (el.dataset.sig !== sig) { el.dataset.sig = sig; el.title = tip; el.innerHTML = `<span class="cdate">${esc(date)}</span><span class="ctime"></span><span class="dot ${state === 'ok' ? 'ok' : state === 'warn' ? 'warn' : 'off'}"></span>`; }
   el.querySelector('.ctime').textContent = time;
@@ -1582,7 +1582,7 @@ window.addEventListener('hashchange', route);
   window.NEP = { THEMES, setTheme, DASHES, setDash }; setTheme(theme); setDash(store.get('sp.dash', 'classic'));
   try { S.info = await api('/api/state'); S.stats = await api('/api/stats'); } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Cannot reach the NetEventPro service</b>${esc(e.message)}. Check that the NetEventPro service is running.</div>`; return; }
   S.prefs = S.info.config.uiPrefs || {};
-  { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: Settings → Access & updates → Security.'); } } catch { /* no storage */ } } }
+  { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: Settings → Security.'); } } catch { /* no storage */ } } }
   { const me = S.info.me || { perms: [] }; $$('.rail a[data-perm]').forEach((l) => { l.hidden = !me.perms.includes(l.dataset.perm); }); const st = $('.rail a[data-view="settings"]'); if (st) st.hidden = !me.perms.includes('settings'); if (me.perms.includes('settings')) $$('.rail a[data-view="users"], .rail a[data-view="backup"], .rail a[data-view="maintenance"], .rail a[data-view="rules"], .rail a[data-view="notifications"], .rail a[data-view="sqlcopy"], .rail a[data-view="reports"]').forEach((l) => { l.hidden = true; });
     $('#signOut').hidden = !!me.anonymous; $('#meText').textContent = me.anonymous ? '' : `${me.name} · ${(me.roles || []).join(', ')}`; }
   $('#signOut').onclick = async () => { try { await api('/api/logout', { method: 'POST' }); } catch { /* reload anyway */ } location.reload(); };
