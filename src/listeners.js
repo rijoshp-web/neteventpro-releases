@@ -23,12 +23,12 @@ class Listeners {
 
   async apply(cfg) {
     await this.stop();
-    if (cfg.udpEnabled) await this.startUdp(cfg.udpPort, cfg.syslogBind);
+    if (cfg.udpEnabled) await this.startUdp(cfg.udpPort, cfg.syslogBind, cfg.udpRecvMB);
     if (cfg.tcpEnabled) await this.startTcp(cfg.tcpPort, cfg.syslogBind);
     if (cfg.tlsSyslogEnabled) await this.startTls(cfg);
   }
 
-  startUdp(port, bind) {
+  startUdp(port, bind, recvMB = 16) {
     return new Promise((resolve) => {
       const st = this.status.udp;
       st.error = null; st.port = port;
@@ -47,7 +47,7 @@ class Listeners {
         this.onPacket(buf, ip, 'udp');
       });
       s.bind(port, bind, () => {
-        try { s.setRecvBufferSize(16 * 1024 * 1024); } catch { /* OS may cap it */ }
+        const want = Math.round(Math.min(256, Math.max(1, +recvMB || 16)) * 1024 * 1024); st.wantBuf = want; try { s.setRecvBufferSize(want); } catch { /* OS may cap it */ } try { st.recvBuf = s.getRecvBufferSize(); } catch { st.recvBuf = null; }
         st.running = true;
         this.udp = s;
         console.log(`[udp] listening on ${bind}:${port}`);

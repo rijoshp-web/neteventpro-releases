@@ -4,6 +4,7 @@
  *   node tools/fake-device.js                 -> listens on UDP 1161, community "public", SNMP v1 / v2c
  *   node tools/fake-device.js --port 1162     -> a second device (start one process per device)
  *   node tools/fake-device.js --host 0.0.0.0  -> reachable from other PCs (default: this PC only)
+ *   node tools/fake-device.js --addresses 200 -> 200 devices on 127.0.1.1 - 127.0.1.200 (for a capacity test on one computer)
  * Type a command in this window while it runs:  hot | cool | critical | down <n> | up <n> | status | help | quit
  * It is a test tool: it answers the same questions a real device does, but it is not a real device. */
 const { startAgent } = require('../test/fake-snmp-agent');
@@ -20,10 +21,14 @@ const mib = () => {
     ['1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge32', st.cpu]];
   ifs.forEach((n, i) => { const x = i + 1; m.push([`${IF}.2.${x}`, 'octets', n], [`${IF}.8.${x}`, 'integer', st.up[i]], [`${IFX}.1.${x}`, 'octets', n], [`${IFX}.6.${x}`, 'counter64', st.inO[i]], [`${IFX}.10.${x}`, 'counter64', st.outO[i]], [`${IF}.14.${x}`, 'counter32', 0], [`${IF}.20.${x}`, 'counter32', 0]); });
   rooms.forEach((n, i) => { const x = i + 1; m.push([`${ENT}.1.1.1.${x}`, 'octets', n], [`${ENT}.1.1.2.${x}`, 'integer', st.temp[i]], [`${ENT}.1.1.3.${x}`, 'integer', code(st.temp[i])]); });
+  for (let n = 1; n <= 16; n++) m.push([`${ENT}.2.${n}.0`, 'integer', 10 * n + (n % 3)]);   /* 16 more single values, for a test with 20 readings per device */
   return m;
 };
+const many = +opt('addresses', 0);   /* --addresses 200: answer on 127.0.1.1 ... 127.0.1.200 (each from its own address) to try 200 devices on one computer */
 (async () => {
-  const ag = await startAgent({ mib: mib(), port, host });
+  const extra = []; if (many > 1) for (let i = 0; i < Math.min(many, 1000); i++) extra.push(await startAgent({ mib: mib(), port, host: `127.0.${1 + Math.floor(i / 250)}.${(i % 250) + 1}` }).catch(() => null));
+  if (many > 1) { console.log(`${extra.filter(Boolean).length} fake devices answer on 127.0.1.1 upwards (250 per third number: 127.0.1.x, 127.0.2.x ...), port ${port}. Add them in NetEventPro with those host addresses.`); }
+  const ag = many > 1 ? { set: (o, v) => extra.forEach((e) => e && e.set(o, v)), seen: { requests: 0 } } : await startAgent({ mib: mib(), port, host });
   const push = () => { for (const [o, , v] of mib()) ag.set(o, v); };
   setInterval(() => {   /* the device lives: time passes, traffic flows, the temperature drifts a little */
     st.ticks += 1000; st.cpu = Math.max(2, Math.min(95, Math.round(st.cpu + (Math.random() - 0.5) * 8)));

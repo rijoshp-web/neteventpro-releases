@@ -145,3 +145,26 @@ test('1.58 dashboard tile data: one reading across devices, groups, rows and sta
     assert.deepStrictEqual(pl.cleanPollSpec({ picks: [{ dev: '../x', k: 'a' }, { label: 'T<b>' }], shape: 'hex', view: 'nope' }).picks, [{ label: 'Tb' }]);
   } finally { a.close(); }
 });
+
+test('1.59 scalar readings are asked in batches: fewer packets, same values', async () => {
+  const mib = [...MIB]; for (let i = 1; i <= 12; i++) mib.push([`1.3.6.1.4.1.99999.7.${i}.0`, 'integer', i * 10]);
+  const a = await startAgent({ mib }), { pl } = setup();
+  try {
+    const d = dev(pl, a.port, 'Batch-1'); const own = [...Array(12)].map((_, i) => ({ label: 'R' + (i + 1), t: 'oid', oid: `1.3.6.1.4.1.99999.7.${i + 1}.0` }));
+    own.push({ label: 'Missing', t: 'oid', oid: '1.3.6.1.4.1.99999.7.99.0' });
+    pl.saveReadings(d.id, own); const dd = pl.devices().find((x) => x.id === d.id), before = a.seen.requests;
+    await pl.pollDevice(dd); const used = a.seen.requests - before, det = pl.detail(d.id);
+    const val = (l) => det.values[det.profile.metrics.find((m) => m.label === l).k];
+    assert.strictEqual(val('R1'), 10); assert.strictEqual(val('R12'), 120); assert.strictEqual(val('Missing'), undefined);
+    assert.ok(used <= 8, 'packets used: ' + used);   // was 14 or more with one request per reading
+  } finally { a.close(); }
+});
+
+test('1.59 a long gap is reported as a suspended service, not as a busy one', () => {
+  const { Health } = require('../src/health'), h = Object.create(Health.prototype);
+  h.lag = []; h.lastTick = Date.now() - 120000; h.cpuAt = Date.now(); h.cpuPrev = process.cpuUsage();
+  h.tick();
+  assert.strictEqual(h.suspends.length, 1); assert.ok(h.suspends[0].ms >= 119000);
+  assert.strictEqual(h.lag.reduce((m, x) => Math.max(m, x[1]), 0), 0);   // the gap must not show as "processing delay"
+  h.lastTick = Date.now() - 3000; h.tick(); assert.strictEqual(h.suspends.length, 1); assert.ok(h.lag[h.lag.length - 1][1] >= 2000);   // a 3 s stall is still "busy"
+});

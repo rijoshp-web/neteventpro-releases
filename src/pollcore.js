@@ -59,8 +59,21 @@ function ping(host) {
 class Collector {
   constructor(client) { this.client = client || new SnmpClient(); this.prev = new Map(); this.names = new Map(); this.count = new Map(); }
   forget(id) { this.names.delete(id); this.count.delete(id); for (const k of [...this.prev.keys()]) if (k.startsWith(id + '|')) this.prev.delete(k); }
+  /** one scalar object: from the answer of a batched request when it is there (1.59), else asked alone */
+  async one(t, oid) { const c = t.pre; if (c && c.has(String(oid))) return { vbs: [c.get(String(oid))], rtt: 0 }; return this.client.get(t, [oid]); }
+  /** 1.59: the first source of every scalar reading is asked in batches of up to 8 objects per request (20 readings = 3 packets, not 20),
+   *  so the device sees far fewer packets. A device that cannot answer a batch (too big, an unknown name) is handled by the client; anything that is not in the batch is asked alone as before. */
+  async prefetch(t, metrics) {
+    const oids = [], seen = new Set();
+    for (const m of metrics) { if (m.on === false) continue; const s = (m.srcs || [])[0]; if (s && s.t === 'oid' && /^\d+(\.\d+)+$/.test(String(s.oid)) && !seen.has(String(s.oid))) { seen.add(String(s.oid)); oids.push(String(s.oid)); } }
+    t.pre = new Map();
+    for (let i = 0; i < oids.length; i += 8) {
+      const chunk = oids.slice(i, i + 8);
+      try { const r = await this.client.get(t, chunk); chunk.forEach((o, j) => t.pre.set(o, r.vbs[j])); this.batched = (this.batched || 0) + 1; } catch (e) { if (e.code === 'timeout') throw e; }
+    }
+  }
   async evalSrc(t, s) {
-    if (s.t === 'oid') { const r = await this.client.get(t, [s.oid]); const n = numOf(r.vbs[0]); return n === null ? null : n * (s.scale ?? 1) + (s.offset || 0); }
+    if (s.t === 'oid') { const r = await this.one(t, s.oid); const n = numOf(r.vbs[0]); return n === null ? null : n * (s.scale ?? 1) + (s.offset || 0); }
     if (s.t === 'walk') {
       const r = await this.client.walk(t, s.oid, { maxRows: 400 }); const v = r.vbs.map(numOf).filter((x) => x !== null); if (!v.length) return null;
       const agg = s.agg === 'max' ? Math.max(...v) : s.agg === 'min' ? Math.min(...v) : s.agg === 'sum' ? v.reduce((a, b) => a + b, 0) : v.reduce((a, b) => a + b, 0) / v.length;
@@ -82,7 +95,7 @@ class Collector {
     for (const s of m.srcs || []) {
       if (s.text) {   // 1.51: a text value (firmware version, status text, a name ...): one value, or one per table row
         try {
-          if (s.t === 'oid') { const r = await this.client.get(t, [s.oid]); if (!isMissing(r.vbs[0])) out.push({ k: m.k, inst: '', s: toText(r.vbs[0]).slice(0, 200) }); }
+          if (s.t === 'oid') { const r = await this.one(t, s.oid); if (!isMissing(r.vbs[0])) out.push({ k: m.k, inst: '', s: toText(r.vbs[0]).slice(0, 200) }); }
           else {
             const base = String(s.oid).split('.').length, r = await this.client.walk(t, s.oid, { maxRows: 200 }); let names = null;
             if (s.nameOid) { try { names = new Map(); for (const vb of (await this.client.walk(t, s.nameOid, { maxRows: 200 })).vbs) names.set(vb.oid.slice(String(s.nameOid).split('.').length).join('.'), toText(vb)); } catch (e) { if (e.code === 'timeout') throw e; names = null; } }
@@ -159,6 +172,7 @@ class Collector {
       res.detected = detectProfile(res.objectId);
       const want = dev.profile && dev.profile !== 'auto' ? dev.profile : res.detected, prof = profiles.find((p) => p.id === want) || profiles.find((p) => p.id === 'generic') || profiles[0]; res.profile = prof.id;
       readings.push({ k: 'poll.ok', inst: '', v: 1 }, { k: 'rtt', inst: '', v: r.rtt });
+      await this.prefetch(t, prof.metrics);
       for (const m of prof.metrics) { if (m.on === false) continue; if (m.k === 'uptime' && up !== null) { readings.push({ k: 'uptime', inst: '', v: up / 100 }); continue; } await this.evalMetric(t, m, dev, ts, readings); }
       if (up !== null && !prof.metrics.some((m) => m.k === 'uptime')) readings.push({ k: 'uptime', inst: '', v: up / 100 });   /* uptime is always kept, whatever the profile */
       await this.interfaces(t, dev, ts, n, res, readings);

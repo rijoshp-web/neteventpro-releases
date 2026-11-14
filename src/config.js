@@ -34,6 +34,7 @@ function dataDir() {
 
 const DEFAULTS = {
   udpPort: 514,
+  udpRecvMB: 16,                  // 1.59: size of the operating-system receive buffer of the UDP syslog socket (a bigger buffer survives bursts)
   tcpPort: 514,
   udpEnabled: true,
   tcpEnabled: true,

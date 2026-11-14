@@ -54,7 +54,7 @@ const SEC_HEADERS = {
 };
 
 // settings the dashboard may change (everything else in config.json is ignored)
-const EDITABLE = ['tlsSyslogEnabled', 'tlsSyslogPort', 'udpPort', 'tcpPort', 'udpEnabled', 'tcpEnabled', 'syslogBind', 'allowedSources', 'webPort', 'webBind', 'adminPassword', 'tlsCertFile', 'tlsKeyFile',
+const EDITABLE = ['tlsSyslogEnabled', 'tlsSyslogPort', 'udpPort', 'udpRecvMB', 'tcpPort', 'udpEnabled', 'tcpEnabled', 'syslogBind', 'allowedSources', 'webPort', 'webBind', 'adminPassword', 'tlsCertFile', 'tlsKeyFile',
   'retentionDays', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
@@ -913,7 +913,7 @@ async function main() {
 }
 
 // ---- helpers ---------------------------------------------------------------
-const netKey = (c) => JSON.stringify([c.udpPort, c.tcpPort, c.udpEnabled, c.tcpEnabled, c.syslogBind, c.tlsSyslogEnabled, c.tlsSyslogPort, c.tlsCertFile, c.tlsKeyFile]);
+const netKey = (c) => JSON.stringify([c.udpRecvMB, c.udpPort, c.tcpPort, c.udpEnabled, c.tcpEnabled, c.syslogBind, c.tlsSyslogEnabled, c.tlsSyslogPort, c.tlsCertFile, c.tlsKeyFile]);
 const slim = (m) => ({ id: m.id, ts: m.ts, devTs: m.devTs, srcIp: m.srcIp, host: m.host, facility: m.facility, severity: m.severity, app: m.app, pid: m.pid, msgid: m.msgid, source: m.source, message: m.message, tags: m.tags, color: m.color, sound: m.sound || undefined, notify: m.notify || undefined, vb: m.vb || undefined });
 // CSV cells that start with = + - @ would be run as formulas by Excel: a log line can be attacker-controlled, so neutralise them
 const csv = (v) => { let s = String(v ?? ''); if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -1351,7 +1351,7 @@ async function sanitize(body, current) {
   const out = {};
   for (const k of EDITABLE) if (k in body) out[k] = body[k];
   const num = (k, lo, hi) => { if (k in out) out[k] = clampInt(out[k], lo, hi, current[k]); };
-  num('udpPort', 1, 65535); num('tcpPort', 1, 65535); num('tlsSyslogPort', 1, 65535); num('webPort', 1, 65535);
+  num('udpPort', 1, 65535); num('udpRecvMB', 1, 256); num('tcpPort', 1, 65535); num('tlsSyslogPort', 1, 65535); num('webPort', 1, 65535);
   num('retentionDays', 0, 36500); num('alarmRetentionDays', -1, 36500); num('maxDbMB', 0, 10485760); num('sessionIdleHours', 0, 8760); num('sessionMaxDays', 0, 3650); num('liveBufferSize', 100, 100000); num('silentDeviceMinutes', 0, 100000);
   for (const k of ['tlsSyslogEnabled', 'udpEnabled', 'tcpEnabled', 'rawLogEnabled', 'healthAlerts']) if (k in out) out[k] = !!out[k];
   num('diskWarnPercent', 1, 90); num('diskCritPercent', 1, 90);

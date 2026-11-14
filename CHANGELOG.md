@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.59.0
+- **Fewer packets to every polled device:** the first source of each single-value reading is now asked in batches of up to 8 objects per SNMP request. 20 readings need about 3 packets instead of 20 (measured: 200 devices × 20 readings all answered within 20 seconds). A device that cannot answer a batch (too big, unknown object) is handled automatically and anything not in a batch is asked alone as before.
+- **Read-only reminder:** the device dialog warns when the community looks like a read-write one (private, write, rw ...). NetEventPro itself only sends read requests (GET, GETNEXT, GETBULK); it has no way to change a device.
+- **UDP receive buffer:** new setting *UDP receive buffer* (Settings → Network, default 16 MB, 1 to 256). System health now shows what the operating system really granted and warns when it is less than asked for.
+- **Suspended service:** a gap of 15 seconds or more (computer asleep or hibernating, paused virtual machine, frozen process) is now reported as *Service was suspended* with its length and time, for 15 minutes, instead of a "Processing delay" problem.
+- **Capacity estimator** (SNMP polling → Settings): enter devices, readings per device, interval, syslog messages per second and days kept, and it shows requests per second, stored rows, the suggested number of workers and a rough database size, with warnings.
+- **Test tools:** `tools/loadtest.js` sends syslog at a chosen rate (optionally stepped up) to see what a server takes; `tools/fake-device.js --addresses 200` answers as 200 devices on 127.0.1.1 upwards, each from its own address.
+- Tests: batching (packets used, values, missing object), suspended-service detection.
+
 ## 1.58.1
 - **Fixed:** the "Polled devices and readings" dialog was taller than small windows and hid the Add tile / Save buttons. The fields now scroll and the buttons stay in view.
 - **Heatmap hexagons are a honeycomb:** the Hexagon and Hexagon outline shapes now touch each other and every second row is shifted by half a cell.

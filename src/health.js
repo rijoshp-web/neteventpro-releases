@@ -31,7 +31,9 @@ class Health {
   }
 
   tick() {   // how late did this timer fire? A busy or frozen process fires late.
-    const now = Date.now(), late = Math.max(0, now - this.lastTick - 500); this.lastTick = now;
+    const now = Date.now(), late0 = Math.max(0, now - this.lastTick - 500), prevTick = this.lastTick; this.lastTick = now;
+    /* 1.59: a gap of 15 seconds or more is not "too busy", it is a computer that slept, a paused virtual machine or a frozen process: it is reported as that */
+    const late = late0 >= 15000 ? 0 : late0; if (late0 >= 15000) { (this.suspends ||= []).push({ at: prevTick, ms: late0 + 500 }); this.suspends = this.suspends.slice(-20); }
     this.lag.push([now, late]); while (this.lag.length && this.lag[0][0] < now - 60000) this.lag.shift();
     const dt = now - this.cpuAt;
     if (dt >= 5000) { const u = process.cpuUsage(this.cpuPrev); this.cpuPct = Math.round(((u.user + u.system) / 1000) / dt * 100 / os.cpus().length * 10) / 10; this.cpuPrev = process.cpuUsage(); this.cpuAt = now; }
@@ -130,6 +132,9 @@ class Health {
     if (cfg.snmp?.enabled && this.traps) { const x = this.traps.status(); add('listen-snmp', 'SNMP trap input', x.running ? 'ok' : 'bad', x.running ? `Listening on UDP port ${x.port}.` : `Not running${x.error ? ': ' + x.error : ''}. Devices cannot send traps.`); }
     add('store', 'Database writer', st.droppedOnOverflow > 0 ? 'bad' : st.queue.length > 20000 ? 'warn' : 'ok',
       st.droppedOnOverflow > 0 ? `${st.droppedOnOverflow} messages were dropped because the disk could not keep up.` : `${st.queue.length} messages waiting to be written.`);
+    const recentSus = (this.suspends || []).filter((x) => x.at + x.ms > now - 900000).pop();
+    if (recentSus) { const mins = recentSus.ms / 60000; add('suspend', 'Service was suspended', 'warn', `The service did not run for ${mins >= 1 ? mins.toFixed(1) + ' minutes' : Math.round(recentSus.ms / 1000) + ' seconds'} (from ${new Date(recentSus.at).toLocaleTimeString()}): the computer slept or hibernated, a virtual machine was paused, or the process was frozen. Messages sent to this server during that time were not received and polling skipped its turns. Turn off sleep and hibernation on the server (Windows: Settings → System → Power). This notice goes away 15 minutes after the gap.`, false); }
+    if (cfg.udpEnabled && ls.udp && ls.udp.running && ls.udp.wantBuf) { const got = ls.udp.recvBuf, want = ls.udp.wantBuf; add('udp-buf', 'UDP receive buffer', got && got < want * 0.9 ? 'warn' : 'ok', got ? `${(got / 1048576).toFixed(1)} MB granted by the operating system${got < want * 0.9 ? ` (${(want / 1048576).toFixed(0)} MB asked for): a burst of syslog may overflow it and packets would be lost before the service sees them. On Linux raise net.core.rmem_max; Windows normally grants it` : ''}. Change it in Settings → Network (UDP receive buffer).` : 'Size not reported by the operating system.', got && got < want * 0.9); }
     add('lag', 'Processing delay', lagMax > 2000 ? 'bad' : lagMax > 500 ? 'warn' : 'ok', `Longest pause in the last minute: ${lagMax} ms. A long pause means the service was too busy to receive messages.`);
     add('memory', 'Memory use', mem.rss > 2 * GB ? 'bad' : mem.rss > 1 * GB ? 'warn' : 'ok', `${Math.round(mem.rss / MB)} MB in use by the service.`);
     if (smtp.host) add('email', 'Email delivery', email.lastError && email.failed > 0 ? 'warn' : 'ok', email.lastError || `${email.sent || 0} sent, ${email.failed || 0} failed.`);
