@@ -114,3 +114,12 @@ test('1.56: removed readings leave no values, layout of a device page is kept an
     assert.equal(pl.saveSettings({ alarmsInSyslog: false }).alarmsInSyslog, false); assert.equal(pl.publicSettings().alarmsInSyslog, false);
   } finally { await a.close(); }
 });
+
+test('1.57 device group is kept and the layout keeps widths and order', () => {
+  const { pl } = setup(), d = dev(pl, 1), e = pl.saveDevice({ ...pl.devices().find((x) => x.id === d.id), group: '  Core   switches ' });
+  assert.strictEqual(pl.devices().find((x) => x.id === e.id).group, 'Core switches');
+  assert.strictEqual(pl.overview().devices.find((x) => x.id === d.id).group, 'Core switches');
+  const lay = pl.saveLayout(d.id, { items: { 'v:r11111111': { w: 5, h: 300 }, 'g:rtt': { w: 20, span: 2 } }, order: ['g:rtt', 'v:r11111111', 'bad key'] });
+  assert.strictEqual(lay.items['v:r11111111'].w, 5); assert.strictEqual(lay.items['g:rtt'].w, 12); assert.deepStrictEqual(lay.order, ['g:rtt', 'v:r11111111']);
+  assert.deepStrictEqual(pl.layoutOf(d.id).order, ['g:rtt', 'v:r11111111']);
+});

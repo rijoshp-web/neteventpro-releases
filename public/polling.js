@@ -14,7 +14,7 @@
   const COLORS = ['#45c2a5', '#6cb6ff', '#f5a623', '#c586f0'];
 
   views.polling = (el) => {
-    let tab = 'overview', ov = null, timer = 0, alive = true, filter = '', range = 24;
+    let tab = 'overview', ov = null, timer = 0, alive = true, filter = '', range = 24, grp = null, grpView = true;
     const devId = () => S.hq?.get('d') || '';
     const go = (h) => { location.hash = h; };
     const head = (extra = '') => `<div class="page-head"><h1>SNMP polling</h1>${extra}</div>`;
@@ -31,16 +31,22 @@
       draw();
     };
     const draw = () => {
-      const c = ov.counts, rows = ov.devices.filter((d) => !filter || (d.name + ' ' + d.host + ' ' + d.site).toLowerCase().includes(filter.toLowerCase()));
+      const c = ov.counts, groups = {}; ov.devices.forEach((d) => { const g = d.group || ''; const o = groups[g] || (groups[g] = { n: 0, up: 0, down: 0, alarms: 0 }); o.n++; if (d.state === 'up') o.up++; if (d.state === 'down') o.down++; o.alarms += d.alarms || 0; });
+      const named = Object.keys(groups).filter(Boolean).sort((x, y) => x.localeCompare(y)); if (grp !== null && grp !== '' && !groups[grp]) grp = null;
+      const rows0 = ov.devices.filter((d) => !filter || (d.name + ' ' + d.host + ' ' + d.site + ' ' + (d.group || '')).toLowerCase().includes(filter.toLowerCase())).filter((d) => grp === null || (d.group || '') === grp);
+      const rows = grpView && named.length ? [...rows0].sort((x, y) => ((x.group || '\uffff').localeCompare(y.group || '\uffff')) || x.name.localeCompare(y.name)) : rows0;
+      const ghead = (g) => { const o = groups[g] || { n: 0, up: 0, down: 0, alarms: 0 }; return `<tr class="grow"><td colspan="9"><b>${g ? esc(g) : 'No group'}</b> <span class="muted">${o.n} device${o.n === 1 ? '' : 's'} · ${o.up} up${o.down ? ` · <b style="color:var(--bad)">${o.down} no answer</b>` : ''}${o.alarms ? ` · <b style="color:var(--s3)">${o.alarms} alarm${o.alarms === 1 ? '' : 's'}</b>` : ''}</span></td></tr>`; };
+      const chips = named.length ? `<div class="gchips" id="pGrp"><button class="gchip ${grp === null ? 'on' : ''}" data-g="*">All <span class="muted">${ov.devices.length}</span></button>${named.map((g) => `<button class="gchip ${grp === g ? 'on' : ''} ${groups[g].down ? 'bad' : ''}" data-g="${esc(g)}">${esc(g)} <span class="muted">${groups[g].up}/${groups[g].n}</span>${groups[g].alarms ? ` <span class="pill warn">${groups[g].alarms}</span>` : ''}</button>`).join('')}${groups[''] ? `<button class="gchip ${grp === '' ? 'on' : ''}" data-g="">No group <span class="muted">${groups[''].n}</span></button>` : ''}<span class="spacer"></span><label class="muted"><input type="checkbox" id="pGv" ${grpView ? 'checked' : ''}> Show group headings</label></div>` : '';
       el.innerHTML = head('<span class="spacer"></span>' + (can('polling') ? '<button id="pDisc">Discover devices</button><button id="pAdd" class="primary">Add device</button>' : '')) + tabs() +
         (ov.enabled ? '' : '<div class="banner" style="display:block;position:static;margin:0 0 12px">SNMP polling is switched off (Settings tab). Nothing is polled.</div>') +
         `<div class="hcards"><div class="hcard"><div><div class="hk">Polled devices</div><div class="hv">${c.total}</div></div></div>
           <div class="hcard"><div><div class="hk">Up</div><div class="hv" style="color:var(--ok)">${c.up}</div><div class="hs">${c.unknown ? c.unknown + ' waiting for the first answer' : 'answering SNMP'}</div></div></div>
           <div class="hcard"><div><div class="hk">No SNMP answer</div><div class="hv" style="color:${c.down ? 'var(--bad)' : 'inherit'}">${c.down}</div><div class="hs">${c.off ? c.off + ' paused' : 'after ' + ov.settings.missesBeforeDown + ' missed polls'}</div></div></div>
           <div class="hcard"><div><div class="hk">Open polling alarms</div><div class="hv" style="color:${c.alarms ? 'var(--s3)' : 'inherit'}">${c.alarms}</div><div class="hs"><a href="#alarms">Open the Alarms page</a></div></div></div></div>
-        <div class="toolbar"><input type="search" id="pFind" placeholder="Find a device, address or site" value="${esc(filter)}" style="width:280px"><span class="spacer"></span><span class="muted">Updates every 15 s</span></div>
+        <div class="toolbar"><input type="search" id="pFind" placeholder="Find a device, address, site or group" value="${esc(filter)}" style="width:280px"><span class="spacer"></span><span class="muted">Updates every 15 s</span></div>
+        ${chips}
         ${ov.devices.length ? `<div class="panel" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Device</th><th>Status</th><th>CPU</th><th>Memory</th><th>Temp</th><th>Uptime</th><th>Interfaces up</th><th>Answer</th><th>Alarms</th></tr></thead><tbody>
-          ${rows.map((d) => `<tr class="click" data-id="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="muted" style="font-size:12px">${esc(d.host)}${d.site ? ' · ' + esc(d.site) : ''} · ${esc(d.version)}${d.via ? ' · via probe ' + esc(d.via) : ''}${d.profile ? ' · ' + esc(d.profile) : ''}</div></td>
+          ${rows.map((d, i) => `${grpView && named.length && (i === 0 || (rows[i - 1].group || '') !== (d.group || '')) ? ghead(d.group || '') : ''}<tr class="click" data-id="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="muted" style="font-size:12px">${esc(d.host)}${d.site ? ' · ' + esc(d.site) : ''}${d.group && !(grpView && named.length) ? ' · ' + esc(d.group) : ''} · ${esc(d.version)}${d.via ? ' · via probe ' + esc(d.via) : ''}${d.profile ? ' · ' + esc(d.profile) : ''}</div></td>
             <td>${pill(d.state)}${d.state === 'down' ? `<div class="muted" style="font-size:12px">${esc(d.error).slice(0, 80)}</div>` : ''}</td><td>${bar(d.cpu)}</td><td>${bar(d.memory)}</td>
             <td>${d.temperature === null ? '<span class="muted">–</span>' : Math.round(d.temperature) + ' °C'}</td><td>${upt(d.uptime)}</td><td>${d.ifMon ? `${d.ifUp} / ${d.ifMon}` : '<span class="muted">–</span>'}</td>
             <td>${d.rtt === null ? '–' : d.rtt + ' ms'}<div class="muted" style="font-size:12px">${ago(d.lastOk)}</div></td><td>${d.alarms ? `<span class="pill warn">${d.alarms}</span>` : '<span class="muted">0</span>'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">No device matches.</td></tr>'}
@@ -48,6 +54,7 @@
         ${ov.recent.length ? `<details class="panel" style="margin-top:12px"><summary><b>Recent polling events</b> <span class="muted">(answers lost and regained)</span></summary><table class="data"><tbody>${ov.recent.map((e) => `<tr><td class="muted" style="white-space:nowrap">${new Date(e.ts).toLocaleTimeString()}</td><td>${esc(e.name)}</td><td>${e.kind === 'fail' ? '<span class="pill bad">failed</span>' : '<span class="pill ok">ok</span>'}</td><td>${esc(e.text)}</td></tr>`).join('')}</tbody></table></details>` : ''}`;
       wireTabs(); const f = $('#pFind', el); f.oninput = () => { filter = f.value; const pos = f.selectionStart; draw(); const g = $('#pFind', el); g.focus(); g.setSelectionRange(pos, pos); };
       $$('tr.click', el).forEach((r) => { r.onclick = () => go('#polling?d=' + r.dataset.id); });
+      $$('#pGrp .gchip', el).forEach((b) => { b.onclick = () => { grp = b.dataset.g === '*' ? null : b.dataset.g; draw(); }; }); const gv = $('#pGv', el); if (gv) gv.onchange = () => { grpView = gv.checked; draw(); };
       const add = $('#pAdd', el); if (add) add.onclick = () => editDevice(null);
       const dsc = $('#pDisc', el); if (dsc) dsc.onclick = discover;
     };
@@ -100,6 +107,7 @@
         ${probes.length ? `<div class="field"><label for="dVia">Poll from</label><div><select id="dVia"><option value="">This server</option>${probes.map((p) => `<option value="${esc(p.id)}">Probe: ${esc(p.name)}</option>`).join('')}</select><div class="hint">Choose a probe when this server cannot reach the device. The probe polls it and sends the readings here; Test connection then runs on the probe and takes up to 10 seconds.</div></div></div>` : ''}
         <div class="field"><label for="dIf">Interfaces</label><div><select id="dIf"><option value="none">Do not poll interfaces</option><option value="auto">Poll the interfaces that are up</option><option value="all">Poll all interfaces</option>${d.ifMode === 'selected' ? '<option value="selected">Only the ones I ticked on the device page</option>' : ''}</select></div></div>
         <div class="field"><label for="dInt">Poll every</label><div><select id="dInt">${[[30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [900, '15 minutes']].map(([s, n]) => `<option value="${s}">${n}</option>`).join('')}</select> &nbsp; wait <input type="number" id="dTo" style="width:70px" min="1" max="30" value="${(d.timeoutMs || 3000) / 1000}"> s, retry <input type="number" id="dRe" style="width:60px" min="0" max="5" value="${d.retries ?? 1}"> times</div></div>
+        <div class="field"><label for="dGroup">Group</label><div><input type="text" id="dGroup" class="w-md" list="dGroupL" value="${esc(d.group || '')}" maxlength="40" placeholder="optional, e.g. Core switches"><datalist id="dGroupL">${[...new Set(((ov && ov.devices) || []).map((x) => x.group).filter(Boolean))].map((x) => `<option value="${esc(x)}">`).join('')}</datalist></div></div>
         <div class="field"><label for="dSite">Site</label><div><input type="text" id="dSite" class="w-md" value="${esc(d.site || '')}" maxlength="60" placeholder="optional, to find devices"></div></div>
         <div class="field"><label>Options</label><div><label class="chk"><input type="checkbox" id="dPing" ${d.ping ? 'checked' : ''}> When SNMP stops answering, also ping the device and say so in the alarm</label><br><label class="chk"><input type="checkbox" id="dOn" ${d.enabled !== false ? 'checked' : ''}> Poll this device</label></div></div>
         <div id="dTest" class="panel" hidden style="margin:8px 0"></div>
@@ -109,7 +117,7 @@
       const sync = () => { const v3 = g('dVer').value === 'v3', lv = g('dLevel').value; g('rowComm').hidden = v3; g('rowV3').hidden = !v3; g('rowAuth').hidden = lv === 'noAuthNoPriv'; g('rowPriv').hidden = lv !== 'authPriv'; };
       g('dVer').onchange = sync; g('dLevel').onchange = sync; sync(); g('dShow').onchange = () => { g('dComm').type = g('dShow').checked ? 'text' : 'password'; };
       const body = () => ({ id: d.id, name: g('dName').value.trim(), host: g('dHost').value.trim(), port: +g('dPort').value || 161, version: g('dVer').value, community: g('dComm').value, user: g('dUser').value.trim(), level: g('dLevel').value, authProto: g('dAuthP').value, authPass: g('dAuthW').value,
-        privProto: g('dPrivP').value, privPass: g('dPrivW').value, profile: d.profile || 'basic', via: g('dVia') ? g('dVia').value : '', intervalSec: +g('dInt').value, timeoutMs: Math.round((+g('dTo').value || 3) * 1000), retries: +g('dRe').value, site: g('dSite').value.trim(), ping: g('dPing').checked, enabled: g('dOn').checked, ifMode: g('dIf').value, ifSelected: g('dIf').value === 'selected' ? d.ifSelected : [] });
+        privProto: g('dPrivP').value, privPass: g('dPrivW').value, profile: d.profile || 'basic', via: g('dVia') ? g('dVia').value : '', intervalSec: +g('dInt').value, timeoutMs: Math.round((+g('dTo').value || 3) * 1000), retries: +g('dRe').value, site: g('dSite').value.trim(), group: g('dGroup').value.trim(), ping: g('dPing').checked, enabled: g('dOn').checked, ifMode: g('dIf').value, ifSelected: g('dIf').value === 'selected' ? d.ifSelected : [] });
       g('dCancel').onclick = dl.close;
       g('dTestBtn').onclick = async () => {
         const box = g('dTest'); box.hidden = false; box.innerHTML = `<span class="muted">${g('dVia') && g('dVia').value ? 'Asking the probe to ask the device (up to 10 seconds)…' : 'Asking the device…'}</span>`; g('dTestBtn').disabled = true;
@@ -288,7 +296,8 @@
       const tiles = (r) => { const rows = Object.entries(rowsOf(r)); return rows.length ? `<div class="tgrid">${rows.map(([k, v]) => { const it = lkMatch(itemsOf(r), v), s = it ? it.state : 'unk'; return `<div class="tl t-${s}" title="${esc(k)}"><span class="tn">${esc(k)}</span><b>${esc(fm(r, v))}</b>${it ? `<span class="tw">${esc(it.label)}</span>` : ''}</div>`; }).join('')}</div>` : '<span class="muted">waiting for the next poll…</span>'; };
       const KINDS = { gauge, bar: barv, big, light, tiles };
       const vs = list.filter((r) => r.disp && KINDS[r.disp.view] && r.on !== false);
-      if (vizBox) vizBox.innerHTML = vs.length ? `<div class="vizgrid">${vs.map((r) => { const s = worst(r); return `<div class="vz vz-${r.disp.view === 'tiles' ? 'wide' : 'n'} b-${s}"><div class="vz-h"><span class="sdot s-${s}"></span><b>${esc(r.label)}</b>${isTbl(r) && r.disp.view !== 'tiles' ? ' <span class="muted">(rows: ' + Object.keys(rowsOf(r)).length + ')</span>' : ''}${ed ? `<button class="gear vzE" data-k="${esc(r.k)}" title="Edit this reading (name, calculation, alarms, how it is shown)">✎</button>` : ''}</div>${KINDS[r.disp.view](r)}</div>`; }).join('')}</div>` : '';
+      if (vizBox) vizBox.innerHTML = vs.length ? `<div class="vizgrid">${vs.map((r) => { const s = worst(r); return `<div class="vz vz-${r.disp.view === 'tiles' ? 'wide' : 'n'} b-${s}" data-key="v:${esc(r.k)}"><div class="vz-h"><span class="sdot s-${s}"></span><b>${esc(r.label)}</b>${isTbl(r) && r.disp.view !== 'tiles' ? ' <span class="muted">(rows: ' + Object.keys(rowsOf(r)).length + ')</span>' : ''}${ed ? `<button class="gear vzE" data-k="${esc(r.k)}" title="Edit this reading (name, calculation, alarms, how it is shown)">✎</button>` : ''}</div>${KINDS[r.disp.view](r)}</div>`; }).join('')}</div>` : '';
+      if (typeof applyBoard === 'function') applyBoard();
       $$('.vzE', vizBox || box).forEach((x) => { x.onclick = () => { const i = list.findIndex((o) => o.k === x.dataset.k); if (i >= 0) readingDialog(d.id, rd, list[i], (r) => post(list.map((o, j) => (j === i ? r : o)))); }; });
     };
 
@@ -314,10 +323,9 @@
         ${dv.state === 'stale' ? '<div class="banner" style="display:block;position:static;margin:0 0 12px">The probe that polls this device has not reported for a while. The values shown are the last ones received; no alarm is raised for the device while the probe is silent. Check the probe (Settings → Remote probes shows when it was last seen).</div>' : ''}
         ${dv.state === 'down' ? `<div class="banner" style="display:block;position:static;margin:0 0 12px">No SNMP answer for ${dv.misses} poll${dv.misses === 1 ? '' : 's'}: ${esc(dv.error)}${dv.downSince ? ' (since ' + new Date(dv.downSince).toLocaleString() + ')' : ''}</div>` : ''}
         <div class="hcards">${[['Uptime', fv(dv.values.uptime, 's'), esc(dv.sysName || '')], ['Answer time', dv.rtt === null ? '–' : dv.rtt + ' ms', 'last answer ' + ago(dv.lastOk)], ...cardM().map((x) => (dv.insts && dv.insts[x.k] && Object.keys(dv.insts[x.k]).length ? [x.label, rowSum(x), Object.keys(dv.insts[x.k]).length + ' rows'] : [x.label, lkv(x.k, dv.values[x.k], x.unit) + barOf(x), '']))].map(([k, v, s]) => `<div class="hcard"><div><div class="hk">${esc(k)}</div><div class="hv">${v}</div><div class="hs">${s}</div></div></div>`).join('')}</div>
-        <div id="vizBox"></div>
         <div id="rdPanel"></div>
-        <div class="toolbar" style="margin-top:12px"><b>Graphs</b><select id="dvRange"><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="8760">Last year</option></select><span class="spacer"></span><span class="muted">${esc(dv.sysDescr).slice(0, 120)}</span></div>
-        <div class="pcharts" id="dvCharts"></div>
+        <div class="toolbar" style="margin-top:12px"><b>Tiles and graphs</b><select id="dvRange"><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="8760">Last year</option></select><span class="spacer"></span><span class="muted">${esc(dv.sysDescr).slice(0, 90)}</span>${can('polling') ? '<span id="edTools"><button id="edOn" title="Move and resize the tiles and graphs of this device">Edit layout</button><span id="edBar" hidden><button id="edSave" class="primary">Save layout</button><button id="edReset" title="Back to the standard arrangement">Reset layout</button><button id="edCancel">Cancel</button></span></span>' : ''}</div>
+        <div id="board" class="board"><div id="vizBox"></div><div id="dvCharts"></div></div>
         ${statusRows.length ? `<div class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>Status</b></div><table class="data"><tbody>${statusRows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${b}</td></tr>`).join('')}</tbody></table></div>` : ''}${textPanels}
         ${Object.keys(dv.insts || {}).map((k) => { const mm = dv.profile.metrics.find((x) => x.k === k) || { label: k, unit: '' }; return `<div class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>${esc(mm.label || k)}</b> <span class="muted">${Object.keys(dv.insts[k]).length} rows</span></div><table class="data"><thead><tr><th>Row</th><th class="num-r">Value</th><th></th></tr></thead><tbody>${Object.entries(dv.insts[k]).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([i, v]) => `<tr><td><b>${esc(i)}</b></td><td class="num-r">${lkv(k, v, mm.unit)}</td><td><button class="rwg" data-k="${esc(k)}" data-i="${esc(i)}">Graph</button></td></tr>`).join('')}</tbody></table></div>`; }).join('')}
         <div id="ifPanel" class="panel" style="margin-top:12px;padding:0;overflow:auto"><div class="toolbar" style="margin:10px 12px 0"><b>Interfaces</b> <span class="muted">${dv.ifaces.length ? dv.ifaces.filter((i) => i.monitored).length + ' of ' + dv.ifaces.length + ' watched' : ''}</span><span class="spacer"></span>${can('polling') && dv.ifaces.length ? '<button id="ifAll">Watch all</button><button id="ifUp">Watch only those that are up</button><button id="ifSave" class="primary" hidden>Save selection</button>' : ''}</div>
@@ -332,6 +340,23 @@
       bind('dvEdit', async () => { try { const all = (await api('/api/poll/devices')).devices.find((x) => x.id === d.id); editDevice(all || d); } catch (e) { toast(e.message, true); } });
       bind('dvDel', () => { const dl = dialog('Remove device', `<p>Stop polling <b>${esc(d.name)}</b> and delete its stored readings and its open polling alarms?</p><div class="toolbar"><button id="yes" class="danger">Remove</button><button id="no">Cancel</button></div>`);
         dl.$('#no').onclick = dl.close; dl.$('#yes').onclick = async () => { try { await api('/api/poll/delete', { method: 'POST', body: { id: d.id } }); dl.close(); toast('Removed'); go('#polling'); } catch (e) { toast(e.message, true); } }; });
+      /* edit layout: drag a tile or graph onto another to swap places, pull its corner to resize */
+      const board = $('#board', el), setEdit = (on) => { editing = on; draft = on ? { order: $$('[data-key]', board).sort((x, y) => (+x.style.order || 0) - (+y.style.order || 0)).map((n) => n.dataset.key), w: {}, h: {} } : null; $('#edOn', el).hidden = on; $('#edBar', el).hidden = !on; applyBoard(); };
+      if (board && $('#edOn', el)) {
+        $('#edOn', el).onclick = () => setEdit(true); $('#edCancel', el).onclick = () => { setEdit(false); applyBoard(); charts(); };
+        $('#edSave', el).onclick = async () => { try { const patch = {}; $$('[data-key]', board).forEach((n) => { const k = n.dataset.key, g = k[0] === 'g', hh = Math.round(g ? n.querySelector('canvas').offsetHeight : n.offsetHeight); patch[k] = { w: wOf(k, n.classList.contains('vz-wide')), h: Math.max(100, Math.min(700, (draft.h[k]) || (g ? hh : (layItems()[k] || {}).h || 100))), ...(g ? { span: Math.max(1, Math.min(4, Math.round(wOf(k) / 4))) } : {}) }; }); const order = draft.order.slice(); await saveLay(patch, order); setEdit(false); charts(); toast('Layout saved'); } catch (e) { toast(e.message, true); } };
+        $('#edReset', el).onclick = async () => { try { const items = {}; for (const [k, v] of Object.entries(layItems())) { const { w, ...rest } = v; items[k] = { ...rest, h: 150, span: 1 }; } const r = await api('/api/poll/layout', { method: 'POST', body: { id: devId(), layout: { items, order: [] } } }); dv.layout = r.layout; setEdit(false); $$('[data-key]', board).forEach((n) => { n.style.minHeight = ''; }); charts(); } catch (e) { toast(e.message, true); } };
+        let dragK = '';
+        board.addEventListener('dragstart', (e) => { const n = e.target.closest && e.target.closest('[data-key]'); if (!editing || !n) return; dragK = n.dataset.key; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragK); n.classList.add('dragging'); });
+        board.addEventListener('dragend', () => { dragK = ''; $$('.dragging,.dropt', board).forEach((n) => n.classList.remove('dragging', 'dropt')); });
+        board.addEventListener('dragover', (e) => { const n = e.target.closest && e.target.closest('[data-key]'); if (editing && dragK && n && n.dataset.key !== dragK) { e.preventDefault(); $$('.dropt', board).forEach((x) => x.classList.remove('dropt')); n.classList.add('dropt'); } });
+        board.addEventListener('drop', (e) => { const n = e.target.closest && e.target.closest('[data-key]'); if (!editing || !dragK || !n || n.dataset.key === dragK) return; e.preventDefault();
+          const o = draft.order.filter((k) => k !== dragK), at = o.indexOf(n.dataset.key), before = draft.order.indexOf(dragK) > draft.order.indexOf(n.dataset.key); o.splice(before ? at : at + 1, 0, dragK); draft.order = o; applyBoard(); });
+        board.addEventListener('pointerdown', (e) => { const rz = e.target.closest && e.target.closest('.rz'); if (!editing || !rz) return; e.preventDefault(); e.stopPropagation();
+          const n = rz.parentElement, k = n.dataset.key, g = k[0] === 'g', cv = g ? n.querySelector('canvas') : null, x0 = e.clientX, y0 = e.clientY, w0 = wOf(k, n.classList.contains('vz-wide')), colW = (board.clientWidth + 10) / 12, h0 = g ? cv.offsetHeight : n.offsetHeight;
+          const mv = (ev) => { draft.w[k] = Math.max(2, Math.min(12, Math.round(w0 + (ev.clientX - x0) / colW))); draft.h[k] = Math.max(100, Math.min(700, Math.round(h0 + (ev.clientY - y0)))); applyBoard(); };
+          const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); });
+      }
       const chk = $$('.ifw', el), saveBtn = $('#ifSave', el), dirty = () => { if (saveBtn) saveBtn.hidden = false; };
       chk.forEach((c) => { c.onchange = dirty; });
       bind('ifAll', () => { chk.forEach((c) => { c.checked = true; }); dirty(); });
@@ -346,8 +371,20 @@
     /* what is shown on a device page, how big and in which order is kept per device (dv.layout); every graph has its own options */
     const layItems = () => (dv && dv.layout && dv.layout.items) || {};
     const lay = (key) => ({ show: true, span: 1, h: 150, style: '', hours: null, color: '', max: null, min: null, ...(layItems()[key] || {}) });
-    const saveLay = async (patch) => { const items = { ...layItems() }; for (const [k, v] of Object.entries(patch)) items[k] = { ...lay(k), ...v }; const r = await api('/api/poll/layout', { method: 'POST', body: { id: devId(), layout: { items, order: (dv.layout && dv.layout.order) || [] } } }); dv.layout = r.layout; };
-    const chartBox = (title, key, id) => { const L = lay(key); return `<div class="panel pchart-box" data-key="${esc(key)}" style="grid-column: span ${L.span}"><div class="hk"><span>${esc(title)}</span>${can('polling') ? '<button class="gear" title="Options of this graph">⚙</button>' : ''}</div><canvas id="${id}" class="pchart" style="height:${L.h}px"></canvas></div>`; };
+    const saveLay = async (patch, order) => { const items = { ...layItems() }; for (const [k, v] of Object.entries(patch)) items[k] = { ...(layItems()[k] || {}), ...lay(k), ...v }; const r = await api('/api/poll/layout', { method: 'POST', body: { id: devId(), layout: { items, order: order || (dv.layout && dv.layout.order) || [] } } }); dv.layout = r.layout; };
+    /* the board: tiles and graphs share one 12-column grid; each has a width (columns), a height and a place in the order */
+    let editing = false, draft = null;
+    const wOf = (key, wide) => { const it = layItems()[key], L = lay(key); return draft && draft.w[key] ? draft.w[key] : it && it.w ? it.w : key[0] === 'g' ? L.span * 4 : wide ? 12 : 3; };
+    const applyBoard = () => {
+      const board = $('#board', el); if (!board) return;
+      const ord = draft ? draft.order : ((dv.layout && dv.layout.order) || []), nodes = $$('[data-key]', board);
+      nodes.forEach((n, i) => { const k = n.dataset.key, at = ord.indexOf(k), h = draft && draft.h[k] ? draft.h[k] : (layItems()[k] || {}).h;
+        n.style.setProperty('--w', wOf(k, n.classList.contains('vz-wide'))); n.style.order = at >= 0 ? at : 1000 + i;
+        if (n.classList.contains('pchart-box')) { const cv = n.querySelector('canvas'); if (cv && h && k[0] === 'g') cv.style.height = h + 'px'; } else if ((layItems()[k] || {}).w || (draft && draft.h[k])) n.style.minHeight = (h || 0) + 'px';
+        n.classList.toggle('ed', editing); n.draggable = editing; if (editing && !n.querySelector('.rz')) n.insertAdjacentHTML('beforeend', '<span class="rz" title="Drag to resize"></span>'); if (!editing) n.querySelector('.rz')?.remove(); });
+      board.classList.toggle('editing', editing);
+    };
+    const chartBox = (title, key, id) => { const L = lay(key); return `<div class="panel pchart-box" data-key="${esc(key)}"><div class="hk"><span>${esc(title)}</span>${can('polling') ? '<button class="gear" title="Options of this graph">⚙</button>' : ''}</div><canvas id="${id}" class="pchart" style="height:${L.h}px"></canvas></div>`; };
     const graphOpts = (key, title) => { const L = lay(key), dl = dialog('Graph options: ' + title, `<div class="form" style="min-width:min(460px,86vw)">
       <div class="field"><label for="goSt">Style</label><div><select id="goSt"><option value="">as set on the reading</option><option value="line">line</option><option value="area">filled area</option></select></div></div>
       <div class="field"><label for="goSp">Width</label><div><select id="goSp"><option value="1">normal (1 column)</option><option value="2">wide (2 columns)</option><option value="3">extra wide (3 columns)</option><option value="4">full width</option></select></div></div>
@@ -366,7 +403,8 @@
       const per = (m) => dv.insts && dv.insts[m.k] && Object.keys(dv.insts[m.k]).length;   /* table metrics keep one reading per row */
       const all = [...dv.profile.metrics.filter((m) => m.k !== 'uptime' && m.dtype !== 'text' && (per(m) || !(m.srcs || []).some((x) => x.agg === 'each')) && !(m.disp && m.disp.graph === false)).map((m) => ({ disp: m.disp, k: m.k, rows: per(m) ? Object.keys(dv.insts[m.k]).slice(0, 8) : null, title: m.label + (m.unit ? ` (${m.unit})` : ''), unit: m.unit })), { k: 'rtt', title: 'Answer time (ms)', unit: 'ms' }].map((it) => ({ ...it, key: 'g:' + it.k }));
       const items = all.filter((it) => lay(it.key).show !== false), hidden = all.filter((it) => lay(it.key).show === false);
-      box.innerHTML = items.map((it, i) => chartBox(it.title, it.key, 'pc' + i)).join('') + (hidden.length ? `<div class="hiddeng" style="grid-column:1/-1">Hidden graphs: ${hidden.map((it) => `<button class="sm" data-show="${esc(it.key)}">${esc(it.title)} +</button>`).join(' ')}</div>` : '');
+      box.innerHTML = items.map((it, i) => chartBox(it.title, it.key, 'pc' + i)).join('') + (hidden.length ? `<div class="hiddeng" style="grid-column:1/-1;order:9999">Hidden graphs: ${hidden.map((it) => `<button class="sm" data-show="${esc(it.key)}">${esc(it.title)} +</button>`).join(' ')}</div>` : '');
+      applyBoard();
       $$('.pchart-box .gear', box).forEach((b) => { b.onclick = () => { const it = items.find((x) => x.key === b.closest('.pchart-box').dataset.key); graphOpts(it.key, it.title); }; });
       $$('[data-show]', box).forEach((b) => { b.onclick = async () => { try { await saveLay({ [b.dataset.show]: { show: true } }); charts(); } catch (e) { toast(e.message, true); } }; });
       for (const [i, it] of items.entries()) {
@@ -555,7 +593,7 @@
     // ---------------- routing inside the page ----------------
     const render = () => {
       stop(); const hasDev = !!devId();
-      if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !(sb && !sb.hidden)) detail(); }, 30000); return; }
+      if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !editing && !(sb && !sb.hidden)) detail(); }, 30000); return; }
       if (tab === 'overview') { overview(); every(() => { if (!document.querySelector('.modal-back') && tab === 'overview' && !devId()) overview(); }, 15000); }
       else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
     };

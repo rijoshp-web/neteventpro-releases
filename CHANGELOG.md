@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.57.0
+- **Move and resize tiles and graphs:** on a device page choose *Edit layout*. Drag a tile or graph onto another to change places, pull the corner handle to change width (12 columns) and height, then *Save layout*. The arrangement is kept on the server per device and is the same for every user. *Reset layout* returns to the standard arrangement; on a phone everything stacks full width.
+- **Groups of polled devices:** new *Group* field on a device (with suggestions from existing groups). The device list has a chip per group showing devices up / total and open alarms, a "Show group headings" switch with up / no-answer / alarm counts per group, and the search also finds a group name.
+- Tests: group cleaning, layout widths and order.
+
 ## 1.56.0
 - **Fixed:** a removed reading left its values (for example the "4 rows" table) on the device page until the service restarted. A device page now shows only the values of readings that still exist, and removing a reading forgets its values.
 - **Edit from the visuals:** every gauge, bar, tile grid and card has a ✎ button that opens the reading's editor.

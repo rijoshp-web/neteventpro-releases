@@ -272,7 +272,7 @@ class Polling {
     const keep = (k) => (b[k] === MASK ? old?.[k] || '' : String(b[k] || '').slice(0, 200));
     const d = { id: old?.id || 'd' + id8(), name, host, port: num(b.port, 161, 1, 65535), version, community: '', user: '', level: 'authPriv', authProto: 'SHA', authPass: '', privProto: 'AES128', privPass: '',
       profile: b.profile === undefined || b.profile === '' ? 'basic' : String(b.profile).slice(0, 40), intervalSec: num(b.intervalSec, this.cfg.defaultIntervalSec || 60, 10, 3600), timeoutMs: num(b.timeoutMs, 3000, 500, 30000), retries: Math.round(num(b.retries, 1, 0, 5)),
-      via: this.probeOk(b.via) ? String(b.via) : '', ping: !!b.ping, enabled: b.enabled !== false, site: String(b.site || '').slice(0, 60), ifMode: ['auto', 'all', 'selected', 'none'].includes(b.ifMode) ? b.ifMode : (old?.ifMode || 'none'), ifSelected: Array.isArray(b.ifSelected) ? b.ifSelected.map(String).slice(0, 500) : (old?.ifSelected || []) };
+      via: this.probeOk(b.via) ? String(b.via) : '', ping: !!b.ping, enabled: b.enabled !== false, site: String(b.site || '').slice(0, 60), group: String(b.group || '').replace(/\s+/g, ' ').trim().slice(0, 40), ifMode: ['auto', 'all', 'selected', 'none'].includes(b.ifMode) ? b.ifMode : (old?.ifMode || 'none'), ifSelected: Array.isArray(b.ifSelected) ? b.ifSelected.map(String).slice(0, 500) : (old?.ifSelected || []) };
     if (version === 'v3') {
       d.user = String(b.user || '').trim().slice(0, 100); if (!d.user) bad('SNMPv3 needs a user name.');
       d.level = ['noAuthNoPriv', 'authNoPriv', 'authPriv'].includes(b.level) ? b.level : 'authPriv';
@@ -466,7 +466,7 @@ class Polling {
   overview() {
     const devs = this.devices().map((d) => {
       const rt = this.state(d), ifs = rt.ifaces || [];
-      return { id: d.id, name: d.name, host: d.host, site: d.site || '', version: d.version, enabled: d.enabled !== false, state: this.shownState(d, rt), via: d.via ? this.probeName(d.via) || d.via : '', rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', profile: rt.profile || (d.profile === 'auto' ? '' : d.profile), uptime: this.latest(rt, 'uptime'),
+      return { id: d.id, name: d.name, host: d.host, site: d.site || '', group: d.group || '', version: d.version, enabled: d.enabled !== false, state: this.shownState(d, rt), via: d.via ? this.probeName(d.via) || d.via : '', rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', profile: rt.profile || (d.profile === 'auto' ? '' : d.profile), uptime: this.latest(rt, 'uptime'),
         cpu: this.latest(rt, 'cpu'), memory: this.latest(rt, 'memory'), temperature: this.latest(rt, 'temperature'), battery: this.latest(rt, 'battery'), ifMon: ifs.filter((i) => i.monitored).length, ifUp: ifs.filter((i) => i.monitored && i.status === 'up').length, alarms: this.alarmCount(d) };
     });
     const c = { total: devs.length, up: devs.filter((x) => x.state === 'up').length, down: devs.filter((x) => x.state === 'down').length, unknown: devs.filter((x) => x.state === 'unknown' || x.state === 'stale').length, off: devs.filter((x) => x.state === 'off').length, alarms: devs.reduce((a, x) => a + x.alarms, 0) };

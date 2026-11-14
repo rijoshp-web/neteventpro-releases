@@ -868,3 +868,22 @@ button.gear { background: none; border: 0; color: var(--muted); cursor: pointer;
 .hiddeng { font-size: 12px; color: var(--muted); }
 label.sw { display: inline-block; margin-right: 4px; } label.sw input { position: absolute; opacity: 0; } label.sw i { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; } label.sw input:checked + i { border-color: var(--text); }
 th .colr { position: absolute; right: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; } th .colr:hover { background: var(--accent); opacity: .5; }
+
+/* 1.57 board: tiles and graphs share a 12-column grid, can be moved and resized */
+.board, .board #vizBox, .board #dvCharts, .board .vizgrid, .board .pcharts { display: contents; }
+.board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.board > #vizBox, .board > #dvCharts { display: contents; }
+.board [data-key] { grid-column: span var(--w, 3); min-width: 0; position: relative; }
+.board .vz-wide { grid-column: span var(--w, 12); }
+.board .pchart-box { margin: 0; }
+@media (max-width: 760px) { .board [data-key] { grid-column: 1 / -1 !important; } .board .rz { display: none; } }
+.board.editing [data-key] { outline: 2px dashed var(--accent); outline-offset: 2px; cursor: grab; }
+.board.editing [data-key].dragging { opacity: .4; } .board.editing [data-key].dropt { outline-color: var(--ok); outline-style: solid; }
+.board .rz { position: absolute; right: 2px; bottom: 2px; width: 18px; height: 18px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--accent) 50%, var(--accent) 60%, transparent 60%, transparent 70%, var(--accent) 70%, var(--accent) 80%, transparent 80%); touch-action: none; }
+#edTools { display: inline-flex; gap: 6px; }
+
+.gchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; align-items: center; }
+.gchip { border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.gchip.on { background: var(--accent); color: #fff; border-color: var(--accent); } .gchip.on .muted { color: inherit; opacity: .85; }
+.gchip.bad:not(.on) { border-color: var(--bad); }
+tr.grow td { background: var(--bg2, rgba(128,128,128,.10)); padding: 6px 12px; }
