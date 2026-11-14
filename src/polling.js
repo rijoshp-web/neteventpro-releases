@@ -460,6 +460,7 @@ class Polling {
   }
 
   // ---------- views for the pages ----------
+  openAlarmsOf(d) { const al = this.engine.alarms; if (!al) return []; const k = lower(d.name); return [...al.open.values()].filter((r) => r.dev === k && String(r.rule_id).startsWith('poll-')).slice(0, 200).map((r) => ({ id: r.id, rule_id: r.rule_id, severity: r.severity, inst: r.inst || '', message: r.message, first_ts: r.first_ts, ack_by: r.ack_by || '' })); }
   alarmCount(d) { const al = this.engine.alarms; if (!al) return 0; const k = lower(d.name); let n = 0; for (const r of al.open.values()) if (r.dev === k && String(r.rule_id).startsWith('poll-')) n++; return n; }
   latest(rt, k, inst = '') { const x = rt.last.get(k + '|' + inst); return x ? x.v : null; }
   overview() {
@@ -477,7 +478,7 @@ class Polling {
     for (const [key, x] of rt.last) { const [k, i] = key.split('|'); if (i) (inst[k] ||= {})[i] = x.v; else vals[k] = x.v; }
     const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic');
     return { device: this.mask(d), via: d.via ? this.probeName(d.via) || d.via : '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, lastOk: rt.lastOk || 0, lastTry: rt.lastTry || 0, error: rt.error || '', misses: rt.misses, downSince: rt.state === 'down' ? rt.downSince || 0 : 0, sysName: rt.sysName || '', sysDescr: rt.sysDescr || '', objectId: rt.objectId || '', profile: { id: prof.id, name: prof.name, metrics: prof.metrics.filter((m) => m.on !== false).map((m) => ({ k: m.k, label: m.label, unit: m.unit, dtype: m.dtype || ((m.srcs || []).some((x) => x.text) ? 'text' : 'number'), disp: m.disp || null, srcs: (m.srcs || []).map((x) => ({ agg: x.agg })) })) },
-      values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d) };
+      values: vals, insts: inst, texts: this.textsOf(rt), lookups: this.lookupsUsed(), ifaces: rt.ifaces || [], events: this.recent.filter((e) => e.dev === id).slice(0, 30), alarms: this.alarmCount(d), openAlarms: this.openAlarmsOf(d) };
   }
 
   // ---------- scheduler ----------

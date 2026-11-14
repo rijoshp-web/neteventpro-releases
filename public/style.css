@@ -117,7 +117,7 @@ td.sev i { display: block; width: 5px; min-height: 22px; height: 100%; }
 td.sev i { background: var(--c); }
 .sevname { color: var(--c); font-family: var(--ui); font-weight: 600; font-size: 12px; }
 .tag { font-family: var(--ui); font-size: 11px; border: 1px solid var(--line2); color: var(--muted); border-radius: 3px; padding: 0 5px; margin-left: 6px; }
-.hl { background: color-mix(in srgb, var(--accent) 40%, transparent); color: inherit; border-radius: 2px; }
+.vzl { background: color-mix(in srgb, var(--accent) 40%, transparent); color: inherit; border-radius: 2px; }
 .muted { color: var(--muted); } .faint { color: var(--faint); }
 .pager { display: flex; gap: 10px; align-items: center; padding-top: 10px; }
 .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
@@ -817,3 +817,47 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel2); }
 .subtabs button.on { color: var(--text); background: var(--panel); font-weight: 600; border-color: var(--accent); }
 .rdh { margin: 14px 0 4px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
 .rdal { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
+
+/* SNMP polling 1.55: compact readings table, alarm details, visuals */
+.rdp { margin-top: 12px; padding: 0; overflow: auto; }
+.rdp-h { margin: 8px 12px 6px; }
+table.rdt { border-collapse: separate; border-spacing: 0; width: 100%; }
+table.rdt th { padding: 4px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+table.rdt td { padding: 3px 8px; line-height: 1.25; vertical-align: middle; border-top: 1px solid var(--line); }
+table.rdt tr.rdr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+table.rdt tr.off td { opacity: .5; }
+.rdn b { font-size: 13px; } .rdn .unit { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; margin-left: 4px; }
+.rds { font-size: 11px; color: var(--muted); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdv { font-weight: 600; white-space: nowrap; }
+.dotc { width: 18px; padding-right: 0 !important; }
+.sdot, .lamp { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); vertical-align: middle; }
+.s-ok { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 60%, transparent); } .s-warn { background: var(--warn, #d9a21b); box-shadow: 0 0 6px color-mix(in srgb, var(--warn, #d9a21b) 60%, transparent); } .s-crit { background: var(--bad); box-shadow: 0 0 7px color-mix(in srgb, var(--bad) 70%, transparent); } .s-unk { background: var(--muted); opacity: .6; }
+.lamp { width: 26px; height: 26px; }
+.rda { white-space: nowrap; text-align: right; }
+button.sm { padding: 1px 9px; font-size: 12px; margin-left: 4px; }
+button.almb { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 0 9px; font-size: 12px; color: var(--muted); cursor: pointer; }
+button.almb.open { border-color: var(--warn, #d9a21b); color: var(--warn, #d9a21b); }
+button.almb:hover { border-color: var(--accent); color: var(--text); }
+tr.rdx td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.rdx-in { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; font-size: 12.5px; padding: 4px 0; }
+.rdx-in ul { margin: 2px 0 6px; padding-left: 18px; } .rdx-in li { margin: 1px 0; }
+.pill.sv0, .pill.sv1, .pill.sv2 { background: color-mix(in srgb, var(--bad) 22%, transparent); color: var(--bad); }
+.pill.sv3 { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); } .pill.sv4 { background: color-mix(in srgb, var(--warn, #d9a21b) 20%, transparent); color: var(--warn, #d9a21b); }
+.vizgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.vz { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 10px; background: var(--panel); border-top: 3px solid var(--line); }
+.vz.b-ok { border-top-color: var(--ok); } .vz.b-warn { border-top-color: var(--warn, #d9a21b); } .vz.b-crit { border-top-color: var(--bad); }
+.vz-wide { grid-column: 1 / -1; } .vz-h { display: flex; gap: 6px; align-items: center; font-size: 13px; margin-bottom: 4px; }
+.gauge { width: 100%; max-width: 190px; display: block; margin: 0 auto; } .gauge .gv { font-size: 22px; font-weight: 700; fill: var(--text); } .gauge .gu, .gauge .gl { font-size: 10px; fill: var(--muted); }
+.bigv { font-size: 26px; font-weight: 700; line-height: 1.15; } .bigv.sm { font-size: 20px; } .bigv .trend { font-size: 18px; color: var(--muted); }
+.vzl { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); }
+.hbar { height: 12px; border-radius: 6px; overflow: hidden; margin: 6px 0 2px; } .hbar i { display: block; height: 100%; border-radius: 6px; }
+.lightw { display: flex; gap: 12px; align-items: center; padding: 4px 0; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.tl { border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; border: 1px solid var(--line); border-left: 4px solid var(--muted); }
+.tl .tn { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tl b { font-size: 18px; } .tl .tw { font-size: 11px; }
+.tl.t-ok { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); } .tl.t-warn { border-left-color: var(--warn, #d9a21b); background: color-mix(in srgb, var(--warn, #d9a21b) 12%, transparent); } .tl.t-crit { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+svg.spk { display: block; }
+/* the reading editor: tighter */
+#rdF .field { margin: 5px 0; } #rdF .hint { font-size: 11.5px; margin-top: 2px; }
+.rdh { margin: 10px 0 2px; padding-top: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+.rdal { padding: 5px 8px; margin: 0 0 6px; }

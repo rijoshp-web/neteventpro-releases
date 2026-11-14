@@ -32,10 +32,17 @@ function matchItem(items, val, prev) {
   return i >= 0 ? items[i] : null;
 }
 
+const VIEWS = ['', 'card', 'big', 'gauge', 'bar', 'light', 'tiles'];
+/** how a reading is shown on the device page; older versions had a card and bar tick-box instead of a view */
+function normDisp(d, text) {
+  d = d || {}; const fin = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(+x) ? null : +x);
+  const view = VIEWS.includes(d.view) ? d.view : d.card ? (d.bar ? 'bar' : 'card') : '';
+  return { graph: d.graph !== false && !text, style: d.style === 'area' ? 'area' : 'line', view, min: fin(d.min), max: fin(d.max), dec: fin(d.dec) === null ? null : Math.round(num(d.dec, 1, 0, 4)) };
+}
 /** one reading as the poller wants it (the same shape a custom profile metric has, plus offset and display) */
 function metricOf(r) {
   const text = r.dtype === 'text', rate = r.dtype === 'counter';
-  return { k: r.k, label: r.label, unit: r.unit, t: r.t, oid: r.oid, agg: r.agg, nameOid: r.nameOid, scale: r.scale, offset: r.offset, dtype: r.dtype, rate, lookup: r.items && r.items.length ? 'l' + r.k.slice(1) : r.lookup || '', disp: r.disp, on: r.on !== false,
+  return { k: r.k, label: r.label, unit: r.unit, t: r.t, oid: r.oid, agg: r.agg, nameOid: r.nameOid, scale: r.scale, offset: r.offset, dtype: r.dtype, rate, lookup: r.items && r.items.length ? 'l' + r.k.slice(1) : r.lookup || '', disp: normDisp(r.disp, r.dtype === 'text'), on: r.on !== false,
     srcs: [{ t: r.t === 'walk' ? 'walk' : 'oid', oid: r.oid, agg: text && r.t === 'walk' ? 'each' : r.agg, nameOid: r.nameOid || '', scale: r.scale * (r.dtype === 'ticks' ? 0.01 : 1), offset: rate || text ? 0 : r.offset, rate, text }] };
 }
 
@@ -57,10 +64,9 @@ module.exports = (Polling) => {
       const id = /^[a-z0-9]{6,12}$/.test(a.id || '') && !ids.has(a.id) ? a.id : rid(); ids.add(id);
       alarms.push({ id, enabled: a.enabled !== false, op: OPS.includes(a.op) ? a.op : '>', textOp: dtype === 'text' ? textOp : '', text: textOp ? String(a.text || '').slice(0, 200) : '', value, clearValue: Number.isFinite(cv) ? cv : '', forSec: Math.round(num(a.forSec, 0, 0, 86400)), severity: Math.round(num(a.severity, 4, 0, 7)), tell: Array.isArray(a.tell) ? a.tell.map(String).slice(0, 20) : [] });
     }
-    const fin = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(+x) ? null : +x);
     return { k, label: String(r.label || 'Reading').trim().slice(0, 60) || 'Reading', unit: String(r.unit || '').slice(0, 10), t, oid, agg, nameOid: t === 'walk' && agg === 'each' && OIDRE.test(String(r.nameOid || '').trim()) ? String(r.nameOid).trim() : '',
       scale: Number.isFinite(+r.scale) && +r.scale !== 0 ? +r.scale : 1, offset: Number.isFinite(+r.offset) ? +r.offset : 0, dtype, items, ...(items.length && tl(r.tellWarn) ? { tellWarn: tl(r.tellWarn) } : {}), ...(items.length && tl(r.tellCrit) ? { tellCrit: tl(r.tellCrit) } : {}), lookup: !items.length && /^l[a-z0-9]{4,12}$|^b-[a-z0-9]+$/.test(r.lookup || '') ? r.lookup : '', on: r.on !== false,
-      disp: { graph: d.graph !== false && dtype !== 'text', style: d.style === 'area' ? 'area' : 'line', card: !!d.card, bar: !!d.bar, min: fin(d.min), max: fin(d.max), dec: fin(d.dec) === null ? null : Math.round(num(d.dec, 1, 0, 4)) }, alarms };
+      disp: normDisp(d, dtype === 'text'), alarms };
   };
 
   /** the profiles of devices that have their own readings (id dev-<device id>) */
@@ -70,7 +76,7 @@ module.exports = (Polling) => {
     return out;
   };
 
-  P.readingsOf = function (id) { const r = (this.cfg.readings || {})[id]; return Array.isArray(r) ? r : []; };
+  P.readingsOf = function (id) { const r = (this.cfg.readings || {})[id]; return Array.isArray(r) ? r.map((x) => ({ ...x, disp: normDisp(x.disp, x.dtype === 'text') })) : []; };
 
   /** save all readings of a device, and rebuild the profile, thresholds and value meanings that come from them */
   P.saveReadings = function (id, list) {

@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.55.0
+- **No more double notifications.** SNMP polling alarms are told only by their own rules (the Tell boxes on the reading, the shared Alarm limits and the no-answer rule). Your general syslog rules no longer match them, so a rule such as "warning and worse → e-mail" does not fire a second time for the same event. The alarm lines still appear in Logs (tag *poll*) for history.
+- **See what an alarm is.** In the readings table the alarm badge is now clickable: "2 rules · 1 open" opens the list of that reading's alarm rules (condition, severity, who is told, value meanings that raise alarms) and the alarms open right now. The count now means *rules*, the open count is shown next to it, which explains the different numbers on the device list (open alarms of all readings and rows) and on the reading (rules).
+- **More ways to show a reading.** Per reading, *Show on the page as*: card, big number with min / max and trend arrow, gauge (dial; its zones follow the value meanings), bar with zones, status light, or a tile grid for table readings (one coloured tile per row, for example 4 rooms). Plus a small trend line in the readings table. Scale from / to and decimals per reading. The old Card and Bar tick-boxes are converted automatically.
+- **Compact and clearer readings table.** Shorter rows, a colour dot for the state of each reading, name with unit chip and a small line for OID and calculation, smaller Edit / Remove buttons, tighter reading editor.
+- Tests: duplicate-notification rule test and view migration test.
+
 ## 1.54.1
 - **Pick from MIB** in the reading editor now has the full search: a **MIB file** drop-down, a search box (name, module, file name or OID; several words must all match), paging through all results with the total shown, and the syntax column. Before, it listed only the first 40 matches.
 

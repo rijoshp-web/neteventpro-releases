@@ -102,6 +102,7 @@ class RuleEngine {
     const source = msg.source === 'snmp' ? 'snmp' : 'syslog';
     for (const c of this.compiled) {
       if (c.source !== source) continue;
+      if (msg.poll && !String(c.rule.id || '').startsWith('poll-')) continue;   /* SNMP polling alarms are told by their own rules only (set on the reading); your syslog rules do not see them, so nobody is told twice. They stay in the Logs list for history. */
       if (c.trap && !(c.trapIsOid ? c.trap(msg.trapOid || '') : (c.trap(msg.msgid || '') || c.trap(msg.trapOid || '')))) continue;
       if (c.sevMax !== null && SEVX.rank(msg.severity) > SEVX.rank(c.sevMax)) continue;
       if (c.sevMin !== null && SEVX.rank(msg.severity) < SEVX.rank(c.sevMin)) continue;

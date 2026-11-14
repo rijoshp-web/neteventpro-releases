@@ -80,3 +80,22 @@ test('value meanings as rules: below / above / between, hold until the clear val
     pl.deleteDevice(d.id); assert.equal(pl.rules().filter((x) => x.id.startsWith('poll-lk-')).length, 0); void cfg;
   } finally { await a.close(); }
 });
+
+test('polling alarms are told by their own rules only, not by the general syslog rules (no double notification)', () => {
+  const { RuleEngine } = require('../src/rules'), r = new RuleEngine();
+  r.load([{ id: 'mine', name: 'warnings and worse', match: { severityMax: 4 }, actions: { alarm: true, email: true } }, { id: 'poll-t1', name: 'poll', match: { tag: 'poll-t1' }, actions: { alarm: true } }]);
+  const m = (poll) => ({ severity: 3, facility: 5, host: 'h', srcIp: '1.1.1.1', app: 'snmp-poll', message: 'x', tags: ['poll', 'poll-t1'], ...(poll ? { poll: true } : {}) });
+  let o = r.apply(m(true)); assert.deepEqual(o.alarms.map((x) => x.id || x.rule.id), ['poll-t1'], 'only the polling rule'); assert.equal(o.emails.length, 0);
+  o = r.apply({ ...m(false), tags: [] }); assert.equal(o.emails.length, 1, 'real syslog still reaches your rule');
+});
+
+test('display views: new view is kept, the old card / bar tick-boxes are migrated', async () => {
+  const a = await startAgent({ mib: MIB }), { pl, cfg } = setup();
+  try {
+    const d = dev(pl, a.port, 'Views'), base = { t: 'oid', oid: '1.3.6.1.4.1.99999.1.1.0' };
+    const out = pl.saveReadings(d.id, [{ ...base, label: 'g', disp: { view: 'gauge', min: 0, max: 40, dec: 1 } }, { ...base, label: 'old card', disp: { card: true } }, { ...base, label: 'old bar', disp: { card: true, bar: true } }, { ...base, label: 'none', disp: { view: 'nonsense' } }]);
+    assert.deepEqual(out.map((r) => r.disp.view), ['gauge', 'card', 'bar', '']); assert.equal(out[0].disp.max, 40);
+    cfg.polling.readings[d.id][1].disp = { graph: true, card: true };   /* a set saved by 1.53 / 1.54 */
+    assert.equal(pl.readingsOf(d.id)[1].disp.view, 'card'); assert.equal(pl.profiles().find((p) => p.own).metrics[1].disp.view, 'card');
+  } finally { await a.close(); }
+});
