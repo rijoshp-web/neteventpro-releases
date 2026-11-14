@@ -194,3 +194,13 @@ test('1.64 polling re-raises an alarm that is no longer open while the value is 
   const st2 = pl.fire.get(`t1|${d.id}|`); st2.at = Date.now() - 60000; open.set(1, { dev: 're-1', rule_id: 'poll-t1', inst: '' });
   run(); assert.strictEqual(alarms(), 2);                              // an open alarm exists: nothing new
 });
+
+test('1.66 a removed text table (and removing the last reading) leaves nothing on the device page', async () => {
+  const a = await startAgent({ mib: MIB }), { pl } = setup();
+  try {
+    const d = dev(pl, a.port, 'Txt'), [r1] = pl.saveReadings(d.id, [{ label: 'T', t: 'walk', agg: 'each', oid: '1.3.6.1.4.1.99999.2', dtype: 'text' }]);
+    await pl.pollDevice(pl.devices()[0]); let det = pl.detail(d.id); assert.ok(det.texts[r1.k] || det.insts[r1.k], 'the table is shown while the reading exists');
+    pl.saveReadings(d.id, []); det = pl.detail(d.id);
+    assert.equal(det.texts[r1.k], undefined); assert.equal(det.insts[r1.k], undefined); assert.equal(Object.keys(det.texts).includes(r1.k), false);
+  } finally { a.close(); }
+});

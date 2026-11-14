@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.65.1
+- **Fixed: removing a reading left its table on the device page.** The table of a removed reading (shown under its internal name, for example "ra295c155 4 rows") stayed until the service was restarted. It is now removed at once, also when the last reading is removed.
+- Test: removed table leaves nothing on the device page.
+
 ## 1.65.0
 - **Settings has a new start page:** a menu in three columns with groups (Receiving, Forwarding and remote, Alerts and notifications, Users and security, Storage and time, Look and sound, Service) and a link for every section. Click a link to open that section; **← All settings** at the top goes back. The old row of tabs is gone; nothing was removed.
 - **Search in settings:** type a word (retention, port, email, password...) to list the matching sections, also by words inside the section; Enter opens the first one, Esc clears.

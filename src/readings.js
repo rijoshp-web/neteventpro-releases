@@ -95,6 +95,7 @@ module.exports = (Polling) => {
     this.config.update({ polling: { ...c, readings, thresholds, lookups, devices } });
     const rt = this.state(d); rt.nextAt = 0; this.collector.forget?.(id);
     const keep = new Set(clean.map((x) => x.k)); for (const key of [...rt.last.keys()]) { const k = key.split('|')[0]; if (k !== 'uptime' && !k.startsWith('if.') && !keep.has(k)) rt.last.delete(key); }   /* values of removed readings*/
+    if (rt.texts) for (const key of [...rt.texts.keys()]) { const k = key.split('|')[0]; if (!keep.has(k) && !k.startsWith('if.')) rt.texts.delete(key); }   /* the text values (tables) of removed readings */
     return clean;
   };
 
