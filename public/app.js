@@ -1569,7 +1569,7 @@ window.addEventListener('hashchange', route);
 
 (async function init() {
   const theme = store.get('sp.theme', matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-  const THEMES = [['dark', 'Dark (default)'], ['midnight', 'Midnight blue'], ['graphite', 'Graphite'], ['black', 'Black (OLED)'], ['nord', 'Nord'], ['dracula', 'Dracula'], ['solarized', 'Solarized dark'], ['forest', 'Forest'], ['light', 'Light']];
+  const THEMES = [['dark', 'Dark (default)'], ['midnight', 'Midnight blue'], ['graphite', 'Graphite'], ['black', 'Black (OLED)'], ['nord', 'Nord'], ['dracula', 'Dracula'], ['solarized', 'Solarized dark'], ['forest', 'Forest'], ['light', 'Light'], ['cream', 'Cream (soft, light)'], ['espresso', 'Espresso (soft, dark)']];
   const setTheme = (t) => { if (!THEMES.some((x) => x[0] === t)) t = 'dark'; document.documentElement.dataset.theme = t; store.set('sp.theme', t); if (S.onStats && S.stats) S.onStats(S.stats); };
   const shell = $('.shell'), tgl = $('#railToggle');
   const setRail = (c) => { shell.classList.toggle('collapsed', c); store.set('sp.rail', c ? '1' : '0'); tgl.innerHTML = c ? '&raquo;' : '&laquo;'; tgl.setAttribute('aria-expanded', String(!c)); const t = c ? 'Expand side panel' : 'Collapse side panel'; tgl.title = t; tgl.setAttribute('aria-label', t); setTimeout(() => window.dispatchEvent(new Event('resize')), 200); };

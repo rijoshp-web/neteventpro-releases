@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.66.0
+- New soft, embossed look in two variants: **Cream (soft, light)** and **Espresso (soft, dark)**. Choose one under Settings → Look and sound → Colour theme. Same layout and pages as before; only the look changes: raised rounded cards with soft shadows, a dark pill-shaped status strip, a rounded dark side rail with a green highlight, and tactile pill buttons that press in when clicked. Existing themes are unchanged and remain the default.
+
 ## 1.65.3
 - **Fixed: a change between two alarm states left the old alarm open** for the built-in lookups (interface status, colour, battery, up/down and so on) and for lookups made on the Lookups tab. For example an interface going from *down* (critical) to *testing* (warning) showed both alarms until it came up; the same for warning to critical. The old alarm now ends when the state changes, like it already did for the lookups made on a single reading.
 - Found by testing about 275 alarm and lookup cases (all six operators, clear values, hold times, table rows, text alarms, every value of the 7 built-in lookups, own lookup rules with every operator). Everything else behaved correctly.
