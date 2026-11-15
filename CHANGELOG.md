@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.76.1
+
+- **Side panel bottom tidied.** The user name is now a round badge with initials, name and role. Sign out is a normal side-panel button with an icon. Full screen moved to Settings → Appearance (a normal button), and the version number moved to Settings (Service section, line “Version”). Background picture thumbnails in Settings now show their pictures.
+
 ## 1.76.0
 
 - **Glass is now a switch, not ten separate themes.** Settings → Appearance → Glass effect turns frosted glass on over any dark theme, so every theme can be glass. The ten glass themes (Glass smoke, Dark glass, Black glass, Glass ember, aqua, dusk, amber, violet, aurora, deep blue) are removed from the list. A saved glass theme is converted automatically to a matching normal theme with the glass effect on (for example Black glass becomes Black (OLED) with glass). The two iOS Glass themes stay.

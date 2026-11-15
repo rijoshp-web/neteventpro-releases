@@ -1301,3 +1301,12 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 .bgp.on, .bgp:hover { border-color: var(--accent); color: var(--text); }
 .bgsl { display: flex; flex-wrap: wrap; gap: 16px; margin: 6px 0; }
 .bgsl label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+
+/* 1.76.1 rail footer: round user badge, Sign out like the other rail buttons */
+.rail-foot .me { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 2px; border-radius: 14px; }
+.rail-foot .me .lbl { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.rail-foot .me b { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-foot .me small { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { flex: none; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--accent-ink, #fff); background: radial-gradient(120% 120% at 25% 15%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%), linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent), 0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5); }
+.shell.collapsed .rail-foot .me { justify-content: center; padding: 8px 0; }
+.shell.collapsed .rail-foot .me .lbl { display: none; }
