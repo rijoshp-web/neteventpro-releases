@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.67.0
+- Six more looks under Settings → Look and sound → Colour theme: **Fresh lime (light)** and five glass looks, **Glass smoke**, **Glass ember (orange)**, **Glass aqua (teal glow)**, **Glass dusk (brown and blue)** and **Glass amber (warm peach)**. Glass looks use translucent, blurred panels, a rounded side rail, pill status strip and pill buttons. Same layout and pages.
+- The separate "Dashboard theme" setting was removed from Settings, since the colour themes now style the whole application. (The Customize window on the Dashboard still has its own dashboard colours; pages are unchanged.)
+
 ## 1.66.0
 - New soft, embossed look in two variants: **Cream (soft, light)** and **Espresso (soft, dark)**. Choose one under Settings → Look and sound → Colour theme. Same layout and pages as before; only the look changes: raised rounded cards with soft shadows, a dark pill-shaped status strip, a rounded dark side rail with a green highlight, and tactile pill buttons that press in when clicked. Existing themes are unchanged and remain the default.
 
