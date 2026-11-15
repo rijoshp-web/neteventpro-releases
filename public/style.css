@@ -1228,3 +1228,18 @@ body.kiosk .sheetbar { bottom: 14px; }
 .sheetbar .sheetbtn:hover { background: var(--panel2); }
 .sheetbar .sheetbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 :is(:root[data-look="glass"], :root[data-look="ios"]) .sheetbar .sheetbtn:hover { background: rgba(255,255,255,.16); }
+
+/* 1.73.1 wall display icon, sheet icon picker, add-tile cards in glass / iOS looks */
+.dash-head { padding-right: 96px; }
+.dash-head .dwall { position: absolute; right: 48px; top: 0; width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text); transition: transform .15s, background .15s, color .15s; }
+.dash-head .dwall:hover { color: var(--accent); transform: translateY(-1px); }
+.dash-head .dwall svg { width: 20px; height: 20px; }
+.icopick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.icopick .icobtn { height: 46px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; }
+.icopick .icobtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+:root[data-look] :is(.vcard, .dscard) { border-radius: 14px; padding: 8px; background: var(--panel); border: 1px solid var(--line); box-shadow: none; color: var(--text); }
+:root[data-look] :is(.vcard, .dscard):hover, :root[data-look] :is(.vcard, .dscard):focus-visible { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); transform: none; }
+.sheetbar { z-index: 40; }
+.dash-head button.dwall { padding: 0; min-width: 0; width: 42px; height: 42px; border-radius: 50%; }
+.dash-head button.dwall svg { width: 22px; height: 22px; }
+.icopick button.icobtn { padding: 0; min-width: 0; }

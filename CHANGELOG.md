@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.73.1
+- **Wall display is now an icon button** (a monitor symbol) next to the ⋮ menu on the dashboard, for every dashboard, new ones included. The "Full screen" button of the left panel was removed (the wall display goes full screen as well); "Copy wall link" stays in the ⋮ menu.
+- **Sheet icons you can choose**: *Change sheet icon…* in the ⋮ menu (and a picker when you add a sheet) offers 18 icons for the buttons of the sheet bar. The icon is saved with the sheet.
+- Fixed: in the Glass and iOS Glass themes the **Add tile** visual cards were drawn as big ovals that covered their pictures; they are rounded cards again. The sheet bar no longer floats above dialogs.
+
 ## 1.73.0
 - **Dashboard sheets** (like Power BI pages): one dashboard now has several sheets — **Overview** (a mix of alarms, syslog, SNMP traps, SNMP polling and devices), **Alarms**, **Syslog**, **SNMP traps**, **SNMP polling** and **Devices**. Every sheet has its own tiles that you can move, resize, add and remove. The ⋮ menu has *Add sheet…*, *Rename this sheet…* and *Delete this sheet*; *Reset layout* restores the standard tiles of the sheet you are on. Up to 8 sheets per dashboard. Sheets are saved with the dashboard and travel with Export / Import and Save as.
 - **Sheet bar**: a small panel at the bottom of the dashboard appears when you move the mouse over the page (and fades away after a moment). One round button per sheet; hover a button to see the sheet name. Works in Wall display mode too; the Wall link opens the sheet you are on.

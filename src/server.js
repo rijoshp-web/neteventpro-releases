@@ -1180,7 +1180,8 @@ function sanitizeDashPrefs(d) {
   if (Array.isArray(d.tiles)) out.tiles = cleanDashTiles(d.tiles);
   if (Array.isArray(d.sheets)) {        // 1.73 sheets: extra pages of the same dashboard (like Power BI); the first sheet ("Overview") is the tiles above
     const ids = new Set(); out.sheets = d.sheets.slice(0, 8).filter((x) => x && typeof x === 'object' && /^[a-z0-9_]{1,24}$/.test(x.id) && !ids.has(x.id) && x.id !== 'main' && ids.add(x.id))
-      .map((x) => ({ id: x.id, name: String(x.name ?? '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 30) || 'Sheet', tiles: cleanDashTiles(Array.isArray(x.tiles) ? x.tiles : []) }));
+      .map((x) => ({ id: x.id, name: String(x.name ?? '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 30) || 'Sheet', tiles: cleanDashTiles(Array.isArray(x.tiles) ? x.tiles : []), ...(/^[a-z0-9]{1,16}$/.test(x.icon) ? { icon: x.icon } : {}) }));
+  if (/^[a-z0-9]{1,16}$/.test(d.mainIcon)) out.mainIcon = d.mainIcon;
   }
   if (typeof d.mainName === 'string') out.mainName = d.mainName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 30);
   return out;

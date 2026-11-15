@@ -244,8 +244,21 @@ const SHEET_ICON = {
   traps: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   polling: '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>',
   devices: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>',
+  chart: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  shield: '<path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z"/>',
+  heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.5-7 10-7 10z"/>',
+  wifi: '<path d="M2 9a15 15 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><path d="M12 20h.01"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-.5-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 18z"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  flame: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .5 1.5 1.5 2 2 2 0-3-1-5 1-8z"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   other: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12h8"/>'
 };
+const ICON_NAMES = ['main', 'alarms', 'syslog', 'traps', 'polling', 'devices', 'chart', 'globe', 'shield', 'heart', 'wifi', 'cloud', 'cpu', 'clock', 'map', 'star', 'flame', 'lock'];
 
 /** time range -> { from, to, rolling, label } */
 function rangeOf(r, now = Date.now()) {
@@ -282,8 +295,8 @@ views.dashboard = (el) => {
     <select id="dRange" aria-label="Time range">${PRESETS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span id="dCustom" hidden><input type="datetime-local" id="dFrom" aria-label="From"> to <input type="datetime-local" id="dTo" aria-label="To"> <button id="dApply">Apply</button></span>
     <span class="muted" id="dInfo"></span><span class="spacer"></span>
-    <span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button><button id="dShAdd">Add sheet</button><button id="dShRen">Rename sheet</button><button id="dShDel">Delete sheet</button></span>
-    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWall">Wall display</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><hr><button role="menuitem" data-go="dShAdd">Add sheet…</button><button role="menuitem" data-go="dShRen">Rename this sheet…</button><button role="menuitem" data-go="dShDel" class="danger" id="dmShDel">Delete this sheet</button><hr><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
+    <span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button><button id="dShAdd">Add sheet</button><button id="dShRen">Rename sheet</button><button id="dShIco">Sheet icon</button><button id="dShDel">Delete sheet</button></span>
+    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><button id="dWallBtn" class="dwall" type="button" aria-label="Wall display" title="Wall display: this dashboard full screen without menus (Esc leaves it)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="2.5"/><path d="M8 20.5h8M12 16.5v4"/><path d="M8.5 9V7.5H10M15.5 9V7.5H14M8.5 11.5V13H10M15.5 11.5V13H14"/></svg></button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><hr><button role="menuitem" data-go="dShAdd">Add sheet…</button><button role="menuitem" data-go="dShRen">Rename this sheet…</button><button role="menuitem" data-go="dShIco">Change sheet icon…</button><button role="menuitem" data-go="dShDel" class="danger" id="dmShDel">Delete this sheet</button><hr><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
     <div class="dgrid" id="dgrid"></div>`;
   const grid = $('#dgrid', el);
 
@@ -291,7 +304,7 @@ views.dashboard = (el) => {
   let sheetId = 'main';
   const sheetKey = () => 'ne.sheet.' + (boardId || 'main');
   const extraSheets = () => (Array.isArray(SP.dash?.sheets) ? SP.dash.sheets : []);
-  const sheetList = () => [{ id: 'main', name: SP.dash?.mainName || 'Overview' }, ...extraSheets()];
+  const sheetList = () => [{ id: 'main', name: SP.dash?.mainName || 'Overview', icon: SP.dash?.mainIcon }, ...extraSheets()];
   const sheetRef = () => (sheetId === 'main' ? null : extraSheets().find((x) => x.id === sheetId) || null);
   function initSheets() {
     if (!boardId && SP.dash?.sheets === undefined && !SP.dash?.blank) { SP.dash = { ...(SP.dash || {}), sheets: defaultSheets() }; savePrefs(); }    // the main dashboard gets the standard sheets once
@@ -1228,6 +1241,7 @@ views.dashboard = (el) => {
   document.addEventListener('click', outside);
   el.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !dMenu.hidden) { closeMenu(); dMore.focus(); } });
   el.addEventListener('click', async (e) => {
+    if (e.target.closest('#dWallBtn')) return wallMode(true);
     const al0 = e.target.closest('a.alink'); if (al0 && editing) { e.preventDefault(); return; }
     const ac = e.target.closest('[data-al]');
     const ar = e.target.closest('tr[data-aid]'); if (ar && !editing) { const tt = getTiles().find((x) => x.id === ar.closest('.widget').dataset.id); try { sessionStorage.setItem('sp.alarmQ', ar.dataset.q || ''); } catch { /* ignore */ } S.alarmState = 'active'; S.alarmSrc = ''; S.alarmRange = ''; location.hash = '#alarms'; return; }
@@ -1244,7 +1258,7 @@ views.dashboard = (el) => {
       else { delete SP.dash?.tiles; delete SP.dash?.blank; }
       savePrefs(); tiles = null; frames(); return load();
     }
-    if (id === 'dShAdd') return sheetAct('add'); if (id === 'dShRen') return sheetAct('ren'); if (id === 'dShDel') return sheetAct('del');
+    if (id === 'dShAdd') return sheetAct('add'); if (id === 'dShRen') return sheetAct('ren'); if (id === 'dShIco') return sheetAct('ico'); if (id === 'dShDel') return sheetAct('del');
     if (id === 'dAdd') return addMenu();
     if (id === 'dWallLink') return wallMode.copy(); if (id === 'dWall') return wallMode(true); if (id === 'dExp') return boardAct('exp'); if (id === 'dImp') return boardAct('imp'); if (id === 'dSave') return boardAct('save'); if (id === 'dNew') return boardAct('new'); if (id === 'dRen') return boardAct('ren'); if (id === 'dDel') return boardAct('del');
     const a = e.target.closest('button[data-a]:not([data-a=seccfg])');
@@ -1264,10 +1278,11 @@ views.dashboard = (el) => {
   // ----- the sheet bar (1.73): a small panel at the bottom that appears when the mouse moves over the dashboard; a button per sheet, its name shows on hover -----
   const bar = document.createElement('nav'); bar.className = 'sheetbar'; bar.setAttribute('aria-label', 'Dashboard sheets'); document.body.appendChild(bar);
   let barTimer = null, barHover = false;
-  const iconOf = (id) => SHEET_ICON[id] || SHEET_ICON.other;
+  const iconKey = (x) => (x.icon && SHEET_ICON[x.icon] ? x.icon : SHEET_ICON[x.id] ? x.id : '');
+  const iconOf = (x) => SHEET_ICON[iconKey(x)] || SHEET_ICON.other;
   function drawSheets() {
     const list = sheetList(), many = list.length > 1;
-    bar.innerHTML = list.map((x, i) => `<button type="button" class="sheetbtn${x.id === sheetId ? ' on' : ''}" data-sheet="${esc(x.id)}" data-tip="${esc(x.name)}" aria-label="${esc(x.name)}" aria-pressed="${x.id === sheetId}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconOf(x.id)}</svg>${SHEET_ICON[x.id] ? '' : `<i>${i + 1}</i>`}</button>`).join('')
+    bar.innerHTML = list.map((x, i) => `<button type="button" class="sheetbtn${x.id === sheetId ? ' on' : ''}" data-sheet="${esc(x.id)}" data-tip="${esc(x.name)}" aria-label="${esc(x.name)}" aria-pressed="${x.id === sheetId}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconOf(x)}</svg>${iconKey(x) ? '' : `<i>${i + 1}</i>`}</button>`).join('')
       + (editing ? `<button type="button" class="sheetbtn add" data-sheetadd="1" data-tip="Add a sheet" aria-label="Add a sheet"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>` : '');
     bar.classList.toggle('none', !many && !editing);
     const nm = $('#dSheetName', el), cur = list.find((x) => x.id === sheetId); if (nm) nm.textContent = many && cur ? ' · ' + cur.name : '';
@@ -1290,15 +1305,32 @@ views.dashboard = (el) => {
     tiles = null; data = null; cache.clear(); drawSheets(); frames(); load();
     grid.classList.remove('sheetin'); void grid.offsetWidth; grid.classList.add('sheetin');
   }
+  /** small box with the icons to choose from; resolves the icon key or null */
+  function pickIcon(current) {
+    return new Promise((resolve) => {
+      const back = document.createElement('div'); back.className = 'modal-back';
+      back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Choose an icon"><p class="confirm-msg">Choose an icon for this sheet:</p><div class="icopick">${ICON_NAMES.map((k) => `<button type="button" class="icobtn${k === current ? ' on' : ''}" data-ico="${k}" title="${k === 'main' ? 'grid' : k}" aria-label="${k}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SHEET_ICON[k]}</svg></button>`).join('')}</div><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">Cancel</button></div></div>`;
+      let done = false; const end = (v) => { if (done) return; done = true; back.remove(); document.removeEventListener('keydown', key, true); resolve(v); };
+      const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); end(null); } };
+      document.addEventListener('keydown', key, true);
+      back.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b?.dataset.ico) end(b.dataset.ico); else if (b?.dataset.a || e.target === back) end(null); });
+      document.body.appendChild(back); (back.querySelector('.icobtn.on') || back.querySelector('.icobtn')).focus();
+    });
+  }
   async function sheetAct(a) {
     const cur = sheetList().find((x) => x.id === sheetId);
     if (a === 'add') {
       if (extraSheets().length >= 7) return toast('A dashboard can have up to 8 sheets. Delete one first.', true);
       const nm = cleanName(await askText('Name for the new sheet:', '')).slice(0, 30); if (!nm) return;
       const id = 'sh' + Date.now().toString(36).slice(-7);
-      SP.dash = { ...(SP.dash || {}), sheets: [...extraSheets(), { id, name: nm, tiles: [] }] }; savePrefs(); useSheet(id); toast(`Added the sheet “${nm}”. Click Customize, then Add tile.`); return;
+      const ic = await pickIcon('chart'); SP.dash = { ...(SP.dash || {}), sheets: [...extraSheets(), { id, name: nm, tiles: [], ...(ic ? { icon: ic } : {}) }] }; savePrefs(); useSheet(id); toast(`Added the sheet “${nm}”. Click Customize, then Add tile.`); return;
     }
     if (a === 'ren') { const nm = cleanName(await askText('New name for this sheet:', cur.name)).slice(0, 30); if (!nm) return; if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainName: nm }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, name: nm } : x)) }; savePrefs(); drawSheets(); return; }
+    if (a === 'ico') {
+      const ic = await pickIcon(iconKey(cur) || 'other'); if (!ic) return;
+      if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainIcon: ic }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, icon: ic } : x)) };
+      savePrefs(); drawSheets(); return;
+    }
     if (a === 'del') {
       if (sheetId === 'main') return toast('The first sheet cannot be deleted. Rename it, or delete its tiles instead.', true);
       if (!await askConfirm(`Delete the sheet “${cur.name}”? Its tiles are lost.`)) return;
