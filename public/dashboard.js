@@ -258,7 +258,7 @@ views.dashboard = (el) => {
     <select id="dBoard" aria-label="Which dashboard" title="Your saved dashboards"></select>
     <select id="dRange" aria-label="Time range">${PRESETS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span id="dCustom" hidden><input type="datetime-local" id="dFrom" aria-label="From"> to <input type="datetime-local" id="dTo" aria-label="To"> <button id="dApply">Apply</button></span>
-    <input id="dSlicer" list="dSlD" placeholder="All devices" size="14" aria-label="Show one device only" title="Show only this device on every tile (clear it for all devices)"><datalist id="dSlD"></datalist><span class="muted" id="dInfo"></span><span class="spacer"></span>
+    <span class="muted" id="dInfo"></span><span class="spacer"></span>
     <span class="seg" id="dOrder" role="group" aria-label="Which section is shown first"><button type="button" data-o="sys" title="Syslog section on top">Syslog first</button><button type="button" data-o="snmp" title="SNMP traps section on top">SNMP first</button></span><span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button></span>
     <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWall">Wall display</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
     <div class="dgrid" id="dgrid"></div>`;
@@ -342,7 +342,7 @@ views.dashboard = (el) => {
   const defBy = (t) => { const k = dsKind(t); return t.type === 'pie' ? (k === 'devices' ? 'status' : 'severity') : k === 'devices' ? 'vendor' : 'host'; };
   const byOf = (t) => { const k = dsKind(t), b = t.cfg?.by; return (BYS[k] || BYS.events).some((x) => x[0] === b) ? b : defBy(t); };
   function requestsFor(list) {
-    const out = [], slicer = SP.dash?.slicer || '';
+    const out = [], slicer = '';   // 1.71 the per-device filter box was removed; a filter saved earlier is ignored
     for (const t of list) {
       if (!hasDs(t)) continue;
       const ds = dsOf(t), kd = DS[ds].kind, c = t.cfg || {}, f = { ...(c.filter || {}) }, n = c.n, dq = kd === 'events' ? {} : { ds: kd };
@@ -1220,10 +1220,9 @@ views.dashboard = (el) => {
   const syncSnmpBtn = () => { const first = !!SP.dash?.snmpFirst; for (const b of $$('#dOrder button', el)) { const on = (b.dataset.o === 'snmp') === first; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } };
   // ----- named dashboards (1.36) -----
   if (boardId && !boards().some((b) => b.id === boardId)) boardId = '';
-  const boardSel = $('#dBoard', el), slicer = $('#dSlicer', el);
+  const boardSel = $('#dBoard', el);
   const syncBoards = () => { boardSel.innerHTML = [{ id: '', name: S.prefs.dashMainName || 'Main dashboard' }, ...boards()].map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join(''); boardSel.value = boardId; $('#dDel', el).disabled = !boardId; };
-  const syncSlicer = () => { slicer.value = SP.dash?.slicer || ''; slicer.classList.toggle('on', !!slicer.value); };
-  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } tiles = null; data = null; cache.clear(); applyStyle(); syncSnmpBtn(); syncRange(); syncSlicer(); syncBoards(); frames(); load(); schedule(); }
+  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } tiles = null; data = null; cache.clear(); applyStyle(); syncSnmpBtn(); syncRange(); syncBoards(); frames(); load(); schedule(); }
   const cleanName = (v) => String(v ?? '').replace(/[<>\r\n]/g, ' ').trim().slice(0, 40);
   const newId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 100).toString(36);
   async function boardAct(a) {
@@ -1282,9 +1281,7 @@ views.dashboard = (el) => {
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('kiosk')) wallMode(false); });
   const boardList = () => (boardId ? boards().find((b) => b.id === boardId) : { name: S.prefs.dashMainName || 'Main dashboard' }) || { name: 'Dashboard' };
   boardSel.addEventListener('change', () => useBoard(boardSel.value));
-  slicer.addEventListener('change', () => { const v = slicer.value.trim().slice(0, 100); SP.dash = { ...(SP.dash || {}), slicer: v || undefined }; if (!v) delete SP.dash.slicer; savePrefs(); syncSlicer(); data = null; paint(); load(); });
-  api('/api/devices').then((d) => { $('#dSlD', el).innerHTML = (d || []).slice(0, 500).map((x) => `<option value="${esc(x.alias || x.host)}">`).join(''); }).catch(() => {});
-  applyStyle(); syncSnmpBtn(); syncRange(); syncSlicer(); syncBoards(); frames(); load(); schedule();
+  applyStyle(); syncSnmpBtn(); syncRange(); syncBoards(); frames(); load(); schedule();
   { const hq = S.hq; if (hq && hq.get('board') !== null && hq.get('board') !== boardId && (boards().some((b) => b.id === hq.get('board')) || hq.get('board') === '')) useBoard(hq.get('board')); if (hq && hq.get('kiosk')) wallMode(true); }
   return () => { document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
 };

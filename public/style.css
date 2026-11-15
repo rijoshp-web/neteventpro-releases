@@ -1140,3 +1140,52 @@ html[data-dash][data-theme] main#view:has(.dash-head) .seg button.on { color: va
 :root[data-theme="fresh"] body.kiosk #wallBar { background: linear-gradient(135deg, #5cc21d, #86e32f); color: #0c2003; border-color: transparent; }
 :root[data-look="glass"] body.kiosk #wallBar { border-color: var(--gl-line); color: #fff; }
 :root[data-look="glass"] { --bad: #ff8a94; --s1: #ff7f8a; }
+
+/* 1.71 iOS-style liquid glass, light and dark: bright translucent surfaces with strong blur and saturation, a specular edge, large rounded corners, the system font. Wall display mode turns the blur off. */
+:root[data-theme="ios-glass"] { --bg: #e6ecf9; --panel: #f4f7fd; --panel2: #e8eef9; --line: #cfd7e8; --line2: #b6c1d8; --text: #16181d; --muted: #3f4452; --faint: #5d6374; --accent: #0a62e6; --accent-ink: #fff; --link: #0a55c8;
+  --s0: #a81d74; --s1: #c0222f; --s2: #b8440f; --s3: #9a5b00; --s4: #716800; --s5: #1c5fc0; --s6: #4f5c69; --s7: #55606c; --s8: #a85f0c; --s9: #0f7466; --ok: #17744a; --bad: #c0222f; color-scheme: light;
+  --ig: rgba(255,255,255,.46); --ig-line: rgba(255,255,255,.85); --ig-shadow: 0 10px 30px rgba(40,70,140,.20);
+  --bgfx: radial-gradient(900px 650px at 8% 5%, #8fbcff 0%, transparent 62%), radial-gradient(900px 650px at 95% 8%, #ffb3d4 0%, transparent 60%), radial-gradient(1000px 700px at 85% 100%, #ffe0a3 0%, transparent 62%), radial-gradient(900px 650px at 5% 100%, #a8f0d4 0%, transparent 62%); }
+:root[data-theme="ios-glass-dark"] { --bg: #0a0c16; --panel: #1b1e2e; --panel2: #252a3e; --line: #343a55; --line2: #48506f; --text: #ffffff; --muted: #d4d8e6; --faint: #aab0c6; --accent: #0a72ff; --accent-ink: #fff; --link: #7db7ff; --s6: #b4c0d0; --s7: #a3b0c3; --ok: #5fe0a8; --bad: #ff8a94; --s1: #ff7f8a; color-scheme: dark;
+  --ig: rgba(255,255,255,.12); --ig-line: rgba(255,255,255,.30); --ig-shadow: 0 14px 34px rgba(0,0,0,.45);
+  --bgfx: radial-gradient(900px 650px at 8% 5%, #3a55e0 0%, transparent 62%), radial-gradient(900px 650px at 95% 8%, #b0357f 0%, transparent 60%), radial-gradient(1000px 700px at 85% 100%, #1c8f93 0%, transparent 62%), radial-gradient(900px 650px at 5% 100%, #5a35b0 0%, transparent 62%); }
+:root[data-look="ios"] { --radius: 16px; --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif; }
+:root[data-look="ios"] body { background: var(--bgfx), var(--bg); background-attachment: fixed; font-family: var(--ui); }
+:root[data-look="ios"] .shell { padding: 12px; gap: 12px; height: 100vh; }
+:root[data-look="ios"] :is(.rail, .status, .panel, fieldset, #wallBar) { background: var(--ig); -webkit-backdrop-filter: blur(26px) saturate(1.9); backdrop-filter: blur(26px) saturate(1.9); border: 1px solid var(--ig-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.9), inset 0 -1px 0 rgba(255,255,255,.18), var(--ig-shadow); }
+:root[data-theme="ios-glass-dark"] :is(.rail, .status, .panel, fieldset, #wallBar) { background-color: rgba(10,12,22,.30); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(255,255,255,.08), var(--ig-shadow); }
+:root[data-look="ios"] .rail { border-radius: 30px; }
+:root[data-look="ios"] .rail a { border-left: 0; border-radius: 999px; padding: 9px 14px; color: var(--text); opacity: .82; }
+:root[data-look="ios"] .rail a:hover { background: rgba(255,255,255,.35); opacity: 1; }
+:root[data-look="ios"] .rail a.active { background: var(--accent); color: #fff; opacity: 1; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.4); }
+:root[data-look="ios"] .brand, :root[data-look="ios"] .ver { color: var(--text); }
+:root[data-look="ios"] .main { background: transparent; border: 1px solid var(--ig-line); border-radius: 30px; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), var(--ig-shadow); overflow: hidden; height: calc(100vh - 24px); }
+:root[data-look="ios"] .status { border-radius: 999px; margin: 12px 14px 0; padding: 9px 20px; }
+:root[data-look="ios"] .panel, :root[data-look="ios"] fieldset { border-radius: 24px; }
+:root[data-look="ios"] button { background: var(--ig); color: var(--text); border: 1px solid var(--ig-line); border-radius: 999px; padding: 7px 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 2px 6px rgba(0,0,0,.12); transition: transform .08s, box-shadow .08s; }
+:root[data-look="ios"] button:active:not(:disabled) { transform: scale(.97); box-shadow: inset 0 2px 5px rgba(0,0,0,.2); }
+:root[data-look="ios"] button.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff), var(--accent)); color: #fff; border-color: transparent; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
+:root[data-look="ios"] button.on, :root[data-look="ios"] .seg button.on { background: var(--accent); color: #fff; border-color: transparent; }
+:root[data-look="ios"] button.ghost { background: transparent; box-shadow: none; border-color: transparent; }
+:root[data-look="ios"] input[type=text], :root[data-look="ios"] input[type=number], :root[data-look="ios"] input[type=password], :root[data-look="ios"] input[type=search], :root[data-look="ios"] input[type=datetime-local], :root[data-look="ios"] select, :root[data-look="ios"] textarea { background: rgba(255,255,255,.35); color: var(--text); border: 1px solid var(--ig-line); border-radius: 14px; box-shadow: inset 0 1px 3px rgba(0,0,0,.10); }
+:root[data-theme="ios-glass-dark"] input, :root[data-theme="ios-glass-dark"] select, :root[data-theme="ios-glass-dark"] textarea { background: rgba(0,0,0,.28); }
+:root[data-look="ios"] input::placeholder, :root[data-look="ios"] textarea::placeholder { color: var(--faint); opacity: 1; }
+:root[data-look="ios"] select option { background: var(--panel); color: var(--text); }
+:root[data-look="ios"] .pill, :root[data-look="ios"] .badge { border-radius: 999px; }
+:root[data-look="ios"] .badge.warn { color: #fff; }
+:root[data-theme="ios-glass-dark"] .badge.warn { color: #1b1200; }
+:root[data-look="ios"] .stickyhead { background: transparent; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+:root[data-look="ios"] .dmenu { background: color-mix(in srgb, var(--panel) 82%, transparent); -webkit-backdrop-filter: blur(26px) saturate(1.8); backdrop-filter: blur(26px) saturate(1.8); border: 1px solid var(--ig-line); border-radius: 18px; }
+:root[data-look="ios"] a { color: var(--link); }
+:root[data-look="ios"] .srcchip { color: color-mix(in srgb, var(--accent) 60%, var(--text)); }
+:root[data-look="ios"] .sevname { color: color-mix(in srgb, var(--c) 62%, var(--text)); }
+:root[data-look="ios"] .pill.ok { color: color-mix(in srgb, var(--ok) 60%, var(--text)); } :root[data-look="ios"] .pill.bad { color: color-mix(in srgb, var(--bad) 60%, var(--text)); } :root[data-look="ios"] .pill.warn { color: color-mix(in srgb, var(--s3) 60%, var(--text)); }
+:root[data-look="ios"] button.danger { color: color-mix(in srgb, var(--s1) 65%, var(--text)); }
+:root[data-look="ios"] body.kiosk :is(.panel, fieldset, #wallBar, .rail, .status) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce) { :root[data-look="ios"] :is(.rail, .status, .panel, fieldset, #wallBar) { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+:root[data-look="ios"] body.kiosk #wallBar { border-radius: 999px; }
+html[data-theme="ios-glass"] body.kiosk #wallBar, html[data-theme="ios-glass-dark"] body.kiosk #wallBar { color: var(--text); }
+@media (max-width: 800px) { :root[data-look="ios"] .shell { padding: 6px; gap: 6px; } :root[data-look="ios"] .status { border-radius: 22px; margin: 8px 8px 0; } }
+:root[data-look="ios"] .rail a.active :is(.ic, svg, i) { color: #fff; stroke: #fff; opacity: 1; }
+:root[data-theme="ios-glass-dark"] .srcchip { color: color-mix(in srgb, var(--link) 65%, var(--text)); }
+:root[data-theme="ios-glass-dark"] button.primary .bt, :root[data-theme="ios-glass-dark"] button.primary { color: #fff; }

@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.71.0
+- Two new colour themes, **iOS Glass (light)** and **iOS Glass (dark)**: complete liquid-glass look for the whole application. Bright frosted surfaces with strong blur and saturation, a bright specular edge, large rounded corners, a floating rounded side rail and status strip, blue pill buttons, and the system (San Francisco style) font where the computer has it. Wall display mode turns the blur off; so does the operating system's "reduce transparency" setting.
+- Dashboards: the "All devices" device filter box was removed from every dashboard. A device filter saved earlier is ignored, so all tiles show all devices.
+
 ## 1.70.0
 - **Poll all now** button on the SNMP polling Devices page: asks every device now (spread over a few seconds), including devices that were waiting after missed polls. Use it after you bring devices back (for example, after starting the fake devices).
 - Why polling did not restart by itself: a device that does not answer is asked less and less often (every 2x, 4x, 8x ... of its interval). The longest wait was 10 minutes, so devices that came back kept looking down, and their "no SNMP answer" alarms stayed open, until the next try. The longest wait is now 5 minutes. A device is back to its normal interval as soon as it answers once.
