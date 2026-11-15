@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.68.0
+- Eight more colour themes (Settings -> Look and sound -> Colour theme): flat dark looks **Noir orange**, **Charcoal and amber**, **Copper**, **Navy control room**, **Neon pink and violet**, and glass looks **Glass violet**, **Glass aurora (blue to red)** and **Glass deep blue**. The flat looks use no blur at all. The glass looks blur only the side rail, the page frame and the status strip (never every card), so they stay light on the browser.
+- The glass themes are glassier: a clear light sheen and bright edge on every surface, with a dark tint underneath so text stays readable.
+- Text colours checked on every new theme: light themes now use darker severity colours, chips, pills and warning badges, and the Syslog/SNMP first switch uses the theme's own text colour. All checked text is at least about 4:1 against its background (most 4.5:1 or more).
+- Dashboard: the page buttons moved into one three-dot menu in the top right corner (Refresh now, Wall display, Copy wall link, Customize, New dashboard, Rename, Export, Import, Dashboard settings, Reset layout, Delete). **Add tile** and **Save as** are now inside **New dashboard**. While customizing, a **Done** button appears next to the menu.
+- Dashboard settings no longer has a Colour theme (the application colour theme now styles the dashboard too). Dashboards that used another dashboard theme go back to the standard one.
+
 ## 1.67.0
 - Six more looks under Settings → Look and sound → Colour theme: **Fresh lime (light)** and five glass looks, **Glass smoke**, **Glass ember (orange)**, **Glass aqua (teal glow)**, **Glass dusk (brown and blue)** and **Glass amber (warm peach)**. Glass looks use translucent, blurred panels, a rounded side rail, pill status strip and pill buttons. Same layout and pages.
 - The separate "Dashboard theme" setting was removed from Settings, since the colour themes now style the whole application. (The Customize window on the Dashboard still has its own dashboard colours; pages are unchanged.)

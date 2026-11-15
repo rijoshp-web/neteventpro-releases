@@ -259,8 +259,8 @@ views.dashboard = (el) => {
     <select id="dRange" aria-label="Time range">${PRESETS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span id="dCustom" hidden><input type="datetime-local" id="dFrom" aria-label="From"> to <input type="datetime-local" id="dTo" aria-label="To"> <button id="dApply">Apply</button></span>
     <input id="dSlicer" list="dSlD" placeholder="All devices" size="14" aria-label="Show one device only" title="Show only this device on every tile (clear it for all devices)"><datalist id="dSlD"></datalist><span class="muted" id="dInfo"></span><span class="spacer"></span>
-    <span class="seg" id="dOrder" role="group" aria-label="Which section is shown first"><button type="button" data-o="sys" title="Syslog section on top">Syslog first</button><button type="button" data-o="snmp" title="SNMP traps section on top">SNMP first</button></span><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button></span>
-    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></div>
+    <span class="seg" id="dOrder" role="group" aria-label="Which section is shown first"><button type="button" data-o="sys" title="Syslog section on top">Syslog first</button><button type="button" data-o="snmp" title="SNMP traps section on top">SNMP first</button></span><span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button></span>
+    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWall">Wall display</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
     <div class="dgrid" id="dgrid"></div>`;
   const grid = $('#dgrid', el);
 
@@ -404,8 +404,7 @@ views.dashboard = (el) => {
   function styleDialog() {
     const s = { ...(SP.dash?.style || {}) }, back = document.createElement('div'); back.className = 'modal-back';
     const sel = (id, label, opts, cur) => `<div class="field"><label for="${id}">${label}</label><select id="${id}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
-    back.innerHTML = `<form class="modal" role="dialog" aria-modal="true" aria-label="Dashboard settings"><h3 style="margin:0 0 4px">Dashboard settings</h3><p class="muted" style="margin:0 0 12px">Settings for the whole page. Each tile can override its own look under <b>Edit</b> → Tile look. Saved for everyone who opens this dashboard (the colour theme is kept per browser).</p><div class="form">
-      <div class="field"><label>Colour theme</label><div class="themes" id="stThemes">${window.NEP.DASHES.map(([id, n, sw]) => `<button type="button" class="thm ${document.documentElement.dataset.dash === id ? 'on' : ''}" data-th="${id}" title="${esc(n)}"><span class="sw">${(sw || ['#888', '#aaa', '#ccc', '#eee']).map((c) => `<i style="background:${c}"></i>`).join('')}</span><small>${esc(n)}</small></button>`).join('')}</div></div>
+    back.innerHTML = `<form class="modal" role="dialog" aria-modal="true" aria-label="Dashboard settings"><h3 style="margin:0 0 4px">Dashboard settings</h3><p class="muted" style="margin:0 0 12px">Settings for the whole page. Each tile can override its own look under <b>Edit</b> → Tile look. Saved for everyone who opens this dashboard. The application colour theme is chosen under Settings.</p><div class="form">
       ${sel('stCard', 'Card style', [['solid', 'Solid (flat)'], ['raised', 'Raised (shadow)'], ['glass', 'Glass (translucent)'], ['outline', 'Outline only'], ['accent', 'Accent edge']], s.card || 'solid')}
       ${sel('stTitles', 'Tile titles', [['normal', 'Normal'], ['upper', 'Small capitals'], ['bar', 'Coloured title bar']], s.titles || 'normal')}
       <div class="field"><label for="stRadius">Corner radius</label><div><input type="range" id="stRadius" min="0" max="24" value="${s.radius ?? 8}"> <output id="stRadiusO">${s.radius ?? 8}px</output></div></div>
@@ -417,22 +416,21 @@ views.dashboard = (el) => {
       <div class="field"><label for="stBg1">Background colours</label><div><input type="color" id="stBg1" value="${s.bg1 || '#0f172a'}"> <input type="color" id="stBg2" value="${s.bg2 || '#1e1b4b'}"> <input type="number" id="stBgA" class="w-sm" min="0" max="360" value="${s.bgAngle ?? 160}" aria-label="Gradient angle"> <span class="muted">° angle</span></div></div>
       ${sel('stRef', 'Refresh the numbers', [[5, 'Every 5 seconds'], [10, 'Every 10 seconds (default)'], [30, 'Every 30 seconds'], [60, 'Every minute'], [300, 'Every 5 minutes'], [0, 'Only when I press Refresh']], s.refresh ?? 10)}
       </div><div class="toolbar" style="margin:14px 0 0"><button type="button" id="stReset">Reset style</button><span class="spacer"></span><button type="button" id="mCancel">Cancel</button><button type="submit" class="primary">Save</button></div></form>`;
-    document.body.appendChild(back); const q = (id) => $('#' + id, back), close = () => back.remove(), keep = document.documentElement.dataset.dash;
+    document.body.appendChild(back); const q = (id) => $('#' + id, back), close = () => back.remove();
     const read = () => { const o = { ...(q('stPg').value ? { pageBg: q('stPg').value, bg1: q('stBg1').value, bg2: q('stBg2').value, bgAngle: +q('stBgA').value || 0 } : {}), card: q('stCard').value, titles: q('stTitles').value, radius: +q('stRadius').value, gap: +q('stGap').value, density: q('stDens').value, refresh: +q('stRef').value }; if (q('stAccOn').checked) o.accent = q('stAcc').value; return o; };
     const live = () => { SP.dash = { ...(SP.dash || {}), style: read() }; q('stRadiusO').textContent = q('stRadius').value + 'px'; q('stGapO').textContent = q('stGap').value + 'px'; applyStyle(); place(); paint(); };
     back.addEventListener('input', live); back.addEventListener('change', live);
     back.addEventListener('click', async (e) => {
       const ql = e.target.closest('[data-ql]'); if (!ql) return; if (!await askConfirm('Replace the look of every tile with this ready-made look?')) return;
-      const list = getTiles(), r = quickLook(ql.dataset.ql, list); window.NEP.setDash(r.theme); const keepOld = SP.dash || {};
+      const list = getTiles(), r = quickLook(ql.dataset.ql, list); const keepOld = SP.dash || {};
       SP.dash = { ...keepOld }; if (r.style) SP.dash.style = { ...(keepOld.style || {}), ...r.style, ...(r.style.pageBg ? {} : {}) }; else { const st2 = { ...(keepOld.style || {}) }; for (const k of ['pageBg', 'bg1', 'bg2', 'bgAngle', 'accent', 'card']) delete st2[k]; SP.dash.style = st2; }
       saveTiles(); applyStyle(); close(); frames(); load();
     });
-    back.addEventListener('click', (e) => { const b = e.target.closest('.thm'); if (!b) return; window.NEP.setDash(b.dataset.th); $$('.thm', back).forEach((x) => x.classList.toggle('on', x === b)); paint(); });
-    const undo = () => { SP.dash = { ...(SP.dash || {}), style: orig }; if (!orig) delete SP.dash.style; window.NEP.setDash(keep); applyStyle(); place(); paint(); close(); };
+    const undo = () => { SP.dash = { ...(SP.dash || {}), style: orig }; if (!orig) delete SP.dash.style; applyStyle(); place(); paint(); close(); };
     const orig = SP.dash?.style ? { ...SP.dash.style } : null;
     $('#mCancel', back).onclick = undo; back.addEventListener('mousedown', (e) => { if (e.target === back) undo(); });
     back.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); undo(); } });
-    q('stReset').onclick = () => { delete SP.dash.style; savePrefs(); window.NEP.setDash('classic'); applyStyle(); place(); paint(); schedule(); close(); };
+    q('stReset').onclick = () => { delete SP.dash.style; savePrefs(); applyStyle(); place(); paint(); schedule(); close(); };
     $('form', back).onsubmit = (e) => { e.preventDefault(); SP.dash = { ...(SP.dash || {}), style: read() }; savePrefs(); applyStyle(); place(); paint(); schedule(); close(); };
   }
   const schedule = () => { clearInterval(timer); const rf = SP.dash?.style?.refresh ?? 10; if (rf > 0) timer = setInterval(() => load(false), rf * 1000); };   // a fixed range (yesterday, custom) is not re-read; live tiles still refresh
@@ -1183,6 +1181,22 @@ views.dashboard = (el) => {
     if (e.target.id !== 'dRange') return; const v = e.target.value;
     if (v === 'custom') { const now = Date.now(); SP.dash = { ...(SP.dash || {}), range: { preset: 'custom', from: SP.dash?.range?.from ?? now - 86400000, to: SP.dash?.range?.to ?? now } }; syncRange(); } else setRange({ preset: v });
   });
+  // 1.68 the page buttons live in one three-dot menu; each item presses the matching (hidden) button so every action keeps its single code path
+  const dMenu = $('#dMenu', el), dMore = $('#dMore', el);
+  const closeMenu = () => { dMenu.hidden = true; dMore.setAttribute('aria-expanded', 'false'); };
+  const syncMenu = () => { $('#dmEdit', el).textContent = editing ? 'Finish customizing' : 'Customize'; $('#dDone', el).hidden = !editing; };
+  dMore.addEventListener('click', (e) => { e.stopPropagation(); const open = dMenu.hidden; dMenu.hidden = !open; dMore.setAttribute('aria-expanded', String(open)); if (open) { syncMenu(); dMenu.querySelector('button')?.focus(); } });
+  dMenu.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
+    if (b.dataset.sub) { const sub = $('#' + b.dataset.sub, el); sub.hidden = !sub.hidden; b.setAttribute('aria-expanded', String(!sub.hidden)); return; }
+    if (!b.dataset.go) return; closeMenu();
+    if (b.dataset.edit && !editing) $('#dEdit', el).click();   // adding a tile means customizing
+    $('#' + b.dataset.go, el).click(); syncMenu();
+  });
+  $('#dDone', el).addEventListener('click', () => { $('#dEdit', el).click(); syncMenu(); });
+  const outside = (e) => { if (!el.isConnected) return document.removeEventListener('click', outside); if (!dMenu.hidden && !e.target.closest('.dmore')) closeMenu(); };
+  document.addEventListener('click', outside);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !dMenu.hidden) { closeMenu(); dMore.focus(); } });
   el.addEventListener('click', async (e) => {
     const al0 = e.target.closest('a.alink'); if (al0 && editing) { e.preventDefault(); return; }
     const ac = e.target.closest('[data-al]');
