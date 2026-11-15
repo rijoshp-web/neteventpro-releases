@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.72.0
+- Glass looks for the dashboard tiles and their visuals, **only while a glass theme is selected** (the six Glass themes and the two iOS Glass themes; every other theme is unchanged): tiles get a soft corner highlight; bar meters (severity breakdown, busiest devices and processes) become glossy glass tubes; trend bars are glossy with a bright top edge; chart lines glow; the donut chart has a clear hole and glassy slices; heatmap cells, chips and gauges get a glass edge.
+- The glass drawing is cheap (no extra blur on the visuals) and is switched off in Wall display mode.
+
 ## 1.71.0
 - Two new colour themes, **iOS Glass (light)** and **iOS Glass (dark)**: complete liquid-glass look for the whole application. Bright frosted surfaces with strong blur and saturation, a bright specular edge, large rounded corners, a floating rounded side rail and status strip, blue pill buttons, and the system (San Francisco style) font where the computer has it. Wall display mode turns the blur off; so does the operating system's "reduce transparency" setting.
 - Dashboards: the "All devices" device filter box was removed from every dashboard. A device filter saved earlier is ignored, so all tiles show all devices.

@@ -1189,3 +1189,18 @@ html[data-theme="ios-glass"] body.kiosk #wallBar, html[data-theme="ios-glass-dar
 :root[data-look="ios"] .rail a.active :is(.ic, svg, i) { color: #fff; stroke: #fff; opacity: 1; }
 :root[data-theme="ios-glass-dark"] .srcchip { color: color-mix(in srgb, var(--link) 65%, var(--text)); }
 :root[data-theme="ios-glass-dark"] button.primary .bt, :root[data-theme="ios-glass-dark"] button.primary { color: #fff; }
+
+/* 1.72 glass tiles and visuals (only in the glass themes): bars, meters, gauges, pills and cells look like glossy glass */
+:is(:root[data-look="glass"], :root[data-look="ios"]) .bar, :is(:root[data-look="glass"], :root[data-look="ios"]) .hbars .htrack { background: rgba(255,255,255,.10); box-shadow: inset 0 1px 3px rgba(0,0,0,.30), 0 1px 0 rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.14); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .bar > i, :is(:root[data-look="glass"], :root[data-look="ios"]) .hbars .htrack > i { background-image: linear-gradient(180deg, rgba(255,255,255,.50), rgba(255,255,255,0) 55%, rgba(0,0,0,.18)); box-shadow: 0 0 10px color-mix(in srgb, currentColor 0%, transparent), inset 0 1px 0 rgba(255,255,255,.6); }
+:root[data-look="ios"][data-theme="ios-glass"] .bar, :root[data-theme="ios-glass"] .hbars .htrack { background: rgba(255,255,255,.45); box-shadow: inset 0 1px 3px rgba(40,70,140,.22), 0 1px 0 rgba(255,255,255,.9); border-color: rgba(255,255,255,.8); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .widget.panel { background: radial-gradient(130% 90% at 0% 0%, rgba(255,255,255,.22), rgba(255,255,255,0) 60%), var(--ig, rgba(255,255,255,.07)); }
+:root[data-look="glass"] .widget.panel { background: radial-gradient(130% 90% at 0% 0%, rgba(255,255,255,.18), rgba(255,255,255,0) 60%), rgba(255,255,255,.07); background-color: rgba(8,8,12,.30); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .kpi .num, :is(:root[data-look="glass"], :root[data-look="ios"]) .kpi .v { text-shadow: 0 1px 8px color-mix(in srgb, currentColor 35%, transparent); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .gauge svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .hm-row > i.hmc { box-shadow: inset 0 1px 0 rgba(255,255,255,.35); border-radius: 4px; }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .widget .chip, :is(:root[data-look="glass"], :root[data-look="ios"]) .widget .pill, :is(:root[data-look="glass"], :root[data-look="ios"]) .widget .srcchip { box-shadow: inset 0 1px 0 rgba(255,255,255,.35); backdrop-filter: none; }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .widget table.data tr:hover td { background: rgba(255,255,255,.12); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .widget table.data td { border-bottom-color: rgba(255,255,255,.14); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .widget canvas { filter: saturate(1.15); }
+:root[data-look="glass"] body.kiosk .widget.panel, :root[data-look="ios"] body.kiosk .widget.panel { background-image: none; }

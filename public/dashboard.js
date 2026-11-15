@@ -97,6 +97,9 @@ const PALETTES = {
   mono: ['#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155', '#1e293b', '#a1a1aa', '#71717a', '#52525b']
 };
 const PAL_NAMES = [['theme', 'Follow the theme'], ['classic', 'Classic'], ['powerbi', 'Power BI'], ['grafana', 'Grafana'], ['warm', 'Warm'], ['cool', 'Cool'], ['neon', 'Neon'], ['pastel', 'Pastel'], ['mono', 'Greys']];
+// 1.72 glass looks: charts get glossy bars, glowing lines and a clear donut hole (only while a glass theme is on)
+const glassy = () => ['glass', 'ios'].includes(document.documentElement.dataset.look);
+const glossRect = (g, x, y, w, h, color) => { if (h <= 0) return; const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, hexA(color, 95)); gr.addColorStop(1, hexA(color, 55)); g.fillStyle = typeof gr === 'object' && /^#/.test(color) ? gr : color; g.fillRect(x, y, w, h); if (h > 3 && w > 2) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x, y, w, 1); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, Math.min(w, Math.max(1, w * 0.35)), h); } };
 const hexA = (hex, a) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(100, a ?? 100)) / 100})`; };
 const inkOf = (col) => { const m = /^#([0-9a-f]{6})$/i.exec(String(col || '').trim()); if (!m) return '#fff'; const n = parseInt(m[1], 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 165 ? '#111827' : '#ffffff'; };
 /** colour steps (Grafana "thresholds"): the colour of the highest step whose value is reached; old warn/crit levels still work */
@@ -591,8 +594,8 @@ views.dashboard = (el) => {
   function drawPie(t) {
     const cv = canvasOf(t), p = pieSlices(t); if (!cv || !p || !p.total) return; const { g, w, h } = fit(cv);
     const cx = w / 2, cy = h / 2, R = Math.max(10, Math.min(w, h) / 2 - 4), donut = (t.cfg?.style || 'donut') === 'donut'; let a0 = -Math.PI / 2; const arcs = [];
-    for (const x of p.sl) { const a1 = a0 + (x.n / p.total) * Math.PI * 2; g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a0, a1); g.closePath(); g.fillStyle = x.color; g.fill(); g.strokeStyle = css('--panel'); g.lineWidth = 1.5; g.stroke(); arcs.push([a0, a1, x]); a0 = a1; }
-    if (donut) { g.beginPath(); g.arc(cx, cy, R * 0.58, 0, Math.PI * 2); g.fillStyle = css('--panel'); g.fill(); g.fillStyle = css('--text'); g.textAlign = 'center'; g.font = '600 ' + Math.max(12, Math.round(R * 0.3)) + 'px ' + css('--ui'); g.fillText(fmtN(p.total), cx, cy + R * 0.08); g.font = '11px ' + css('--ui'); g.fillStyle = css('--faint'); g.fillText('messages', cx, cy + R * 0.3); }
+    for (const x of p.sl) { const a1 = a0 + (x.n / p.total) * Math.PI * 2; g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a0, a1); g.closePath(); g.fillStyle = glassy() ? hexA(x.color, 85) : x.color; g.fill(); g.strokeStyle = glassy() ? 'rgba(255,255,255,.55)' : css('--panel'); g.lineWidth = glassy() ? 1 : 1.5; g.stroke(); arcs.push([a0, a1, x]); a0 = a1; }
+    if (donut) { g.beginPath(); g.arc(cx, cy, R * 0.58, 0, Math.PI * 2); if (glassy()) { g.save(); g.globalCompositeOperation = 'destination-out'; g.fill(); g.restore(); g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 1; g.stroke(); } else { g.fillStyle = css('--panel'); g.fill(); } g.fillStyle = css('--text'); g.textAlign = 'center'; g.font = '600 ' + Math.max(12, Math.round(R * 0.3)) + 'px ' + css('--ui'); g.fillText(fmtN(p.total), cx, cy + R * 0.08); g.font = '11px ' + css('--ui'); g.fillStyle = css('--faint'); g.fillText('messages', cx, cy + R * 0.3); }
     const at = (e) => { const dx = e.offsetX - cx, dy = e.offsetY - cy; if (Math.hypot(dx, dy) > R || (donut && Math.hypot(dx, dy) < R * 0.58)) return null; let a = Math.atan2(dy, dx); if (a < -Math.PI / 2) a += Math.PI * 2; return (arcs.find(([s0, s1]) => a >= s0 && a < s1) || [])[2] || null; };
     cv.onmousemove = (e) => { const x = at(e); cv.title = x ? `${x.name}: ${fmtN(x.n)} (${(x.n / p.total * 100).toFixed(1)}%)` : ''; cv.style.cursor = x && x.key !== null && !editing ? 'pointer' : ''; };
     cv.onclick = (e) => { const x = at(e); if (x && x.key !== null && !editing) drillTile(t, p.by, x.key); };
@@ -632,7 +635,7 @@ views.dashboard = (el) => {
         if (stack && i) pathPts(g, tops[i - 1].map((v, k) => [x(k), y(v)]).reverse(), false, false); else { g.lineTo(x(n - 1), y(0)); g.lineTo(x(0), y(0)); }
         g.closePath(); let fs = hexA(l.color, fillA); if (grad && /^#/.test(l.color) && !(stack && i)) { const gr = g.createLinearGradient(0, padT, 0, h - padB); gr.addColorStop(0, hexA(l.color, fillA)); gr.addColorStop(1, hexA(l.color, 0)); fs = gr; } g.fillStyle = fs; g.fill();
       }
-      g.beginPath(); pathPts(g, pts, !!ch.smooth, true); g.strokeStyle = l.color; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke();
+      g.beginPath(); pathPts(g, pts, !!ch.smooth, true); g.strokeStyle = l.color; g.lineWidth = lw; g.lineJoin = 'round'; if (glassy()) { g.shadowColor = l.color; g.shadowBlur = 9; } g.stroke(); g.shadowBlur = 0;
       if (ch.pts) { g.fillStyle = l.color; for (const [px, py] of pts) { g.beginPath(); g.arc(px, py, Math.max(2, lw + 0.8), 0, 7); g.fill(); } }
     }
     const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 36 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
@@ -757,7 +760,7 @@ views.dashboard = (el) => {
     for (let i = 0; i <= 3; i++) { const v = (max / 3) * i, yy = y(v); g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); g.fillText(Math.round(v), padL - 5, yy + 3); }
     g.textAlign = 'center'; g.fillText('2 min ago', padL + 24, h - 3); g.fillText('now', w - 16, h - 3);
     g.beginPath(); data.forEach((v, i) => (i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v)))); const color = css('--accent');
-    g.strokeStyle = color; g.lineWidth = 1.8; g.stroke(); g.lineTo(x(data.length - 1), y(0)); g.lineTo(x(0), y(0)); g.closePath(); g.fillStyle = color + '33'; g.fill();
+    g.strokeStyle = color; g.lineWidth = 1.8; if (glassy()) { g.shadowColor = color; g.shadowBlur = 8; } g.stroke(); g.shadowBlur = 0; g.lineTo(x(data.length - 1), y(0)); g.lineTo(x(0), y(0)); g.closePath(); g.fillStyle = color + '33'; g.fill();
   }
   const GROUPS = [[0, 1, 2], [3], [8, 4], [5, 9, 6, 7]], GNAMES = ['Critical or worse', 'Error', 'Minor / warning', 'Notice / cleared / info / debug'];
   function drawTrend(t) {
@@ -768,7 +771,7 @@ views.dashboard = (el) => {
     const tot = d.series.map((a) => a.reduce((s, v) => s + v, 0)), max = Math.max(5, ...tot) * 1.1, bw = (w - padL - 4) / n, y = (v) => padT + (1 - v / max) * (h - padT - padB);
     g.strokeStyle = css('--line'); g.fillStyle = css('--faint'); g.textAlign = 'right';
     for (let i = 0; i <= 3; i++) { const v = (max / 3) * i, yy = y(v); if (t.cfg?.ch?.grid !== false) { g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); } if (t.cfg?.ch?.axis !== false) g.fillText(v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v), padL - 5, yy + 3); }
-    d.series.forEach((a, i) => { let base = 0; GROUPS.forEach((grp, gi) => { const v = grp.reduce((s, k) => s + a[k], 0); if (!v) return; g.fillStyle = colors[gi]; const y1 = y(base + v), y0 = y(base); g.fillRect(padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1); base += v; }); });
+    d.series.forEach((a, i) => { let base = 0; GROUPS.forEach((grp, gi) => { const v = grp.reduce((s, k) => s + a[k], 0); if (!v) return; const y1 = y(base + v), y0 = y(base); if (glassy()) glossRect(g, padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1, colors[gi]); else { g.fillStyle = colors[gi]; g.fillRect(padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1); } base += v; }); });
     const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 36 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
     g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3);
     cv.onmousemove = (e) => { const i = Math.floor((e.offsetX - padL) / bw); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs;
