@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.74.1
+
+- **New theme: Black glass** — the darkest glass theme: pure black background with grey glass panels and white/grey accents, no colour tint. Pick it in Settings → Theme.
+
 ## 1.74.0
 - **Eight new visuals** in Customize → Add tile (new "More visuals" group): **Waffle chart** (100 squares), **Radial bars**, **Rose (polar area) chart**, **Bubbles**, **Word cloud**, **Funnel**, **Leaderboard podium** (top three on a podium) and **Device status wall** (one coloured cell per device, square / round / hexagon). The first seven work on syslog, traps, alarms and devices like the pie and bar charts (by device, process, severity, state ...), with the same filters, palettes and click-to-open-messages. Gauges also have a new **Speedometer (needle)** style.
 - **Dashboard visuals checked and fixed:**
