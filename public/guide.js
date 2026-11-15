@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.76.2</b> — Glass tiles and panels have thin soft edges and a dark frosted fill (more realistic).</li>
+    <ul><li><b>1.76.3</b> — Fixed uploading a background picture.</li>
+<li><b>1.76.2</b> — Glass tiles and panels have thin soft edges and a dark frosted fill (more realistic).</li>
 <li><b>1.76.1</b> — Side panel bottom: round user badge, Sign out as a normal button; Full screen and the version number moved into Settings.</li>
 <li><b>1.76.0</b> — <b>Glass effect</b> is a switch that works over any dark theme; the separate glass themes are gone (your saved one converts by itself).</li>
 <li><b>1.75.0</b> — <b>Background picture</b> (Settings → Appearance): upload an image or pick a built-in one, and the page and tiles become two layers of frosted glass over it.</li>

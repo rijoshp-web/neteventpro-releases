@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.76.3
+
+- **Fixed: uploading a background picture did nothing.** The browser's security policy blocked the temporary image link the upload used; the picture is now read directly. Uploads of PNG, JPG and WebP work.
+
 ## 1.76.2
 
 - **Calmer glass edges.** Tiles and panels in glass mode now have a thin soft border, a smaller corner radius and a dark frosted fill, with no bright rim light, like modern dark glass dashboards.
