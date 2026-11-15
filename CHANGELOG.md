@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.69.0
+- Glass themes now look like real frosted glass: the side rail, status strip and every card blur and brighten what is behind them, with a soft highlight in the corner and a bright top edge, over a more colourful background. (No diagonal lines.) Text contrast was re-checked on all eight glass themes.
+- Cards use a live blur. This costs a little more drawing than the flat looks; Wall display mode turns the blur off, and so does the operating system setting "reduce transparency".
+- Wall display: the date and time title bar is now a rounded floating bar that matches the theme (glass, soft, flat looks and Fresh lime).
+
 ## 1.68.1
 - Glass themes: removed the diagonal line that ran corner to corner. The glass surfaces are now flat, clear translucent layers with a bright top edge, and a lighter dark tint so more of the background shows through (text contrast re-checked).
 - Dashboard settings: removed every colour option (accent colour, page background and its colours, Quick look, the Glass and Accent edge card styles and the Coloured title bar). Colours now come only from the application colour theme. Colours saved earlier in a dashboard's settings are ignored.
