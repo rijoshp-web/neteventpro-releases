@@ -2,9 +2,21 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.74.0
+- **Eight new visuals** in Customize → Add tile (new "More visuals" group): **Waffle chart** (100 squares), **Radial bars**, **Rose (polar area) chart**, **Bubbles**, **Word cloud**, **Funnel**, **Leaderboard podium** (top three on a podium) and **Device status wall** (one coloured cell per device, square / round / hexagon). The first seven work on syslog, traps, alarms and devices like the pie and bar charts (by device, process, severity, state ...), with the same filters, palettes and click-to-open-messages. Gauges also have a new **Speedometer (needle)** style.
+- **Dashboard visuals checked and fixed:**
+  - The **Full ring** gauge drew nothing when the number reached its maximum (and for a ring without colour steps).
+  - A **Gauge showing Free disk space** stayed on "Loading…".
+  - **Number with trend line** ignored what it should show: Errors, Warnings, Devices and Messages per minute all displayed the total. It now has a **Show** choice and shows the right number.
+  - Small **line / trend** tiles lost most of their room to a wrapping legend; the legend is now compact, and hidden on very small tiles.
+  - A dashboard with more than 30 tiles on one sheet only filled the first 30; the limit is now 80.
+- **Column headings stay visible** while you scroll the Logs, Traps, Alarms and other tables in the glass themes (the heading row is now solid and always above the rows).
+- **Settings → Appearance: all themes are visible.** The colour theme list is now an open list you can scroll, instead of a drop-down that was cut off at the bottom of the screen.
+- **Wall display title bar** shows "Dashboard · <sheet name>" (for example "Dashboard · Overview"), not the dashboard's own name (this replaces the 1.73.3 behaviour).
+
 ## 1.73.3
 - **Dashboard changes are saved only when you click Done.** While customizing, your edits (moving, resizing, adding or deleting tiles and sheets, settings) stay in the page; **Done** (⋮ menu → Finish customizing) saves them, the new **Cancel** item next to Add tile throws them away, and leaving the page or reloading without clicking Done discards them. Before, every change was saved at once.
-- **Wall display shows the dashboard name** (and the sheet name) at the left of its title bar.
+- **Wall display title bar shows the heading "Dashboard · <sheet name>"** (for example "Dashboard · Overview") at its left, as on the page.
 - **Wall display scrolls with the keyboard**: Up / Down arrows, PageUp / PageDown, Home and End.
 - **Left / Right arrow keys switch sheets** on the dashboard (not while typing, in a dialog or while customizing).
 - **Full screen button is back** in the side panel (it was removed by mistake in 1.73.0).

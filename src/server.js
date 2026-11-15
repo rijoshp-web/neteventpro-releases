@@ -1056,7 +1056,7 @@ function sanitizeRules(list) {
   });
 }
 
-const TILE_TYPES = ['kpi', 'trend', 'sevbars', 'top', 'latest', 'rate', 'io', 'health', 'silent', 'pie', 'line', 'heat', 'gauge', 'snmpstatus', 'section', 'bar', 'treemap', 'table', 'bargauge', 'statspark', 'text', 'alarm', 'poll'];
+const TILE_TYPES = ['kpi', 'trend', 'sevbars', 'top', 'latest', 'rate', 'io', 'health', 'silent', 'pie', 'line', 'heat', 'gauge', 'snmpstatus', 'section', 'bar', 'treemap', 'table', 'bargauge', 'statspark', 'text', 'alarm', 'poll', 'waffle', 'radial', 'rose', 'cloud', 'bubble', 'funnel', 'podium', 'devwall'];
 const KPI_METRICS = ['total', 'errors', 'warnings', 'hosts', 'perMinute', 'count', 'received', 'eps', 'devices', 'silent', 'stored', 'dbSize', 'dropped', 'diskFree', 'alActive', 'alOpen', 'alAck', 'alEsc', 'alRaised', 'alCleared', 'alAvgClear', 'dvAll', 'dvReporting', 'dvSilent', 'dvMuted', 'dvOverdue', 'dvAlarms', 'dvSyslog', 'dvTrap'];
 /** a tile filter: only these keys, only text or small numbers */
 function cleanTileFilter(f) {
@@ -1109,7 +1109,7 @@ function sanitizeTileLook(c) {
     set('legend', oneOf(ch.legend, ['bottom', 'right', 'hide'])); set('bars', oneOf(ch.bars, ['bars', 'line', 'area']));
     if (Object.keys(o).length) out.ch = o;
   }
-  put('graph', oneOf(c.graph, ['none', 'area', 'line'])); put('gstyle', oneOf(c.gstyle, ['arc', 'ring', 'lcd', 'bar'])); put('bstyle', oneOf(c.bstyle, ['gradient', 'lcd', 'solid']));
+  put('graph', oneOf(c.graph, ['none', 'area', 'line'])); put('gstyle', oneOf(c.gstyle, ['arc', 'needle', 'ring', 'lcd', 'bar'])); put('bstyle', oneOf(c.bstyle, ['gradient', 'lcd', 'solid']));
   put('pal', oneOf(c.pal, ['theme', 'classic', 'powerbi', 'grafana', 'warm', 'cool', 'neon', 'pastel', 'mono'])); put('card', oneOf(c.card, ['open', 'ack', 'esc', 'cleared', 'total']));
   put('tmode', oneOf(c.tmode, ['tag', 'name']));
   return out;

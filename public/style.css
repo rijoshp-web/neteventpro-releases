@@ -1249,3 +1249,52 @@ body.kiosk .sheetbar { bottom: 14px; }
 
 /* 1.73.3 wall display: dashboard name at the left of the title bar */
 body.kiosk #wallBar .wname { position: absolute; left: 26px; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 20px; font-weight: 700; }
+
+/* 1.74 small chart tiles keep their room: compact legend, none when very small */
+.wb[data-sm="1"] .legend { gap: 2px 10px; font-size: 11px; margin-top: 3px; line-height: 1.25; }
+.wb[data-sm="1"] .legend > span { white-space: nowrap; }
+.wb[data-sm="2"] .legend { display: none; }
+
+/* 1.74 more visuals */
+.waffle { display: flex; gap: 14px; align-items: center; height: 100%; min-height: 120px; }
+.waffle .wf-grid { flex: 0 0 auto; height: min(100%, 100%); aspect-ratio: 1 / 1; max-height: 260px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.waffle .wf-grid i { border-radius: 3px; display: block; }
+.waffle .pielegend, .radialv .pielegend { flex: 1 1 auto; min-width: 0; }
+.radialv { display: flex; gap: 12px; align-items: center; height: 100%; min-height: 120px; }
+.radialv svg { flex: 0 1 62%; height: 100%; max-height: 280px; min-width: 0; }
+.radialv svg .rd-l { fill: var(--muted); }
+.cloud { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 14px; padding: 6px 4px; height: 100%; align-content: center; overflow: hidden; }
+.cloud span { cursor: pointer; line-height: 1.1; }
+.cloud span:hover { text-decoration: underline; }
+.bubbles { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; align-content: center; height: 100%; overflow: hidden; }
+.bub { border-radius: 50%; border: 2px solid; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; text-align: center; overflow: hidden; padding: 2px; line-height: 1.15; }
+.bub b { font-size: 14px; }
+.bub span { max-width: 92%; font-size: 10.5px; }
+.funnel { display: flex; flex-direction: column; gap: 4px; height: 100%; justify-content: center; }
+.fn-row { display: flex; justify-content: center; flex: 1 1 0; max-height: 40px; min-height: 18px; cursor: pointer; }
+.fn-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-radius: 6px; color: #fff; font-size: 12.5px; min-width: 0; text-shadow: 0 1px 2px rgba(0,0,0,.35); transition: width .4s; }
+.fn-bar b { font-variant-numeric: tabular-nums; }
+.podium { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+.pd-row { display: flex; align-items: flex-end; justify-content: center; gap: 8px; flex: 1 1 auto; min-height: 110px; }
+.pd { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer; }
+.pd-n { font-size: 12px; max-width: 100%; } .pd-v { font-size: 17px; font-variant-numeric: tabular-nums; }
+.pd-b { width: 100%; border-radius: 8px 8px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 6px; min-height: 20px; max-height: 100%; }
+.pd-m { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #1a1a1a; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.devwall { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+.dw-grid { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; flex: 1 1 auto; overflow: hidden; }
+.dw { display: grid; place-items: center; font-size: 10.5px; font-weight: 600; color: #fff; text-decoration: none; border-radius: 4px; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.dw-round { border-radius: 50%; } .dw-hex { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); border-radius: 0; }
+.dw-ok { background: #2fa36b; } .dw-overdue { background: #e8a31e; } .dw-silent { background: #e5484d; } .dw-muted { background: #7d8ea3; } .dw-idle { background: #5f88c6; }
+.dw-al { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px #e5484d; }
+.dw:hover { filter: brightness(1.15); }
+.dw-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.dwl { display: inline-flex; align-items: center; gap: 5px; } .dwl i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; } .dwl b { color: var(--text); }
+body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
+
+.waffle .pielegend .pl, .radialv .pielegend .pl { grid-template-columns: 10px 1fr auto auto; }
+.bub { flex: 0 0 auto; box-sizing: border-box; }
+.pd-row { padding-top: 22px; }
+
+/* 1.74 column headings stay readable (opaque, above the rows) in every theme, glass included */
+:root[data-look] table.log th, :root[data-look] table.alarms thead th, :root[data-look] .scrollbox thead th, :root[data-look] .mgrtable thead th, :root[data-look] table.devtbl thead th { background: color-mix(in srgb, var(--panel2, var(--panel)) 100%, #000 12%); -webkit-backdrop-filter: none; backdrop-filter: none; z-index: 6; }
+:root[data-look] table.log thead { position: sticky; top: 0; z-index: 6; }

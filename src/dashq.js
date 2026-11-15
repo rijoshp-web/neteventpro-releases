@@ -6,7 +6,7 @@ const { COLS, buildWhere, rowOut } = require('./query');
 
 const BUCKETS = [60e3, 120e3, 300e3, 600e3, 900e3, 1800e3, 3600e3, 7200e3, 10800e3, 21600e3, 43200e3, 86400e3];
 const BY = { host: 'host', app: 'app', severity: 'severity', facility: 'facility', msgid: 'msgid' };
-const MAX_TILES = 30;
+const MAX_TILES = 80;
 /** a tile without a source counts syslog only (tiles saved before traps existed); source "all" counts both */
 const filterOf = (f) => { const o = { source: 'syslog', ...(f || {}) }; if (o.source === 'all') delete o.source; return o; };
 
