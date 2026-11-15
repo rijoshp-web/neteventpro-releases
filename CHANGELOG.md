@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.68.1
+- Glass themes: removed the diagonal line that ran corner to corner. The glass surfaces are now flat, clear translucent layers with a bright top edge, and a lighter dark tint so more of the background shows through (text contrast re-checked).
+- Dashboard settings: removed every colour option (accent colour, page background and its colours, Quick look, the Glass and Accent edge card styles and the Coloured title bar). Colours now come only from the application colour theme. Colours saved earlier in a dashboard's settings are ignored.
+- Dashboard settings: Card style and Tile titles did nothing (their styling was attached to the wrong page element); they work now. Corner radius follows the theme until you move the slider. Checked each remaining setting: card style, titles, corner radius, space between tiles, row height, refresh rate and Reset style.
+
 ## 1.68.0
 - Eight more colour themes (Settings -> Look and sound -> Colour theme): flat dark looks **Noir orange**, **Charcoal and amber**, **Copper**, **Navy control room**, **Neon pink and violet**, and glass looks **Glass violet**, **Glass aurora (blue to red)** and **Glass deep blue**. The flat looks use no blur at all. The glass looks blur only the side rail, the page frame and the status strip (never every card), so they stay light on the browser.
 - The glass themes are glassier: a clear light sheen and bright edge on every surface, with a dark tint underneath so text stays readable.

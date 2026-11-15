@@ -397,35 +397,26 @@ views.dashboard = (el) => {
   function applyStyle() {
     const s = SP.dash?.style || {}, dens = { compact: 24, normal: 30, comfortable: 36 }[s.density] || 30;
     GRID.gap = s.gap ?? 12; GRID.row = dens;
-    const d = el.dataset; d.card = s.card || 'solid'; d.titles = s.titles || 'normal'; el.style.setProperty('--dr', (s.radius ?? 8) + 'px');
-    el.style.background = s.pageBg === 'solid' && s.bg1 ? s.bg1 : s.pageBg === 'gradient' && s.bg1 ? `linear-gradient(${s.bgAngle ?? 160}deg,${s.bg1},${s.bg2 || s.bg1})` : '';
-    if (s.accent) { el.style.setProperty('--accent', s.accent); el.style.setProperty('--link', s.accent); } else { el.style.removeProperty('--accent'); el.style.removeProperty('--link'); }
+    const d = el.dataset; d.card = ['raised', 'outline'].includes(s.card) ? s.card : 'solid'; d.titles = s.titles === 'upper' ? 'upper' : 'normal';
+    if (s.radius != null) el.style.setProperty('--dr', s.radius + 'px'); else el.style.removeProperty('--dr');
+    el.style.background = ''; el.style.removeProperty('--accent'); el.style.removeProperty('--link');   // 1.69 colours come from the application colour theme only
   }
   function styleDialog() {
     const s = { ...(SP.dash?.style || {}) }, back = document.createElement('div'); back.className = 'modal-back';
     const sel = (id, label, opts, cur) => `<div class="field"><label for="${id}">${label}</label><select id="${id}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
-    back.innerHTML = `<form class="modal" role="dialog" aria-modal="true" aria-label="Dashboard settings"><h3 style="margin:0 0 4px">Dashboard settings</h3><p class="muted" style="margin:0 0 12px">Settings for the whole page. Each tile can override its own look under <b>Edit</b> → Tile look. Saved for everyone who opens this dashboard. The application colour theme is chosen under Settings.</p><div class="form">
-      ${sel('stCard', 'Card style', [['solid', 'Solid (flat)'], ['raised', 'Raised (shadow)'], ['glass', 'Glass (translucent)'], ['outline', 'Outline only'], ['accent', 'Accent edge']], s.card || 'solid')}
-      ${sel('stTitles', 'Tile titles', [['normal', 'Normal'], ['upper', 'Small capitals'], ['bar', 'Coloured title bar']], s.titles || 'normal')}
+    back.innerHTML = `<form class="modal" role="dialog" aria-modal="true" aria-label="Dashboard settings"><h3 style="margin:0 0 4px">Dashboard settings</h3><p class="muted" style="margin:0 0 12px">Settings for the whole page. Saved for everyone who opens this dashboard. The application colour theme is chosen under Settings.</p><div class="form">
+      ${sel('stCard', 'Card style', [['solid', 'Solid (flat)'], ['raised', 'Raised (shadow)'], ['outline', 'Outline only']], s.card || 'solid')}
+      ${sel('stTitles', 'Tile titles', [['normal', 'Normal'], ['upper', 'Small capitals']], s.titles || 'normal')}
       <div class="field"><label for="stRadius">Corner radius</label><div><input type="range" id="stRadius" min="0" max="24" value="${s.radius ?? 8}"> <output id="stRadiusO">${s.radius ?? 8}px</output></div></div>
       <div class="field"><label for="stGap">Space between tiles</label><div><input type="range" id="stGap" min="4" max="24" value="${s.gap ?? 12}"> <output id="stGapO">${s.gap ?? 12}px</output></div></div>
       ${sel('stDens', 'Row height', [['compact', 'Compact'], ['normal', 'Normal'], ['comfortable', 'Comfortable']], s.density || 'normal')}
-      <div class="field"><label for="stAcc">Accent colour</label><div><input type="color" id="stAcc" value="${s.accent || '#3b82f6'}"> <label class="chk"><input type="checkbox" id="stAccOn" ${s.accent ? 'checked' : ''}> override the theme accent</label></div></div>
-      <div class="field"><label>Quick look</label><div><div class="presets" id="stQL">${QUICK_LOOKS.map(([id, n, d]) => `<button type="button" class="pre" data-ql="${id}" title="${esc(d)}">${esc(n)}</button>`).join('')}</div><div class="hint">Gives the page and every tile a ready-made look. You can still change any tile afterwards. Replaces the current tile looks.</div></div></div>
-      ${sel('stPg', 'Page background', [['', 'Theme default'], ['solid', 'Solid colour'], ['gradient', 'Gradient']], s.pageBg || '')}
-      <div class="field"><label for="stBg1">Background colours</label><div><input type="color" id="stBg1" value="${s.bg1 || '#0f172a'}"> <input type="color" id="stBg2" value="${s.bg2 || '#1e1b4b'}"> <input type="number" id="stBgA" class="w-sm" min="0" max="360" value="${s.bgAngle ?? 160}" aria-label="Gradient angle"> <span class="muted">° angle</span></div></div>
       ${sel('stRef', 'Refresh the numbers', [[5, 'Every 5 seconds'], [10, 'Every 10 seconds (default)'], [30, 'Every 30 seconds'], [60, 'Every minute'], [300, 'Every 5 minutes'], [0, 'Only when I press Refresh']], s.refresh ?? 10)}
       </div><div class="toolbar" style="margin:14px 0 0"><button type="button" id="stReset">Reset style</button><span class="spacer"></span><button type="button" id="mCancel">Cancel</button><button type="submit" class="primary">Save</button></div></form>`;
     document.body.appendChild(back); const q = (id) => $('#' + id, back), close = () => back.remove();
-    const read = () => { const o = { ...(q('stPg').value ? { pageBg: q('stPg').value, bg1: q('stBg1').value, bg2: q('stBg2').value, bgAngle: +q('stBgA').value || 0 } : {}), card: q('stCard').value, titles: q('stTitles').value, radius: +q('stRadius').value, gap: +q('stGap').value, density: q('stDens').value, refresh: +q('stRef').value }; if (q('stAccOn').checked) o.accent = q('stAcc').value; return o; };
+    const read = () => { const o = { card: q('stCard').value, titles: q('stTitles').value, gap: +q('stGap').value, density: q('stDens').value, refresh: +q('stRef').value }; if (q('stRadius').dataset.t || s.radius != null) o.radius = +q('stRadius').value; return o; };
     const live = () => { SP.dash = { ...(SP.dash || {}), style: read() }; q('stRadiusO').textContent = q('stRadius').value + 'px'; q('stGapO').textContent = q('stGap').value + 'px'; applyStyle(); place(); paint(); };
+    back.addEventListener('input', (e) => { if (e.target.id === 'stRadius') e.target.dataset.t = '1'; });
     back.addEventListener('input', live); back.addEventListener('change', live);
-    back.addEventListener('click', async (e) => {
-      const ql = e.target.closest('[data-ql]'); if (!ql) return; if (!await askConfirm('Replace the look of every tile with this ready-made look?')) return;
-      const list = getTiles(), r = quickLook(ql.dataset.ql, list); const keepOld = SP.dash || {};
-      SP.dash = { ...keepOld }; if (r.style) SP.dash.style = { ...(keepOld.style || {}), ...r.style, ...(r.style.pageBg ? {} : {}) }; else { const st2 = { ...(keepOld.style || {}) }; for (const k of ['pageBg', 'bg1', 'bg2', 'bgAngle', 'accent', 'card']) delete st2[k]; SP.dash.style = st2; }
-      saveTiles(); applyStyle(); close(); frames(); load();
-    });
     const undo = () => { SP.dash = { ...(SP.dash || {}), style: orig }; if (!orig) delete SP.dash.style; applyStyle(); place(); paint(); close(); };
     const orig = SP.dash?.style ? { ...SP.dash.style } : null;
     $('#mCancel', back).onclick = undo; back.addEventListener('mousedown', (e) => { if (e.target === back) undo(); });
