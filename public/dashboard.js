@@ -198,24 +198,54 @@ function snmpTiles(y0) {
 }
 const AL_MIG = { open: 'alActive', ack: 'alAck', esc: 'alEsc', cleared: 'alCleared', total: 'alRaised' };
 const alarmTiles = (y0 = 0) => AL_ORDER.map((k, i) => ({ id: 'al_' + k, type: 'kpi', title: AL_CARDS[k], x: [0, 3, 5, 7, 9][i], y: y0, w: [3, 2, 2, 2, 3][i], h: 3, cfg: { ds: 'alarms', metric: AL_MIG[k] } }));
+const T = (id, type, title, x, y, w, h, cfg = {}) => ({ id, type, title, x, y, w, h, cfg });
+const SEC = (id, title, y) => T(id, 'section', title, 0, y, 12, 1);
+const sysKpis = (y, ds) => [['k_total', 'total', 'Messages'], ['k_err', 'errors', 'Errors and worse'], ['k_hosts', 'hosts', 'Devices reporting']].map(([id, metric, title], i) => T(id, 'kpi', title, i * 2, y, 2, 3, { metric, ...(ds ? { ds } : {}) }))
+  .concat([['k_eps', 'eps', 'Messages / second'], ['k_stored', 'stored', 'Stored messages'], ['k_silent', 'silent', 'Silent devices']].map(([id, metric, title], i) => T(id, 'kpi', title, 6 + i * 2, y, 2, 3, { metric })));
+const devKpis = (y, w = 2) => [['dvAll', 'Devices known'], ['dvReporting', 'Reporting normally'], ['dvSilent', 'Silent'], ['dvMuted', 'Muted'], ['dvOverdue', 'Overdue'], ['dvAlarms', 'With open alarms']].slice(0, 12 / w).map(([metric, title], i) => T('d_' + metric.toLowerCase(), 'kpi', title, i * w, y, w, 3, { ds: 'devices', metric }));
+const POLL_NOTE = 'To show readings of your polled devices here (for example every Temperature reading in one table), click Customize, then Add tile, then Polled devices and readings.';
+/** the first sheet ("Overview"): a little of everything, one heading per area */
 function defaultTiles() {
-  const k = (id, metric, title, x, extra = {}) => ({ id, type: 'kpi', title, x, y: 0, w: 2, h: 3, cfg: { metric, ...extra } });
-  return [
-    ...alarmTiles(),
-    k('k_total', 'total', 'Messages', 0), k('k_err', 'errors', 'Errors and worse', 2), k('k_hosts', 'hosts', 'Devices reporting', 4), k('k_eps', 'eps', 'Messages / second', 6),
-    k('k_stored', 'stored', 'Stored messages', 8), k('k_silent', 'silent', 'Silent devices', 10),
-    { id: 't_trend', type: 'trend', title: 'Messages over time', x: 0, y: 3, w: 8, h: 8, cfg: {} },
-    { id: 't_sev', type: 'sevbars', title: 'Severity breakdown', x: 8, y: 3, w: 4, h: 8, cfg: {} },
-    { id: 't_rate', type: 'rate', title: 'Messages per second', x: 0, y: 11, w: 4, h: 7, cfg: {} },
-    { id: 't_hosts', type: 'top', title: 'Busiest devices', x: 4, y: 11, w: 4, h: 7, cfg: { by: 'host', n: 8 } },
-    { id: 't_apps', type: 'top', title: 'Busiest processes', x: 8, y: 11, w: 4, h: 7, cfg: { by: 'app', n: 8 } },
-    { id: 't_latest', type: 'latest', title: 'Latest errors and worse', x: 0, y: 18, w: 8, h: 9, cfg: { n: 10, filter: { severityMax: 3 } } },
-    { id: 't_io', type: 'io', title: 'Inputs and alert delivery', x: 8, y: 18, w: 4, h: 9, cfg: {} },
-    { id: 't_pie', type: 'pie', title: 'Messages by device', x: 0, y: 27, w: 4, h: 8, cfg: { by: 'host', n: 6, style: 'donut' } },
-    { id: 't_heat', type: 'heat', title: 'Busiest devices over time', x: 4, y: 27, w: 8, h: 8, cfg: { mode: 'hostTime', n: 8 } },
-    ...snmpTiles(35), ...sectionTiles()
-  ];
+  return [SEC('sec_al', 'Alarms', 0), ...alarmTiles(1),
+    SEC('sec_sys', 'Syslog', 4), ...sysKpis(5),
+    T('t_trend', 'trend', 'Messages over time', 0, 8, 8, 8), T('t_sev', 'sevbars', 'Severity breakdown', 8, 8, 4, 8),
+    SEC('sec_snmp', 'SNMP traps', 16), T('s_k_total', 'kpi', 'Traps', 0, 17, 2, 3, { metric: 'total', filter: { source: 'snmp' } }), T('s_k_err', 'kpi', 'Trap errors and worse', 2, 17, 2, 3, { metric: 'errors', filter: { source: 'snmp' } }),
+    T('s_k_dev', 'kpi', 'Devices sending traps', 4, 17, 2, 3, { metric: 'hosts', filter: { source: 'snmp' } }), T('s_io', 'snmpstatus', 'SNMP trap receiver', 6, 17, 6, 3),
+    SEC('sec_poll', 'SNMP polling', 20), T('p_stat', 'poll', 'Polled devices', 0, 21, 8, 6, { poll: { src: 'status', view: 'tiles', shape: 'round', hours: 6, picks: [] } }), T('p_alm', 'poll', 'Polling alarms', 8, 21, 4, 6, { poll: { src: 'alarms', view: 'tiles', hours: 6, picks: [] } }),
+    SEC('sec_dev', 'Devices', 27), ...devKpis(28, 3).slice(0, 4),
+    T('t_latest', 'latest', 'Latest errors and worse', 0, 31, 8, 9, { n: 10, filter: { severityMax: 3 } }), T('t_io', 'io', 'Inputs and alert delivery', 8, 31, 4, 9)];
 }
+/** the other sheets, each about one subject only */
+const SHEET_DEFS = {
+  alarms: { name: 'Alarms', tiles: () => [...alarmTiles(0),
+    T('a_avg', 'kpi', 'Average time to clear', 0, 3, 4, 4, { ds: 'alarms', metric: 'alAvgClear' }), T('a_dev', 'kpi', 'Devices with alarms', 4, 3, 4, 4, { ds: 'devices', metric: 'dvAlarms' }), T('a_spark', 'statspark', 'Alarms raised', 8, 3, 4, 4, { ds: 'alarms', metric: 'alRaised', graph: 'area' }),
+    T('a_trend', 'trend', 'Alarms over time', 0, 7, 8, 8, { ds: 'alarms' }), T('a_sev', 'pie', 'Alarms by severity', 8, 7, 4, 8, { ds: 'alarms', by: 'severity', n: 8, style: 'donut' }),
+    T('a_rule', 'bar', 'Alarms by rule', 0, 15, 4, 8, { ds: 'alarms', by: 'rule', n: 8 }), T('a_host', 'top', 'Devices with most alarms', 4, 15, 4, 8, { ds: 'alarms', by: 'host', n: 8 }), T('a_state', 'pie', 'Alarms by state', 8, 15, 4, 8, { ds: 'alarms', by: 'state', n: 6, style: 'donut' }),
+    T('a_latest', 'latest', 'Latest alarms', 0, 23, 12, 10, { ds: 'alarms', n: 10 })] },
+  syslog: { name: 'Syslog', tiles: () => [...sysKpis(0, 'syslog'),
+    T('y_trend', 'trend', 'Messages over time', 0, 3, 8, 8, { ds: 'syslog' }), T('y_sev', 'sevbars', 'Severity breakdown', 8, 3, 4, 8, { ds: 'syslog' }),
+    T('y_rate', 'rate', 'Messages per second', 0, 11, 4, 7), T('y_hosts', 'top', 'Busiest devices', 4, 11, 4, 7, { ds: 'syslog', by: 'host', n: 8 }), T('y_apps', 'top', 'Busiest processes', 8, 11, 4, 7, { ds: 'syslog', by: 'app', n: 8 }),
+    T('y_pie', 'pie', 'Messages by device', 0, 18, 4, 8, { ds: 'syslog', by: 'host', n: 6, style: 'donut' }), T('y_heat', 'heat', 'Busiest devices over time', 4, 18, 8, 8, { ds: 'syslog', mode: 'hostTime', n: 8 }),
+    T('y_latest', 'latest', 'Latest errors and worse', 0, 26, 8, 9, { ds: 'syslog', n: 10, filter: { severityMax: 3 } }), T('y_io', 'io', 'Inputs and alert delivery', 8, 26, 4, 9)] },
+  traps: { name: 'SNMP traps', tiles: () => snmpTiles(0) },
+  polling: { name: 'SNMP polling', tiles: () => [
+    T('p_stat', 'poll', 'Polled devices', 0, 0, 8, 8, { poll: { src: 'status', view: 'tiles', shape: 'round', hours: 6, picks: [] } }), T('p_alm', 'poll', 'Polling alarms', 8, 0, 4, 8, { poll: { src: 'alarms', view: 'tiles', hours: 6, picks: [] } }),
+    T('p_note', 'text', 'Readings', 0, 8, 12, 3, { text: POLL_NOTE })] },
+  devices: { name: 'Devices', tiles: () => [...devKpis(0),
+    T('d_pie', 'pie', 'Devices by status', 0, 3, 4, 8, { ds: 'devices', by: 'status', n: 6, style: 'donut' }), T('d_vendor', 'pie', 'Devices by vendor', 4, 3, 4, 8, { ds: 'devices', by: 'vendor', n: 8, style: 'donut' }), T('d_kind', 'pie', 'What devices send', 8, 3, 4, 8, { ds: 'devices', by: 'kind', n: 4, style: 'donut' }),
+    T('d_bar', 'bar', 'Devices by group', 0, 11, 6, 8, { ds: 'devices', by: 'group', n: 10 }), T('d_silent', 'silent', 'Silent devices', 6, 11, 6, 8),
+    T('d_latest', 'latest', 'Devices', 0, 19, 12, 9, { ds: 'devices', n: 10 })] }
+};
+const defaultSheets = () => Object.entries(SHEET_DEFS).map(([id, d]) => ({ id, name: d.name, tiles: d.tiles() }));
+const SHEET_ICON = {
+  main: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  alarms: '<path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4z"/><path d="M10 21h4"/>',
+  syslog: '<path d="M4 6h16M4 12h11M4 18h7"/>',
+  traps: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  polling: '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>',
+  devices: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>',
+  other: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12h8"/>'
+};
 
 /** time range -> { from, to, rolling, label } */
 function rangeOf(r, now = Date.now()) {
@@ -240,38 +270,40 @@ function settleZone(items, fixed, base) {
   }
   return Math.max(base, ...items.map((i) => i.y + i.h));
 }
-const zoneOf = (t) => (t.type === 'alarm' || hasDs(t) && ['alarms', 'devices'].includes(dsOf(t)) ? 'al' : t.id.startsWith('s_') || t.cfg?.filter?.source === 'snmp' ? 'snmp' : 'sys');
-/** Packs the tiles upward. The dashboard has a Syslog zone and an SNMP traps zone, each under its own heading bar (tile type "section"). */
-function settle(items, fixedId) {
-  const heads = items.filter((i) => i.type === 'section');
-  if (!heads.length) { const fixed = items.find((i) => i.id === fixedId); settleZone(items, fixed, 0); return items; }
-  const body = items.filter((i) => i.type !== 'section'), hs = heads.find((h) => h.id === 'sec_sys'), hn = heads.find((h) => h.id === 'sec_snmp');
-  const al = body.filter((t) => zoneOf(t) === 'al'), sys = body.filter((t) => zoneOf(t) === 'sys'), sn = body.filter((t) => zoneOf(t) === 'snmp');
-  const order = SP.dash?.snmpFirst ? [[hn, sn], [hs, sys]] : [[hs, sys], [hn, sn]];
-  let y = al.length ? settleZone(al, al.find((i) => i.id === fixedId), 0) : 0;
-  for (const [h, zone] of order) { Object.assign(h, { x: 0, y, w: 12, h: 1 }); y = settleZone(zone, zone.find((i) => i.id === fixedId), y + 1); }
-  return items;
-}
-const sectionTiles = () => [{ id: 'sec_sys', type: 'section', title: 'Syslog', x: 0, y: 0, w: 12, h: 1, cfg: {} }, { id: 'sec_snmp', type: 'section', title: 'SNMP traps', x: 0, y: 99, w: 12, h: 1, cfg: {} }];
+/** Packs the tiles upward (one list, no zones). Runs only after you move, resize, add or remove a tile, never while the dashboard is just opened. */
+function settle(items, fixedId) { settleZone(items, items.find((i) => i.id === fixedId), 0); return items; }
+const overlaps = (list) => list.some((a, i) => list.some((b, j) => j > i && hit(a, b)));
 
 views.dashboard = (el) => {
   let editing = false, tiles = null, data = null, health = null, devices = null, lastAt = 0, timer = null, fetching = false;
   const cache = new Map();                                    // tile id -> last painted html (skip needless repaints)
-  el.innerHTML = `<div class="page-head dash-head"><h1>Dashboard</h1>
+  el.innerHTML = `<div class="page-head dash-head"><h1>Dashboard<span class="dsheetname" id="dSheetName"></span></h1>
     <select id="dBoard" aria-label="Which dashboard" title="Your saved dashboards"></select>
     <select id="dRange" aria-label="Time range">${PRESETS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span id="dCustom" hidden><input type="datetime-local" id="dFrom" aria-label="From"> to <input type="datetime-local" id="dTo" aria-label="To"> <button id="dApply">Apply</button></span>
     <span class="muted" id="dInfo"></span><span class="spacer"></span>
-    <span class="seg" id="dOrder" role="group" aria-label="Which section is shown first"><button type="button" data-o="sys" title="Syslog section on top">Syslog first</button><button type="button" data-o="snmp" title="SNMP traps section on top">SNMP first</button></span><span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button></span>
-    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWall">Wall display</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
+    <span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button><button id="dShAdd">Add sheet</button><button id="dShRen">Rename sheet</button><button id="dShDel">Delete sheet</button></span>
+    <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWall">Wall display</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><hr><button role="menuitem" data-go="dShAdd">Add sheet…</button><button role="menuitem" data-go="dShRen">Rename this sheet…</button><button role="menuitem" data-go="dShDel" class="danger" id="dmShDel">Delete this sheet</button><hr><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
     <div class="dgrid" id="dgrid"></div>`;
   const grid = $('#dgrid', el);
 
+  // ----- sheets (1.73): several pages in one dashboard. The first sheet ("main", shown as Overview) lives in dash.tiles, the others in dash.sheets -----
+  let sheetId = 'main';
+  const sheetKey = () => 'ne.sheet.' + (boardId || 'main');
+  const extraSheets = () => (Array.isArray(SP.dash?.sheets) ? SP.dash.sheets : []);
+  const sheetList = () => [{ id: 'main', name: SP.dash?.mainName || 'Overview' }, ...extraSheets()];
+  const sheetRef = () => (sheetId === 'main' ? null : extraSheets().find((x) => x.id === sheetId) || null);
+  function initSheets() {
+    if (!boardId && SP.dash?.sheets === undefined && !SP.dash?.blank) { SP.dash = { ...(SP.dash || {}), sheets: defaultSheets() }; savePrefs(); }    // the main dashboard gets the standard sheets once
+    let want = 'main'; try { want = localStorage.getItem(sheetKey()) || 'main'; } catch { /* blocked storage */ }
+    sheetId = sheetList().some((x) => x.id === want) ? want : 'main';
+  }
   const getTiles = () => {
     if (tiles) return tiles;
+    if (sheetId !== 'main') { const sh = sheetRef(); if (!sh) sheetId = 'main'; else { tiles = structuredClone(sh.tiles || []); if (overlaps(tiles)) settle(tiles, null); return tiles; } }
     if (!SP.dash?.tiles?.length) return SP.dash?.blank ? (tiles = []) : (tiles = settle(defaultTiles(), null));      // a blank dashboard (New dashboard, 1.42.1) stays empty until tiles are added
     tiles = structuredClone(SP.dash.tiles);
-    if (!SP.dash.snmpTiles) {           // a layout saved before SNMP traps existed: add the trap section once at the bottom (it can be removed or moved like any tile)
+    if (!SP.dash.snmpTiles) {           // a layout saved before SNMP traps existed: add the trap tiles once at the bottom (they can be removed or moved like any tile)
       if (!tiles.some((x) => x.id.startsWith('s_'))) tiles.push(...snmpTiles(Math.max(0, ...tiles.map((x) => x.y + x.h))));
       SP.dash = { ...SP.dash, snmpTiles: true, tiles: structuredClone(tiles) }; savePrefs();
     }
@@ -284,14 +316,18 @@ views.dashboard = (el) => {
       }
       const nd = { ...SP.dash, alarmTiles: true }; delete nd.alarmBar; settle(tiles, null); SP.dash = { ...nd, tiles: structuredClone(tiles) }; savePrefs();
     }
-    if (!tiles.some((x) => x.type === 'section')) { tiles.push(...sectionTiles()); settle(tiles, null); SP.dash = { ...SP.dash, tiles: structuredClone(tiles) }; savePrefs(); }
     if (tiles.some((x) => x.type === 'alarm')) {     // the alarm cards became ordinary number tiles on the "Alarms" data (1.36)
       for (const x of tiles) if (x.type === 'alarm') { const { card, ...rest } = x.cfg || {}; x.type = 'kpi'; x.cfg = { ...rest, ds: 'alarms', metric: AL_MIG[card] || 'alActive' }; }
       SP.dash = { ...SP.dash, tiles: structuredClone(tiles) }; savePrefs();
     }
+    if (overlaps(tiles)) settle(tiles, null);        // 1.73: a saved layout whose tiles overlap is repaired once; a good layout is never rearranged on opening
     return tiles;
   };
-  const saveTiles = () => { SP.dash = { ...(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(getTiles()) }; if (!SP.dash.tiles.length) SP.dash.blank = true; else delete SP.dash.blank; savePrefs(); };
+  const saveTiles = () => {
+    if (sheetRef()) { SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, tiles: structuredClone(getTiles()) } : x)) }; return savePrefs(); }
+    SP.dash = { ...(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(getTiles()) }; if (!SP.dash.tiles.length) SP.dash.blank = true; else delete SP.dash.blank; savePrefs();
+  };
+  const mainTiles = () => (sheetId === 'main' ? getTiles() : SP.dash?.tiles?.length ? SP.dash.tiles : SP.dash?.blank ? [] : settle(defaultTiles(), null));
   const range = () => rangeOf(SP.dash?.range);
   const metricOf = (t) => METRICS[t.cfg?.metric] || METRICS.total;
   const isRanged = (t) => (t.type === 'kpi' || t.type === 'gauge') ? !!metricOf(t).ranged || dsKind(t) !== 'system' : ['trend', 'sevbars', 'top', 'latest', 'pie', 'line', 'heat', 'bar', 'treemap', 'table', 'bargauge', 'statspark'].includes(t.type);
@@ -1201,11 +1237,16 @@ views.dashboard = (el) => {
     if (id === 'dApply') { const f = new Date($('#dFrom', el).value).getTime(), t = new Date($('#dTo', el).value).getTime(); if (!(f < t)) return toast('Choose a start that is earlier than the end', true); return setRange({ preset: 'custom', from: f, to: t }); }
     if (id === 'dRefresh') return load(true);
     if (id === 'dSet') return styleDialog();
-    if (id === 'dEdit') { editing = !editing; $('#dEdit', el).textContent = editing ? 'Done' : 'Customize'; $('#dEdit', el).classList.toggle('primary', editing); $('#dEditBar', el).hidden = !editing; return frames(); }
-    if (id === 'dReset') { if (!await askConfirm('Put the dashboard back to the standard tiles and layout?')) return; delete SP.dash?.tiles; delete SP.dash?.blank; savePrefs(); tiles = null; frames(); return load(); }
+    if (id === 'dEdit') { editing = !editing; $('#dEdit', el).textContent = editing ? 'Done' : 'Customize'; $('#dEdit', el).classList.toggle('primary', editing); $('#dEditBar', el).hidden = !editing; drawSheets(); showBar(); return frames(); }
+    if (id === 'dReset') {
+      if (!await askConfirm(sheetId === 'main' ? 'Put this sheet back to the standard tiles and layout?' : 'Put this sheet back to its standard tiles and layout?')) return;
+      if (sheetRef()) { const d = SHEET_DEFS[sheetId]; SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, tiles: d ? d.tiles() : [] } : x)) }; }
+      else { delete SP.dash?.tiles; delete SP.dash?.blank; }
+      savePrefs(); tiles = null; frames(); return load();
+    }
+    if (id === 'dShAdd') return sheetAct('add'); if (id === 'dShRen') return sheetAct('ren'); if (id === 'dShDel') return sheetAct('del');
     if (id === 'dAdd') return addMenu();
     if (id === 'dWallLink') return wallMode.copy(); if (id === 'dWall') return wallMode(true); if (id === 'dExp') return boardAct('exp'); if (id === 'dImp') return boardAct('imp'); if (id === 'dSave') return boardAct('save'); if (id === 'dNew') return boardAct('new'); if (id === 'dRen') return boardAct('ren'); if (id === 'dDel') return boardAct('del');
-    const od = e.target.closest('#dOrder button'); if (od) { const first = od.dataset.o === 'snmp'; if (!!SP.dash?.snmpFirst === first) return; SP.dash = { ...(SP.dash || {}), snmpFirst: first }; if (!first) delete SP.dash.snmpFirst; settle(getTiles(), null); saveTiles(); syncSnmpBtn(); return frames(); }
     const a = e.target.closest('button[data-a]:not([data-a=seccfg])');
     if (a) { const tid = a.closest('.widget').dataset.id, list = getTiles(), t = list.find((x) => x.id === tid);
       if (a.dataset.a === 'del') { list.splice(list.indexOf(t), 1); settle(list, null); saveTiles(); frames(); }
@@ -1220,12 +1261,56 @@ views.dashboard = (el) => {
   S.onStats = () => { paint(); };
   const resize = () => { place(); };
   window.addEventListener('resize', resize); const gro = new ResizeObserver(() => place()); gro.observe(grid);
-  const syncSnmpBtn = () => { const first = !!SP.dash?.snmpFirst; for (const b of $$('#dOrder button', el)) { const on = (b.dataset.o === 'snmp') === first; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } };
+  // ----- the sheet bar (1.73): a small panel at the bottom that appears when the mouse moves over the dashboard; a button per sheet, its name shows on hover -----
+  const bar = document.createElement('nav'); bar.className = 'sheetbar'; bar.setAttribute('aria-label', 'Dashboard sheets'); document.body.appendChild(bar);
+  let barTimer = null, barHover = false;
+  const iconOf = (id) => SHEET_ICON[id] || SHEET_ICON.other;
+  function drawSheets() {
+    const list = sheetList(), many = list.length > 1;
+    bar.innerHTML = list.map((x, i) => `<button type="button" class="sheetbtn${x.id === sheetId ? ' on' : ''}" data-sheet="${esc(x.id)}" data-tip="${esc(x.name)}" aria-label="${esc(x.name)}" aria-pressed="${x.id === sheetId}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconOf(x.id)}</svg>${SHEET_ICON[x.id] ? '' : `<i>${i + 1}</i>`}</button>`).join('')
+      + (editing ? `<button type="button" class="sheetbtn add" data-sheetadd="1" data-tip="Add a sheet" aria-label="Add a sheet"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>` : '');
+    bar.classList.toggle('none', !many && !editing);
+    const nm = $('#dSheetName', el), cur = list.find((x) => x.id === sheetId); if (nm) nm.textContent = many && cur ? ' · ' + cur.name : '';
+    const d = $('#dmShDel', el); if (d) d.hidden = sheetId === 'main';
+  }
+  function showBar() {
+    if (document.hidden || bar.classList.contains('none')) return;
+    let r = el.getBoundingClientRect(); if (r.width < 50 && el.parentElement) r = el.parentElement.getBoundingClientRect(); bar.style.left = Math.round(r.width >= 50 ? r.left + r.width / 2 : innerWidth / 2) + 'px'; bar.classList.add('show');
+    clearTimeout(barTimer); barTimer = setTimeout(() => { if (!barHover && !bar.contains(document.activeElement)) bar.classList.remove('show'); }, 2600);
+  }
+  const host = el.parentElement || el;
+  host.addEventListener('mousemove', showBar); host.addEventListener('touchstart', showBar, { passive: true });
+  bar.addEventListener('mouseenter', () => { barHover = true; clearTimeout(barTimer); bar.classList.add('show'); });
+  bar.addEventListener('mouseleave', () => { barHover = false; showBar(); });
+  bar.addEventListener('focusin', () => bar.classList.add('show'));
+  bar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sheetadd) return sheetAct('add'); if (b.dataset.sheet) useSheet(b.dataset.sheet); showBar(); });
+  function useSheet(id) {
+    if (!sheetList().some((x) => x.id === id) || id === sheetId) return;
+    sheetId = id; try { localStorage.setItem(sheetKey(), id); } catch { /* not remembered */ }
+    tiles = null; data = null; cache.clear(); drawSheets(); frames(); load();
+    grid.classList.remove('sheetin'); void grid.offsetWidth; grid.classList.add('sheetin');
+  }
+  async function sheetAct(a) {
+    const cur = sheetList().find((x) => x.id === sheetId);
+    if (a === 'add') {
+      if (extraSheets().length >= 7) return toast('A dashboard can have up to 8 sheets. Delete one first.', true);
+      const nm = cleanName(await askText('Name for the new sheet:', '')).slice(0, 30); if (!nm) return;
+      const id = 'sh' + Date.now().toString(36).slice(-7);
+      SP.dash = { ...(SP.dash || {}), sheets: [...extraSheets(), { id, name: nm, tiles: [] }] }; savePrefs(); useSheet(id); toast(`Added the sheet “${nm}”. Click Customize, then Add tile.`); return;
+    }
+    if (a === 'ren') { const nm = cleanName(await askText('New name for this sheet:', cur.name)).slice(0, 30); if (!nm) return; if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainName: nm }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, name: nm } : x)) }; savePrefs(); drawSheets(); return; }
+    if (a === 'del') {
+      if (sheetId === 'main') return toast('The first sheet cannot be deleted. Rename it, or delete its tiles instead.', true);
+      if (!await askConfirm(`Delete the sheet “${cur.name}”? Its tiles are lost.`)) return;
+      SP.dash = { ...SP.dash, sheets: extraSheets().filter((x) => x.id !== sheetId) }; savePrefs(); sheetId = 'main'; try { localStorage.setItem(sheetKey(), 'main'); } catch { /* ignore */ }
+      tiles = null; data = null; cache.clear(); drawSheets(); frames(); load();
+    }
+  }
   // ----- named dashboards (1.36) -----
   if (boardId && !boards().some((b) => b.id === boardId)) boardId = '';
   const boardSel = $('#dBoard', el);
   const syncBoards = () => { boardSel.innerHTML = [{ id: '', name: S.prefs.dashMainName || 'Main dashboard' }, ...boards()].map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join(''); boardSel.value = boardId; $('#dDel', el).disabled = !boardId; };
-  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } tiles = null; data = null; cache.clear(); applyStyle(); syncSnmpBtn(); syncRange(); syncBoards(); frames(); load(); schedule(); }
+  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } initSheets(); tiles = null; data = null; cache.clear(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); load(); schedule(); }
   const cleanName = (v) => String(v ?? '').replace(/[<>\r\n]/g, ' ').trim().slice(0, 40);
   const newId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 100).toString(36);
   async function boardAct(a) {
@@ -1234,7 +1319,7 @@ views.dashboard = (el) => {
     if (a === 'save' || a === 'new') {
       if (boards().length >= 19) return toast('You can keep up to 20 dashboards. Delete one first.', true);
       const nm = cleanName(await askText(a === 'save' ? 'Name for the copy of this dashboard:' : 'Name for the new dashboard:', a === 'save' ? cur.name + ' copy' : '')); if (!nm) return;
-      const dash = a === 'save' ? { ...structuredClone(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(getTiles()) } : { blank: true, alarmTiles: true, snmpTiles: true };
+      const dash = a === 'save' ? { ...structuredClone(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(mainTiles()), sheets: structuredClone(extraSheets()) } : { blank: true, alarmTiles: true, snmpTiles: true, sheets: [] };
       S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; savePrefs(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Saved as “${nm}”`); return;
     }
     if (a === 'ren') { const nm = cleanName(await askText('New name for this dashboard:', cur.name)); if (!nm) return; if (boardId) boards().find((b) => b.id === boardId).name = nm; else S.prefs.dashMainName = nm; savePrefs(); syncBoards(); return; }
@@ -1244,7 +1329,7 @@ views.dashboard = (el) => {
   // ----- sharing (1.42): export / import a dashboard as a file, and a wall display (kiosk) mode -----
   const slug = (n) => String(n || 'dashboard').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'dashboard';
   function exportBoard() {
-    const cur = boardList(), dash = { ...structuredClone(SP.dash || {}), tiles: structuredClone(getTiles()) };
+    const cur = boardList(), dash = { ...structuredClone(SP.dash || {}), tiles: structuredClone(mainTiles()), sheets: structuredClone(extraSheets()) };
     const blob = new Blob([JSON.stringify({ neteventpro: 'dashboard', format: 1, name: cur.name, exported: new Date().toISOString(), dash }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `neteventpro-dashboard-${slug(cur.name)}.json`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     toast(`Exported “${cur.name}”`);
@@ -1260,7 +1345,7 @@ views.dashboard = (el) => {
         if (j.dash.tiles.length > 300) throw new Error('The dashboard has too many tiles (over 300).');
         if (boards().length >= 19) throw new Error('You can keep up to 20 dashboards. Delete one first.');
         let nm = cleanName(j.name) || 'Imported dashboard'; if ([S.prefs.dashMainName || 'Main dashboard', ...boards().map((b) => b.name)].includes(nm)) nm = cleanName(nm + ' (imported)');
-        const dash = { ...structuredClone(j.dash), alarmTiles: true, snmpTiles: true }; delete dash.slicer;
+        const dash = { ...structuredClone(j.dash), alarmTiles: true, snmpTiles: true, sheets: Array.isArray(j.dash.sheets) ? j.dash.sheets : [] }; delete dash.slicer; delete dash.snmpFirst;
         S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; await savePrefs(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Imported “${nm}”`);
       } catch (e) { toast(e.message || 'Could not read the file.', true); }
     };
@@ -1280,11 +1365,11 @@ views.dashboard = (el) => {
     if (on) document.documentElement.requestFullscreen?.().catch(() => {}); else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
   }
-  wallMode.copy = () => { const u = `${location.origin}${location.pathname}#dashboard?board=${encodeURIComponent(boardId)}&kiosk=1`; navigator.clipboard?.writeText(u).then(() => toast('Wall display link copied. Open it on the wall computer and sign in once.'), () => toast(u)); };
+  wallMode.copy = () => { const u = `${location.origin}${location.pathname}#dashboard?board=${encodeURIComponent(boardId)}${sheetId !== 'main' ? '&sheet=' + encodeURIComponent(sheetId) : ''}&kiosk=1`; navigator.clipboard?.writeText(u).then(() => toast('Wall display link copied. Open it on the wall computer and sign in once.'), () => toast(u)); };
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('kiosk')) wallMode(false); });
   const boardList = () => (boardId ? boards().find((b) => b.id === boardId) : { name: S.prefs.dashMainName || 'Main dashboard' }) || { name: 'Dashboard' };
   boardSel.addEventListener('change', () => useBoard(boardSel.value));
-  applyStyle(); syncSnmpBtn(); syncRange(); syncBoards(); frames(); load(); schedule();
-  { const hq = S.hq; if (hq && hq.get('board') !== null && hq.get('board') !== boardId && (boards().some((b) => b.id === hq.get('board')) || hq.get('board') === '')) useBoard(hq.get('board')); if (hq && hq.get('kiosk')) wallMode(true); }
-  return () => { document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
+  initSheets(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); load(); schedule();
+  { const hq = S.hq; if (hq && hq.get('board') !== null && hq.get('board') !== boardId && (boards().some((b) => b.id === hq.get('board')) || hq.get('board') === '')) useBoard(hq.get('board')); if (hq && hq.get('sheet') && sheetList().some((x) => x.id === hq.get('sheet'))) useSheet(hq.get('sheet')); if (hq && hq.get('kiosk')) wallMode(true); }
+  return () => { bar.remove(); clearTimeout(barTimer); document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
 };

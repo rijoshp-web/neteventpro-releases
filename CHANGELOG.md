@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.73.0
+- **Dashboard sheets** (like Power BI pages): one dashboard now has several sheets — **Overview** (a mix of alarms, syslog, SNMP traps, SNMP polling and devices), **Alarms**, **Syslog**, **SNMP traps**, **SNMP polling** and **Devices**. Every sheet has its own tiles that you can move, resize, add and remove. The ⋮ menu has *Add sheet…*, *Rename this sheet…* and *Delete this sheet*; *Reset layout* restores the standard tiles of the sheet you are on. Up to 8 sheets per dashboard. Sheets are saved with the dashboard and travel with Export / Import and Save as.
+- **Sheet bar**: a small panel at the bottom of the dashboard appears when you move the mouse over the page (and fades away after a moment). One round button per sheet; hover a button to see the sheet name. Works in Wall display mode too; the Wall link opens the sheet you are on.
+- Fixed: **tiles that moved or overlapped by themselves**. The old layout engine sorted tiles into hidden "Syslog / SNMP / alarm" zones whenever you moved or removed a tile, which pushed tiles of an imported or custom layout on top of each other. There are no zones now: a saved layout is never rearranged when the dashboard opens (only a layout that already has overlapping tiles is repaired once), and moving or removing a tile only closes the gap in its own column.
+- Removed the **Syslog first / SNMP first** switch (the sheets replace it).
+
 ## 1.72.0
 - Glass looks for the dashboard tiles and their visuals, **only while a glass theme is selected** (the six Glass themes and the two iOS Glass themes; every other theme is unchanged): tiles get a soft corner highlight; bar meters (severity breakdown, busiest devices and processes) become glossy glass tubes; trend bars are glossy with a bright top edge; chart lines glow; the donut chart has a clear hole and glassy slices; heatmap cells, chips and gauges get a glass edge.
 - The glass drawing is cheap (no extra blur on the visuals) and is switched off in Wall display mode.

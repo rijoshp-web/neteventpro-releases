@@ -1104,6 +1104,40 @@ function sanitizeTileLook(c) {
   return out;
 }
 
+function cleanDashTiles(list) {
+  const seen = new Set();
+  return list.slice(0, 80).filter((t) => t && typeof t === 'object' && /^[a-z0-9_]{1,24}$/.test(t.id) && TILE_TYPES.includes(t.type) && !seen.has(t.id) && seen.add(t.id)).map((t) => {
+      const c = t.cfg && typeof t.cfg === 'object' ? t.cfg : {}, cfg = {};
+      if (KPI_METRICS.includes(c.metric)) cfg.metric = c.metric;
+      if (['host', 'app', 'severity', 'facility', 'msgid', 'rule', 'state', 'source', 'vendor', 'status', 'group', 'kind'].includes(c.by)) cfg.by = c.by;
+      if (['syslog', 'snmp', 'events', 'alarms', 'devices', 'system'].includes(c.ds)) cfg.ds = c.ds;       // which data the tile shows (1.36)
+      if (c.calc && typeof c.calc === 'object') {                // calculation on the value: percent, ratio, difference, per minute ... (1.36)
+        const k = {}, nm = (v, lo, hi) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(hi, Math.max(lo, Math.round(+v * 1e6) / 1e6)) : undefined);
+        if (['pct', 'ratio', 'diff', 'sum', 'perMin', 'perHour', 'perDay', 'delta', 'deltaPct'].includes(c.calc.op)) k.op = c.calc.op;
+        if (KPI_METRICS.includes(c.calc.bm)) k.bm = c.calc.bm; if (['syslog', 'snmp', 'events', 'alarms', 'devices'].includes(c.calc.bds)) k.bds = c.calc.bds;
+        const mu = nm(c.calc.mul, -1e9, 1e9), ad = nm(c.calc.add, -1e12, 1e12); if (mu !== undefined) k.mul = mu; if (ad !== undefined) k.add = ad;
+        if (Object.keys(k).length) cfg.calc = k;
+      }
+      if (c.sc && typeof c.sc === 'object' && ['cum', 'ma', 'rate', 'diff'].includes(c.sc.op)) cfg.sc = { op: c.sc.op, ...(Number.isFinite(+c.sc.n) ? { n: Math.min(30, Math.max(2, Math.round(+c.sc.n))) } : {}) };
+      if (['count', 'pct'].includes(c.rm)) cfg.rm = c.rm;
+      if (Number.isFinite(+c.n)) cfg.n = Math.min(50, Math.max(1, Math.round(+c.n)));
+      if (['severity', 'total'].includes(c.mode)) cfg.mode = c.mode; else if (['hostTime', 'dowHour'].includes(c.mode)) cfg.mode = c.mode;
+      if (['donut', 'pie'].includes(c.style)) cfg.style = c.style;
+      if (['v', 'h'].includes(c.orient)) cfg.orient = c.orient;
+      if (typeof c.text === 'string') cfg.text = c.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').slice(0, 2000);
+      if (c.fill !== undefined) cfg.fill = !!c.fill;
+      for (const k of ['color', 'bg']) if (typeof c[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(c[k])) cfg[k] = c[k].toLowerCase();
+      for (const k of ['max', 'warn', 'crit']) if (c[k] !== undefined && c[k] !== '' && Number.isFinite(+c[k])) cfg[k] = Math.min(1e12, Math.max(0, +c[k]));
+      Object.assign(cfg, sanitizeTileLook(c));
+      const f = cleanTileFilter(c.filter); if (Object.keys(f).length) cfg.filter = f;
+      if (t.type === 'poll') { cfg.poll = cleanPollSpec(c.poll); }
+      if (['square', 'round', 'circle', 'hex', 'hexo'].includes(c.shape)) cfg.shape = c.shape;
+      if (['blue', 'traffic', 'heat', 'cool', 'mono'].includes(c.theme)) cfg.theme = c.theme;
+      const w = Math.min(12, Math.max(1, Math.round(+t.w) || 4));
+      return { id: t.id, type: t.type, title: String(t.title || '').slice(0, 60), x: Math.min(12 - w, Math.max(0, Math.round(+t.x) || 0)), y: Math.min(999, Math.max(0, Math.round(+t.y) || 0)), w, h: Math.min(40, Math.max(1, Math.round(+t.h) || 4)), cfg };
+    });
+}
+
 function sanitizeDashPrefs(d) {
   const out = {}; const r = d.range;
   if (r && typeof r === 'object') {
@@ -1112,7 +1146,6 @@ function sanitizeDashPrefs(d) {
   }
   if (typeof d.slicer === 'string' && d.slicer.trim()) out.slicer = d.slicer.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 100);      // one device that every tile of this dashboard is limited to (1.36)
   if (d.blank === true) out.blank = true;             // a new dashboard that starts empty (1.42.1)
-  if (d.snmpFirst === true) out.snmpFirst = true;     // show the SNMP trap section above the Syslog section
   if (d.alarmBar && typeof d.alarmBar === 'object') {
     const ab = d.alarmBar, o = {}, ids = ['open', 'ack', 'esc', 'cleared', 'total'];
     if (ab.hide === true) o.hide = true;
@@ -1144,39 +1177,12 @@ function sanitizeDashPrefs(d) {
   }
   if (d.alarmTiles) out.alarmTiles = true;       // the alarm cards became ordinary tiles once (1.35); not converted again
   if (d.snmpTiles) out.snmpTiles = true;       // the trap section was added to this layout once; do not add it again after the user removed it
-  if (Array.isArray(d.tiles)) {
-    const seen = new Set();
-    out.tiles = d.tiles.slice(0, 80).filter((t) => t && typeof t === 'object' && /^[a-z0-9_]{1,24}$/.test(t.id) && TILE_TYPES.includes(t.type) && !seen.has(t.id) && seen.add(t.id)).map((t) => {
-      const c = t.cfg && typeof t.cfg === 'object' ? t.cfg : {}, cfg = {};
-      if (KPI_METRICS.includes(c.metric)) cfg.metric = c.metric;
-      if (['host', 'app', 'severity', 'facility', 'msgid', 'rule', 'state', 'source', 'vendor', 'status', 'group', 'kind'].includes(c.by)) cfg.by = c.by;
-      if (['syslog', 'snmp', 'events', 'alarms', 'devices', 'system'].includes(c.ds)) cfg.ds = c.ds;       // which data the tile shows (1.36)
-      if (c.calc && typeof c.calc === 'object') {                // calculation on the value: percent, ratio, difference, per minute ... (1.36)
-        const k = {}, nm = (v, lo, hi) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(hi, Math.max(lo, Math.round(+v * 1e6) / 1e6)) : undefined);
-        if (['pct', 'ratio', 'diff', 'sum', 'perMin', 'perHour', 'perDay', 'delta', 'deltaPct'].includes(c.calc.op)) k.op = c.calc.op;
-        if (KPI_METRICS.includes(c.calc.bm)) k.bm = c.calc.bm; if (['syslog', 'snmp', 'events', 'alarms', 'devices'].includes(c.calc.bds)) k.bds = c.calc.bds;
-        const mu = nm(c.calc.mul, -1e9, 1e9), ad = nm(c.calc.add, -1e12, 1e12); if (mu !== undefined) k.mul = mu; if (ad !== undefined) k.add = ad;
-        if (Object.keys(k).length) cfg.calc = k;
-      }
-      if (c.sc && typeof c.sc === 'object' && ['cum', 'ma', 'rate', 'diff'].includes(c.sc.op)) cfg.sc = { op: c.sc.op, ...(Number.isFinite(+c.sc.n) ? { n: Math.min(30, Math.max(2, Math.round(+c.sc.n))) } : {}) };
-      if (['count', 'pct'].includes(c.rm)) cfg.rm = c.rm;
-      if (Number.isFinite(+c.n)) cfg.n = Math.min(50, Math.max(1, Math.round(+c.n)));
-      if (['severity', 'total'].includes(c.mode)) cfg.mode = c.mode; else if (['hostTime', 'dowHour'].includes(c.mode)) cfg.mode = c.mode;
-      if (['donut', 'pie'].includes(c.style)) cfg.style = c.style;
-      if (['v', 'h'].includes(c.orient)) cfg.orient = c.orient;
-      if (typeof c.text === 'string') cfg.text = c.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').slice(0, 2000);
-      if (c.fill !== undefined) cfg.fill = !!c.fill;
-      for (const k of ['color', 'bg']) if (typeof c[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(c[k])) cfg[k] = c[k].toLowerCase();
-      for (const k of ['max', 'warn', 'crit']) if (c[k] !== undefined && c[k] !== '' && Number.isFinite(+c[k])) cfg[k] = Math.min(1e12, Math.max(0, +c[k]));
-      Object.assign(cfg, sanitizeTileLook(c));
-      const f = cleanTileFilter(c.filter); if (Object.keys(f).length) cfg.filter = f;
-      if (t.type === 'poll') { cfg.poll = cleanPollSpec(c.poll); }
-      if (['square', 'round', 'circle', 'hex', 'hexo'].includes(c.shape)) cfg.shape = c.shape;
-      if (['blue', 'traffic', 'heat', 'cool', 'mono'].includes(c.theme)) cfg.theme = c.theme;
-      const w = Math.min(12, Math.max(1, Math.round(+t.w) || 4));
-      return { id: t.id, type: t.type, title: String(t.title || '').slice(0, 60), x: Math.min(12 - w, Math.max(0, Math.round(+t.x) || 0)), y: Math.min(999, Math.max(0, Math.round(+t.y) || 0)), w, h: Math.min(40, Math.max(1, Math.round(+t.h) || 4)), cfg };
-    });
+  if (Array.isArray(d.tiles)) out.tiles = cleanDashTiles(d.tiles);
+  if (Array.isArray(d.sheets)) {        // 1.73 sheets: extra pages of the same dashboard (like Power BI); the first sheet ("Overview") is the tiles above
+    const ids = new Set(); out.sheets = d.sheets.slice(0, 8).filter((x) => x && typeof x === 'object' && /^[a-z0-9_]{1,24}$/.test(x.id) && !ids.has(x.id) && x.id !== 'main' && ids.add(x.id))
+      .map((x) => ({ id: x.id, name: String(x.name ?? '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 30) || 'Sheet', tiles: cleanDashTiles(Array.isArray(x.tiles) ? x.tiles : []) }));
   }
+  if (typeof d.mainName === 'string') out.mainName = d.mainName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 30);
   return out;
 }
 const timeOk = (t, d) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(t)) ? String(t) : d);

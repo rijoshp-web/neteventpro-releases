@@ -1204,3 +1204,27 @@ html[data-theme="ios-glass"] body.kiosk #wallBar, html[data-theme="ios-glass-dar
 :is(:root[data-look="glass"], :root[data-look="ios"]) .widget table.data td { border-bottom-color: rgba(255,255,255,.14); }
 :is(:root[data-look="glass"], :root[data-look="ios"]) .widget canvas { filter: saturate(1.15); }
 :root[data-look="glass"] body.kiosk .widget.panel, :root[data-look="ios"] body.kiosk .widget.panel { background-image: none; }
+
+/* 1.73 sheets: the bar at the bottom of the dashboard (appears when the mouse moves over the page) */
+.dsheetname { font-weight: 500; color: var(--muted); }
+.sheetbar { position: fixed; bottom: 18px; left: 50%; z-index: 70; display: flex; gap: 6px; padding: 7px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line2); box-shadow: 0 10px 30px rgba(0,0,0,.35); transform: translate(-50%, 16px); opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+.sheetbar.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.sheetbar.none { display: none; }
+.sheetbtn { position: relative; width: 42px; height: 42px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: transparent; border: 1px solid transparent; color: var(--muted); cursor: pointer; transition: background .15s, color .15s, transform .15s; }
+.sheetbtn:hover { background: var(--panel2); color: var(--text); transform: translateY(-2px); }
+.sheetbtn.on { background: var(--accent); color: var(--accent-ink); }
+.sheetbtn i { position: absolute; right: 3px; bottom: 2px; font-style: normal; font-size: 10px; font-weight: 700; }
+.sheetbtn::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translate(-50%, 4px); white-space: nowrap; padding: 5px 11px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; }
+.sheetbtn:hover::after, .sheetbtn:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+@keyframes sheetin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.dgrid.sheetin { animation: sheetin .22s ease; }
+@media (prefers-reduced-motion: reduce) { .sheetbar, .sheetbtn, .sheetbtn::after { transition: none; } .dgrid.sheetin { animation: none; } }
+@media (max-width: 640px) { .sheetbtn { width: 38px; height: 38px; } }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .sheetbar { background: rgba(30, 36, 52, .45); border-color: rgba(255,255,255,.22); -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 14px 36px rgba(0,0,0,.35); }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .sheetbtn:hover { background: rgba(255,255,255,.16); }
+body.kiosk .sheetbar { bottom: 14px; }
+.sheetbar .sheetbtn { background: transparent; border: 1px solid transparent; box-shadow: none; min-width: 0; }
+.sheetbar .sheetbtn svg { width: 20px; height: 20px; flex: none; }
+.sheetbar .sheetbtn:hover { background: var(--panel2); }
+.sheetbar .sheetbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+:is(:root[data-look="glass"], :root[data-look="ios"]) .sheetbar .sheetbtn:hover { background: rgba(255,255,255,.16); }
