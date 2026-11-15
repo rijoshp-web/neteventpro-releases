@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.76.2
+
+- **Calmer glass edges.** Tiles and panels in glass mode now have a thin soft border, a smaller corner radius and a dark frosted fill, with no bright rim light, like modern dark glass dashboards.
+
 ## 1.76.1
 
 - **Side panel bottom tidied.** The user name is now a round badge with initials, name and role. Sign out is a normal side-panel button with an icon. Full screen moved to Settings → Appearance (a normal button), and the version number moved to Settings (Service section, line “Version”). Background picture thumbnails in Settings now show their pictures.
