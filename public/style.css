@@ -1301,3 +1301,21 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 
 /* 1.74.1 Black glass: the darkest glass theme, black and grey only (no colour tint) */
 :root[data-theme="glass-black"] { --bg: #000; --panel: #0a0a0c; --panel2: #101013; --line: #1e1e22; --line2: #2b2b31; --accent: #e8e8ec; --link: #c8ccd4; --bgfx: radial-gradient(900px 600px at 10% 0%, #1a1a1e 0%, transparent 62%), radial-gradient(900px 650px at 100% 100%, #131316 0%, transparent 62%), radial-gradient(700px 500px at 60% 45%, #0e0e11 0%, transparent 70%); }
+
+/* 1.75 realistic glass: a picture behind two glass layers (the page pane, then every tile) */
+:root[data-bgimg] body { background: linear-gradient(rgba(0,0,0,var(--bgdim,.3)), rgba(0,0,0,var(--bgdim,.3))), var(--bgimg) center / cover no-repeat fixed, #000; }
+:root[data-bgimg] .main { position: relative; isolation: isolate; overflow: hidden; background: linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.02) 40%, rgba(255,255,255,.05)); border: 1px solid rgba(255,255,255,.20); box-shadow: inset 1px 1px 0 rgba(255,255,255,.30), inset 0 0 60px rgba(255,255,255,.03), 0 24px 60px rgba(0,0,0,.45); }
+:root[data-bgimg] .main::before { content: ''; position: absolute; inset: -60px; z-index: -1; background: linear-gradient(rgba(0,0,0,calc(var(--bgdim,.3) * .6)), rgba(0,0,0,calc(var(--bgdim,.3) * .6))), var(--bgimg) center / cover no-repeat fixed; filter: blur(var(--bgblur,14px)) saturate(1.25); pointer-events: none; }
+:root[data-bgimg] :is(.rail, .status) { background: linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.03)), rgba(10,10,14,.25); -webkit-backdrop-filter: blur(var(--bgblur,14px)) saturate(1.5); backdrop-filter: blur(var(--bgblur,14px)) saturate(1.5); border: 1px solid rgba(255,255,255,.20); box-shadow: inset 1px 1px 0 rgba(255,255,255,.30), 0 14px 36px rgba(0,0,0,.35); }
+:root[data-bgimg] .status { border-radius: 18px; }
+:root[data-bgimg] .viewbox .dgrid > .widget.panel, :root[data-bgimg] .widget.panel { background: linear-gradient(135deg, rgba(255,255,255,.17), rgba(255,255,255,.04) 42%, rgba(255,255,255,.08)), rgba(12,12,16,.16); -webkit-backdrop-filter: blur(var(--bgfrost,18px)) saturate(1.6) brightness(1.06); backdrop-filter: blur(var(--bgfrost,18px)) saturate(1.6) brightness(1.06); border: 1px solid rgba(255,255,255,.16); border-radius: 22px; box-shadow: inset 1px 1px 0 rgba(255,255,255,.38), inset -1px -1px 0 rgba(255,255,255,.06), inset 0 0 28px rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.38); }
+:root[data-bgimg] .stickyhead { background: transparent; }
+:root[data-bgimg] .dmenu { background: rgba(24,24,28,.72); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); }
+:root[data-bgimg] body.kiosk :is(.rail, .status, .widget.panel) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+@media (prefers-reduced-transparency: reduce) { :root[data-bgimg] :is(.widget.panel, .rail, .status) { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(14,14,18,.8); } }
+.bgpre { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.bgp { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 12px; padding: 5px; cursor: pointer; }
+.bgp i { display: block; width: 74px; height: 44px; border-radius: 8px; font-style: normal; text-align: center; line-height: 44px; font-size: 22px; background: var(--panel2); }
+.bgp.on, .bgp:hover { border-color: var(--accent); color: var(--text); }
+.bgsl { display: flex; flex-wrap: wrap; gap: 16px; margin: 6px 0; }
+.bgsl label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }

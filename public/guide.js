@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.74.2</b> — Chart colours now also recolour severity, state and status charts (pick Mono for black and grey only).</li>
+    <ul><li><b>1.75.0</b> — <b>Background picture</b> (Settings → Appearance): upload an image or pick a built-in one, and the page and tiles become two layers of frosted glass over it.</li>
+<li><b>1.74.2</b> — Chart colours now also recolour severity, state and status charts (pick Mono for black and grey only).</li>
 <li><b>1.74.1</b> — New <b>Black glass</b> theme: the darkest glass look, black and grey only, no colour tint.</li>
 <li><b>1.74.0</b> — new visuals: <b>Waffle</b>, <b>Radial bars</b>, <b>Rose</b>, <b>Bubbles</b>, <b>Word cloud</b>, <b>Funnel</b>, <b>Leaderboard podium</b>, <b>Device status wall</b> and a needle gauge; fixes for the full-ring gauge, the disk-space gauge, the number-with-trend-line tile and small chart legends; wall display title bar reads "Dashboard · sheet".; table column headings stay visible in glass themes; the theme list in Settings shows every theme</li>
     <li><b>1.73.3</b> — dashboard edits are saved only when you click <b>Done</b> (new <b>Cancel</b> next to Add tile discards them); the <b>Full screen</b> button is back in the side panel; new <b>Dark glass</b> theme; wall display shows "Dashboard · sheet" in its title bar; <b>←</b> / <b>→</b> keys switch sheets; in wall display <b>↑</b> / <b>↓</b> scroll.</li>
