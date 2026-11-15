@@ -6,6 +6,9 @@
 let boardId = '';
 try { boardId = localStorage.getItem('ne.board') || ''; } catch { /* storage may be blocked */ }
 const boards = () => S.prefs.dashboards || [];
+/** while customizing, changes live only in memory: Done saves them, Cancel (or leaving the page) throws them away (1.73.3) */
+let draft = null;
+const keep = () => { if (draft) { draft.dirty = true; return; } return savePrefs(); };
 const SP = {
   get dash() { const b = boardId && boards().find((x) => x.id === boardId); return b ? b.dash : S.prefs.dash; },
   set dash(v) { const b = boardId && boards().find((x) => x.id === boardId); if (b) b.dash = v; else S.prefs.dash = v; }
@@ -298,7 +301,7 @@ views.dashboard = (el) => {
     <select id="dRange" aria-label="Time range">${PRESETS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span id="dCustom" hidden><input type="datetime-local" id="dFrom" aria-label="From"> to <input type="datetime-local" id="dTo" aria-label="To"> <button id="dApply">Apply</button></span>
     <span class="muted" id="dInfo"></span><span class="spacer"></span>
-    <span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button><button id="dShAdd">Add sheet</button><button id="dShRen">Rename sheet</button><button id="dShIco">Sheet icon</button><button id="dShDel">Delete sheet</button></span>
+    <span id="dHid" hidden><span id="dEditBar" hidden><button id="dAdd">Add tile</button><button id="dCancel" title="Throw away the changes made since you clicked Customize">Cancel</button><button id="dSave" title="Keep a copy of this dashboard under a new name">Save as…</button><button id="dNew" title="Start an empty dashboard, then add the tiles you want (Reset layout brings back the standard tiles)">New dashboard</button><button id="dRen">Rename</button><button id="dExp" title="Download this dashboard as a file (to back it up or give it to a colleague)">Export…</button><button id="dImp" title="Add a dashboard from a file exported by NetEventPro">Import…</button><button id="dDel" class="danger">Delete</button><button id="dSet" title="Page background, colour theme, spacing, corners, refresh rate">Dashboard settings</button><button id="dReset">Reset layout</button><button id="dShAdd">Add sheet</button><button id="dShRen">Rename sheet</button><button id="dShIco">Sheet icon</button><button id="dShDel">Delete sheet</button></span>
     <button id="dWallLink" title="Copy a link that opens this dashboard straight in wall display mode (the wall computer signs in once)">Wall link</button><button id="dWall" title="Show this dashboard full screen without menus, for a wall display">Wall display</button><button id="dRefresh" title="Reload the numbers now">Refresh</button><button id="dEdit">Customize</button></span><button id="dDone" class="primary" hidden title="Finish customizing">Done</button><button id="dWallBtn" class="dwall" type="button" aria-label="Wall display" title="Wall display: this dashboard full screen without menus (Esc leaves it)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="2.5"/><path d="M8 20.5h8M12 16.5v4"/><path d="M8.5 9V7.5H10M15.5 9V7.5H14M8.5 11.5V13H10M15.5 11.5V13H14"/></svg></button><span class="dmore"><button id="dMore" aria-haspopup="menu" aria-expanded="false" aria-label="Dashboard menu" title="Dashboard menu">&#8942;</button><div class="dmenu" id="dMenu" role="menu" hidden><button role="menuitem" data-go="dRefresh">Refresh now</button><button role="menuitem" data-go="dWallLink">Copy wall link</button><hr><button role="menuitem" data-go="dEdit" id="dmEdit">Customize</button><button role="menuitem" data-sub="dSub" aria-expanded="false">New dashboard &#9656;</button><div class="dsub" id="dSub" hidden><button role="menuitem" data-go="dNew">Empty dashboard</button><button role="menuitem" data-go="dAdd" data-edit="1">Add tile…</button><button role="menuitem" data-go="dSave">Save as…</button></div><button role="menuitem" data-go="dRen">Rename…</button><hr><button role="menuitem" data-go="dShAdd">Add sheet…</button><button role="menuitem" data-go="dShRen">Rename this sheet…</button><button role="menuitem" data-go="dShIco">Change sheet icon…</button><button role="menuitem" data-go="dShDel" class="danger" id="dmShDel">Delete this sheet</button><hr><button role="menuitem" data-go="dExp">Export…</button><button role="menuitem" data-go="dImp">Import…</button><hr><button role="menuitem" data-go="dSet">Dashboard settings</button><button role="menuitem" data-go="dReset">Reset layout</button><button role="menuitem" data-go="dDel" class="danger">Delete this dashboard</button></div></span></div>
     <div class="dgrid" id="dgrid"></div>`;
   const grid = $('#dgrid', el);
@@ -310,7 +313,7 @@ views.dashboard = (el) => {
   const sheetList = () => [{ id: 'main', name: SP.dash?.mainName || 'Overview', icon: SP.dash?.mainIcon }, ...extraSheets()];
   const sheetRef = () => (sheetId === 'main' ? null : extraSheets().find((x) => x.id === sheetId) || null);
   function initSheets() {
-    if (!boardId && SP.dash?.sheets === undefined && !SP.dash?.blank) { SP.dash = { ...(SP.dash || {}), sheets: defaultSheets() }; savePrefs(); }    // the main dashboard gets the standard sheets once
+    if (!boardId && SP.dash?.sheets === undefined && !SP.dash?.blank) { SP.dash = { ...(SP.dash || {}), sheets: defaultSheets() }; keep(); }    // the main dashboard gets the standard sheets once
     let want = 'main'; try { want = localStorage.getItem(sheetKey()) || 'main'; } catch { /* blocked storage */ }
     sheetId = sheetList().some((x) => x.id === want) ? want : 'main';
   }
@@ -321,7 +324,7 @@ views.dashboard = (el) => {
     tiles = structuredClone(SP.dash.tiles);
     if (!SP.dash.snmpTiles) {           // a layout saved before SNMP traps existed: add the trap tiles once at the bottom (they can be removed or moved like any tile)
       if (!tiles.some((x) => x.id.startsWith('s_'))) tiles.push(...snmpTiles(Math.max(0, ...tiles.map((x) => x.y + x.h))));
-      SP.dash = { ...SP.dash, snmpTiles: true, tiles: structuredClone(tiles) }; savePrefs();
+      SP.dash = { ...SP.dash, snmpTiles: true, tiles: structuredClone(tiles) }; keep();
     }
     if (!SP.dash.alarmTiles) {          // the alarm banner became ordinary tiles (1.35): carry over its titles, colours, order and visibility once
       const ab = SP.dash.alarmBar || {}, order = [...(ab.order || []).filter((k) => AL_ORDER.includes(k)), ...AL_ORDER.filter((k) => !(ab.order || []).includes(k))];
@@ -330,18 +333,18 @@ views.dashboard = (el) => {
         const al = shown.map((k, i) => ({ id: 'al_' + k, type: 'alarm', title: ab.cards?.[k]?.title || AL_CARDS[k], x: (i % per) * w, y: Math.floor(i / per) * h, w, h, cfg: { card: k, ...(ab.cards?.[k]?.color ? { color: ab.cards[k].color } : {}) } }));
         tiles.push(...al);
       }
-      const nd = { ...SP.dash, alarmTiles: true }; delete nd.alarmBar; settle(tiles, null); SP.dash = { ...nd, tiles: structuredClone(tiles) }; savePrefs();
+      const nd = { ...SP.dash, alarmTiles: true }; delete nd.alarmBar; settle(tiles, null); SP.dash = { ...nd, tiles: structuredClone(tiles) }; keep();
     }
     if (tiles.some((x) => x.type === 'alarm')) {     // the alarm cards became ordinary number tiles on the "Alarms" data (1.36)
       for (const x of tiles) if (x.type === 'alarm') { const { card, ...rest } = x.cfg || {}; x.type = 'kpi'; x.cfg = { ...rest, ds: 'alarms', metric: AL_MIG[card] || 'alActive' }; }
-      SP.dash = { ...SP.dash, tiles: structuredClone(tiles) }; savePrefs();
+      SP.dash = { ...SP.dash, tiles: structuredClone(tiles) }; keep();
     }
     if (overlaps(tiles)) settle(tiles, null);        // 1.73: a saved layout whose tiles overlap is repaired once; a good layout is never rearranged on opening
     return tiles;
   };
   const saveTiles = () => {
-    if (sheetRef()) { SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, tiles: structuredClone(getTiles()) } : x)) }; return savePrefs(); }
-    SP.dash = { ...(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(getTiles()) }; if (!SP.dash.tiles.length) SP.dash.blank = true; else delete SP.dash.blank; savePrefs();
+    if (sheetRef()) { SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, tiles: structuredClone(getTiles()) } : x)) }; return keep(); }
+    SP.dash = { ...(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(getTiles()) }; if (!SP.dash.tiles.length) SP.dash.blank = true; else delete SP.dash.blank; keep();
   };
   const mainTiles = () => (sheetId === 'main' ? getTiles() : SP.dash?.tiles?.length ? SP.dash.tiles : SP.dash?.blank ? [] : settle(defaultTiles(), null));
   const range = () => rangeOf(SP.dash?.range);
@@ -485,8 +488,8 @@ views.dashboard = (el) => {
     const orig = SP.dash?.style ? { ...SP.dash.style } : null;
     $('#mCancel', back).onclick = undo; back.addEventListener('mousedown', (e) => { if (e.target === back) undo(); });
     back.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); undo(); } });
-    q('stReset').onclick = () => { delete SP.dash.style; savePrefs(); applyStyle(); place(); paint(); schedule(); close(); };
-    $('form', back).onsubmit = (e) => { e.preventDefault(); SP.dash = { ...(SP.dash || {}), style: read() }; savePrefs(); applyStyle(); place(); paint(); schedule(); close(); };
+    q('stReset').onclick = () => { delete SP.dash.style; keep(); applyStyle(); place(); paint(); schedule(); close(); };
+    $('form', back).onsubmit = (e) => { e.preventDefault(); SP.dash = { ...(SP.dash || {}), style: read() }; keep(); applyStyle(); place(); paint(); schedule(); close(); };
   }
   const schedule = () => { clearInterval(timer); const rf = SP.dash?.style?.refresh ?? 10; if (rf > 0) timer = setInterval(() => load(false), rf * 1000); };   // a fixed range (yesterday, custom) is not re-read; live tiles still refresh
 
@@ -1231,7 +1234,17 @@ views.dashboard = (el) => {
     const r = SP.dash?.range || { preset: '24h' }; $('#dRange', el).value = r.preset; $('#dCustom', el).hidden = r.preset !== 'custom';
     if (r.preset === 'custom') { const loc = (t) => new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16); $('#dFrom', el).value = loc(r.from); $('#dTo', el).value = loc(r.to); }
   };
-  const setRange = (r) => { SP.dash = { ...(SP.dash || {}), range: r }; savePrefs(); syncRange(); data = null; paint(); load(); schedule(); };
+  const discardDraft = () => {
+    const d = draft; if (!d) return; draft = null;
+    if (d.dash === null) delete S.prefs.dash; else S.prefs.dash = d.dash;
+    if (d.boards === null) delete S.prefs.dashboards; else S.prefs.dashboards = d.boards;
+    boardId = d.board; tiles = null;
+    if (!sheetList().some((x) => x.id === d.sheet)) d.sheet = 'main';
+    sheetId = d.sheet; try { localStorage.setItem(sheetKey(), sheetId); localStorage.setItem('ne.board', boardId); } catch { /* storage may be blocked */ }
+    if (editing) { editing = false; $('#dEdit', el).textContent = 'Customize'; $('#dEdit', el).classList.remove('primary'); $('#dEditBar', el).hidden = true; }
+    syncMenu(); syncBoards(); applyStyle(); syncRange(); drawSheets(); frames(); load(); toast('Changes discarded');
+  };
+  const setRange = (r) => { SP.dash = { ...(SP.dash || {}), range: r }; keep(); syncRange(); data = null; paint(); load(); schedule(); };
   el.addEventListener('change', (e) => {
     if (e.target.id !== 'dRange') return; const v = e.target.value;
     if (v === 'custom') { const now = Date.now(); SP.dash = { ...(SP.dash || {}), range: { preset: 'custom', from: SP.dash?.range?.from ?? now - 86400000, to: SP.dash?.range?.to ?? now } }; syncRange(); } else setRange({ preset: v });
@@ -1263,12 +1276,13 @@ views.dashboard = (el) => {
     if (id === 'dApply') { const f = new Date($('#dFrom', el).value).getTime(), t = new Date($('#dTo', el).value).getTime(); if (!(f < t)) return toast('Choose a start that is earlier than the end', true); return setRange({ preset: 'custom', from: f, to: t }); }
     if (id === 'dRefresh') return load(true);
     if (id === 'dSet') return styleDialog();
-    if (id === 'dEdit') { editing = !editing; $('#dEdit', el).textContent = editing ? 'Done' : 'Customize'; $('#dEdit', el).classList.toggle('primary', editing); $('#dEditBar', el).hidden = !editing; drawSheets(); showBar(); return frames(); }
+    if (id === 'dCancel') { discardDraft(); return; }
+    if (id === 'dEdit') { if (!editing) draft = { dash: structuredClone(S.prefs.dash ?? null), boards: structuredClone(S.prefs.dashboards ?? null), board: boardId, sheet: sheetId, dirty: false }; else if (draft) { const d = draft; draft = null; if (d.dirty) { savePrefs(); toast('Dashboard saved'); } } editing = !editing; $('#dEdit', el).textContent = editing ? 'Done' : 'Customize'; $('#dEdit', el).classList.toggle('primary', editing); $('#dEditBar', el).hidden = !editing; drawSheets(); showBar(); return frames(); }
     if (id === 'dReset') {
       if (!await askConfirm(sheetId === 'main' ? 'Put this sheet back to the standard tiles and layout?' : 'Put this sheet back to its standard tiles and layout?')) return;
       if (sheetRef()) { const d = SHEET_DEFS[sheetId]; SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, tiles: d ? d.tiles() : [] } : x)) }; }
       else { delete SP.dash?.tiles; delete SP.dash?.blank; }
-      savePrefs(); tiles = null; frames(); return load();
+      keep(); tiles = null; frames(); return load();
     }
     if (id === 'dShAdd') return sheetAct('add'); if (id === 'dShRen') return sheetAct('ren'); if (id === 'dShIco') return sheetAct('ico'); if (id === 'dShDel') return sheetAct('del');
     if (id === 'dAdd') return addMenu();
@@ -1297,7 +1311,7 @@ views.dashboard = (el) => {
     bar.innerHTML = list.map((x, i) => `<button type="button" class="sheetbtn${x.id === sheetId ? ' on' : ''}" data-sheet="${esc(x.id)}" data-tip="${esc(x.name)}" aria-label="${esc(x.name)}" aria-pressed="${x.id === sheetId}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconOf(x)}</svg>${iconKey(x) ? '' : `<i>${i + 1}</i>`}</button>`).join('')
       + (editing ? `<button type="button" class="sheetbtn add" data-sheetadd="1" data-tip="Add a sheet" aria-label="Add a sheet"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>` : '');
     bar.classList.toggle('none', !many && !editing);
-    const nm = $('#dSheetName', el), cur = list.find((x) => x.id === sheetId); if (nm) nm.textContent = many && cur ? ' · ' + cur.name : '';
+    const nm = $('#dSheetName', el), cur = list.find((x) => x.id === sheetId); if (nm) nm.textContent = many && cur ? ' · ' + cur.name : ''; setWallName();
     const d = $('#dmShDel', el); if (d) d.hidden = sheetId === 'main';
   }
   function showBar() {
@@ -1335,25 +1349,25 @@ views.dashboard = (el) => {
       if (extraSheets().length >= 7) return toast('A dashboard can have up to 8 sheets. Delete one first.', true);
       const nm = cleanName(await askText('Name for the new sheet:', '')).slice(0, 30); if (!nm) return;
       const id = 'sh' + Date.now().toString(36).slice(-7);
-      const ic = await pickIcon('chart'); SP.dash = { ...(SP.dash || {}), sheets: [...extraSheets(), { id, name: nm, tiles: [], ...(ic ? { icon: ic } : {}) }] }; savePrefs(); useSheet(id); toast(`Added the sheet “${nm}”. Click Customize, then Add tile.`); return;
+      const ic = await pickIcon('chart'); SP.dash = { ...(SP.dash || {}), sheets: [...extraSheets(), { id, name: nm, tiles: [], ...(ic ? { icon: ic } : {}) }] }; keep(); useSheet(id); toast(`Added the sheet “${nm}”. Click Customize, then Add tile.`); return;
     }
-    if (a === 'ren') { const nm = cleanName(await askText('New name for this sheet:', cur.name)).slice(0, 30); if (!nm) return; if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainName: nm }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, name: nm } : x)) }; savePrefs(); drawSheets(); return; }
+    if (a === 'ren') { const nm = cleanName(await askText('New name for this sheet:', cur.name)).slice(0, 30); if (!nm) return; if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainName: nm }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, name: nm } : x)) }; keep(); drawSheets(); return; }
     if (a === 'ico') {
       const ic = await pickIcon(iconKey(cur) || 'other'); if (!ic) return;
       if (sheetId === 'main') SP.dash = { ...(SP.dash || {}), mainIcon: ic }; else SP.dash = { ...SP.dash, sheets: extraSheets().map((x) => (x.id === sheetId ? { ...x, icon: ic } : x)) };
-      savePrefs(); drawSheets(); return;
+      keep(); drawSheets(); return;
     }
     if (a === 'del') {
       if (sheetId === 'main') return toast('The first sheet cannot be deleted. Rename it, or delete its tiles instead.', true);
       if (!await askConfirm(`Delete the sheet “${cur.name}”? Its tiles are lost.`)) return;
-      SP.dash = { ...SP.dash, sheets: extraSheets().filter((x) => x.id !== sheetId) }; savePrefs(); sheetId = 'main'; try { localStorage.setItem(sheetKey(), 'main'); } catch { /* ignore */ }
+      SP.dash = { ...SP.dash, sheets: extraSheets().filter((x) => x.id !== sheetId) }; keep(); sheetId = 'main'; try { localStorage.setItem(sheetKey(), 'main'); } catch { /* ignore */ }
       tiles = null; data = null; cache.clear(); drawSheets(); frames(); load();
     }
   }
   // ----- named dashboards (1.36) -----
   if (boardId && !boards().some((b) => b.id === boardId)) boardId = '';
   const boardSel = $('#dBoard', el);
-  const syncBoards = () => { boardSel.innerHTML = [{ id: '', name: S.prefs.dashMainName || 'Main dashboard' }, ...boards()].map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join(''); boardSel.value = boardId; $('#dDel', el).disabled = !boardId; };
+  const syncBoards = () => { boardSel.innerHTML = [{ id: '', name: S.prefs.dashMainName || 'Main dashboard' }, ...boards()].map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join(''); boardSel.value = boardId; $('#dDel', el).disabled = !boardId; setWallName(); };
   function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } initSheets(); tiles = null; data = null; cache.clear(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); memoPaint(); load(); schedule(); }
   const cleanName = (v) => String(v ?? '').replace(/[<>\r\n]/g, ' ').trim().slice(0, 40);
   const newId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 100).toString(36);
@@ -1364,10 +1378,10 @@ views.dashboard = (el) => {
       if (boards().length >= 19) return toast('You can keep up to 20 dashboards. Delete one first.', true);
       const nm = cleanName(await askText(a === 'save' ? 'Name for the copy of this dashboard:' : 'Name for the new dashboard:', a === 'save' ? cur.name + ' copy' : '')); if (!nm) return;
       const dash = a === 'save' ? { ...structuredClone(SP.dash || {}), alarmTiles: true, snmpTiles: true, tiles: structuredClone(mainTiles()), sheets: structuredClone(extraSheets()) } : { blank: true, alarmTiles: true, snmpTiles: true, sheets: [] };
-      S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; savePrefs(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Saved as “${nm}”`); return;
+      S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; keep(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Saved as “${nm}”`); return;
     }
-    if (a === 'ren') { const nm = cleanName(await askText('New name for this dashboard:', cur.name)); if (!nm) return; if (boardId) boards().find((b) => b.id === boardId).name = nm; else S.prefs.dashMainName = nm; savePrefs(); syncBoards(); return; }
-    if (a === 'del') { if (!boardId || !await askConfirm(`Delete the dashboard “${cur.name}”? Its tiles are lost.`)) return; S.prefs.dashboards = boards().filter((b) => b.id !== boardId); if (!S.prefs.dashboards.length) delete S.prefs.dashboards; savePrefs(); useBoard(''); }
+    if (a === 'ren') { const nm = cleanName(await askText('New name for this dashboard:', cur.name)); if (!nm) return; if (boardId) boards().find((b) => b.id === boardId).name = nm; else S.prefs.dashMainName = nm; keep(); syncBoards(); return; }
+    if (a === 'del') { if (!boardId || !await askConfirm(`Delete the dashboard “${cur.name}”? Its tiles are lost.`)) return; S.prefs.dashboards = boards().filter((b) => b.id !== boardId); if (!S.prefs.dashboards.length) delete S.prefs.dashboards; keep(); useBoard(''); }
   }
 
   // ----- sharing (1.42): export / import a dashboard as a file, and a wall display (kiosk) mode -----
@@ -1390,14 +1404,21 @@ views.dashboard = (el) => {
         if (boards().length >= 19) throw new Error('You can keep up to 20 dashboards. Delete one first.');
         let nm = cleanName(j.name) || 'Imported dashboard'; if ([S.prefs.dashMainName || 'Main dashboard', ...boards().map((b) => b.name)].includes(nm)) nm = cleanName(nm + ' (imported)');
         const dash = { ...structuredClone(j.dash), alarmTiles: true, snmpTiles: true, sheets: Array.isArray(j.dash.sheets) ? j.dash.sheets : [] }; delete dash.slicer; delete dash.snmpFirst;
-        S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; await savePrefs(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Imported “${nm}”`);
+        S.prefs.dashboards = [...boards(), { id: newId(), name: nm, dash }]; await keep(); useBoard(S.prefs.dashboards.at(-1).id); toast(`Imported “${nm}”`);
       } catch (e) { toast(e.message || 'Could not read the file.', true); }
     };
     inp.click();
   }
   /** the date-and-time title bar of the wall display: the same for every dashboard (1.50: it follows the 'kiosk' state of the page, not one dashboard's code) */
+  /** wall display: the dashboard name (and the sheet when there are several) at the left of the title bar */
+  function setWallName() {
+    const w = $('#wallBar .wname'); if (!w) return;
+    const b = boardId ? boards().find((x) => x.id === boardId) : null, nm = b ? b.name : (S.prefs.dashMainName || 'Main dashboard'), list = sheetList(), cur = list.find((x) => x.id === sheetId);
+    w.textContent = list.length > 1 && cur ? `${nm} · ${cur.name}` : nm;
+  }
   function wallBar(on) {
-    let bar = $('#wallBar'); if (on && !bar) { bar = document.createElement('div'); bar.id = 'wallBar'; bar.innerHTML = '<span class="wdate"></span><span class="wtime"></span>'; document.body.appendChild(bar); }
+    let bar = $('#wallBar'); if (on && !bar) { bar = document.createElement('div'); bar.id = 'wallBar'; bar.innerHTML = '<span class="wname"></span><span class="wdate"></span><span class="wtime"></span>'; document.body.appendChild(bar); }
+    setWallName();
     if (!on && bar) bar.remove(); if (on && typeof drawClock === 'function') drawClock();
   }
   if (!window.__wallBarWatch) { window.__wallBarWatch = true; new MutationObserver(() => wallBar(document.body.classList.contains('kiosk'))).observe(document.body, { attributes: true, attributeFilter: ['class'] }); }
@@ -1414,6 +1435,25 @@ views.dashboard = (el) => {
   const boardList = () => (boardId ? boards().find((b) => b.id === boardId) : { name: S.prefs.dashMainName || 'Main dashboard' }) || { name: 'Dashboard' };
   boardSel.addEventListener('change', () => useBoard(boardSel.value));
   initSheets(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); memoPaint(); load(); schedule();
+  /** Left / Right arrow keys switch the sheet (not while typing, in a dialog or while customizing, where arrows move tiles) */
+  const scroller = () => { for (let n = el; n && n !== document.body; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
+  /** wall display has no scroll bars to grab: Up / Down / PageUp / PageDown / Home / End scroll the dashboard */
+  const onScrollKey = (e) => {
+    if (!document.body.classList.contains('kiosk') || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+    const sc = scroller(); if (!sc) return; const page = Math.max(120, sc.clientHeight * 0.85), k = e.key;
+    const by = k === 'ArrowDown' ? 140 : k === 'ArrowUp' ? -140 : k === 'PageDown' ? page : k === 'PageUp' ? -page : 0;
+    if (by) sc.scrollBy({ top: by, behavior: 'smooth' }); else if (k === 'Home') sc.scrollTo({ top: 0, behavior: 'smooth' }); else if (k === 'End') sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' }); else return;
+    e.preventDefault();
+  };
+  document.addEventListener('keydown', onScrollKey);
+  const onArrow = (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || editing || e.defaultPrevented) return;
+    const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return; if (document.querySelector('.modal-back, .icopick')) return;
+    const list = sheetList(); if (list.length < 2) return; const i = list.findIndex((x) => x.id === sheetId), n = (i + (e.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length;
+    e.preventDefault(); useSheet(list[n].id); showBar();
+  };
+  document.addEventListener('keydown', onArrow);
   { const hq = S.hq; if (hq && hq.get('board') !== null && hq.get('board') !== boardId && (boards().some((b) => b.id === hq.get('board')) || hq.get('board') === '')) useBoard(hq.get('board')); if (hq && hq.get('sheet') && sheetList().some((x) => x.id === hq.get('sheet'))) useSheet(hq.get('sheet')); if (hq && hq.get('kiosk')) wallMode(true); }
-  return () => { bar.remove(); clearTimeout(barTimer); document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
+  return () => { document.removeEventListener('keydown', onArrow); document.removeEventListener('keydown', onScrollKey); if (draft) { const d = draft; draft = null; if (d.dash === null) delete S.prefs.dash; else S.prefs.dash = d.dash; if (d.boards === null) delete S.prefs.dashboards; else S.prefs.dashboards = d.boards; boardId = d.board; } bar.remove(); clearTimeout(barTimer); document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
 };
