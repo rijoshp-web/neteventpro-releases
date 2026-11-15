@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.73.2
+- **Faster dashboard**: the numbers of every tile are now cached on the server one by one (for a few seconds, shared between sheets, pages and people), so the same number is not counted again; the old whole-page cache never matched because the time range moves on every request. The dashboard also remembers the last numbers of every sheet: reopening the page or switching back to a sheet shows them **at once** and refreshes them in the background, instead of "Loading…".
+- Fixed: switching sheets while the previous sheet was still loading could leave the new sheet empty until the next refresh, or show the numbers of the other sheet for a moment.
+
 ## 1.73.1
 - **Wall display is now an icon button** (a monitor symbol) next to the ⋮ menu on the dashboard, for every dashboard, new ones included. The "Full screen" button of the left panel was removed (the wall display goes full screen as well); "Copy wall link" stays in the ⋮ menu.
 - **Sheet icons you can choose**: *Change sheet icon…* in the ⋮ menu (and a picker when you add a sheet) offers 18 icons for the buttons of the sheet bar. The icon is saved with the sheet.

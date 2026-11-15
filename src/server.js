@@ -890,12 +890,23 @@ async function main() {
   console.log(`[neteventpro] v${VERSION} data dir: ${config.dir}`);
 
   // dashboard tiles for a time range: one request per refresh, answered from one database reader; identical requests within 4 s share one answer
-  const dashCache = new Map();
+  // 1.73.2: every tile of the dashboard is cached on its own (without its id), so the same number is not counted again when you switch sheets, reopen the page or
+  // two people watch the same dashboard. The time range is rounded down to 5 seconds so that repeated requests of a "last 24 hours" dashboard can share results.
+  const dashTiles = new Map(), dashMeta = new Map();
   async function dashData(body) {
-    const full = sanitizeDashRequest(body), req = { ...full, tiles: full.tiles.filter((t) => t.ds !== 'devices') }, key = JSON.stringify(req), hit = dashCache.get(key);
-    let value;
-    if (hit && Date.now() - hit.at < 4000) value = hit.value;
-    else { value = await store.dash(req); dashCache.set(key, { at: Date.now(), value }); if (dashCache.size > 50) dashCache.delete(dashCache.keys().next().value); }
+    const full = sanitizeDashRequest(body), snap = (v) => (Number.isFinite(+v) && +v > 0 ? Math.floor(+v / 5000) * 5000 : v), from = snap(full.from), to = snap(full.to), now = Date.now();
+    const sv = full.tiles.filter((t) => t.ds !== 'devices'), out = {}, miss = [], keyOf = (t) => `${from}|${to}|${JSON.stringify({ ...t, id: undefined })}`;
+    for (const t of sv) { const h = dashTiles.get(keyOf(t)); if (h && now - h.at < 8000) out[t.id] = h.value; else miss.push(t); }
+    let meta = dashMeta.get(`${from}|${to}`);
+    if (miss.length || !meta) {
+      for (let i = 0; i < Math.max(1, miss.length); i += 30) {
+        const part = miss.slice(i, i + 30), r = await store.dash({ ...full, from, to, tiles: part });
+        meta = { from: r.from, to: r.to, bucketMs: r.bucketMs, firstBucket: r.firstBucket, buckets: r.buckets };
+        for (const t of part) { out[t.id] = r.tiles[t.id]; dashTiles.set(keyOf(t), { at: now, value: r.tiles[t.id] }); }
+      }
+      dashMeta.set(`${from}|${to}`, meta); for (const m of [dashTiles, dashMeta]) while (m.size > 600) m.delete(m.keys().next().value);
+    }
+    let value = { ...meta, tiles: out };
     const dv = full.tiles.filter((t) => t.ds === 'devices'); if (!dv.length) return value;
     const list = engine.deviceList(); value = { ...value, tiles: { ...value.tiles } };
     for (const t of dv) value.tiles[t.id] = require('./devq').run(list, t);

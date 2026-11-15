@@ -287,6 +287,9 @@ function settleZone(items, fixed, base) {
 function settle(items, fixedId) { settleZone(items, items.find((i) => i.id === fixedId), 0); return items; }
 const overlaps = (list) => list.some((a, i) => list.some((b, j) => j > i && hit(a, b)));
 
+/** the last numbers of every dashboard sheet: reopening the page or switching sheets paints these at once while fresh numbers load */
+const DASH_MEMO = new Map();
+
 views.dashboard = (el) => {
   let editing = false, tiles = null, data = null, health = null, devices = null, lastAt = 0, timer = null, fetching = false;
   const cache = new Map();                                    // tile id -> last painted html (skip needless repaints)
@@ -417,22 +420,31 @@ views.dashboard = (el) => {
     }
     return out;
   }
+  let again = false;
   async function load(force = true) {
-    if (fetching) return; fetching = true;
+    if (fetching) { again = true; return; } fetching = true;
+    const key = memoKey();
     try {
-      const r = range(), reqs = requests(), t = getTiles();
+      const r = range(), reqs = requests(), t = getTiles(), got = {};
       const jobs = [];
-      if (reqs.length && (force || r.rolling || !data)) jobs.push(api('/api/dash', { method: 'POST', body: { from: r.from, to: r.to, tiles: reqs } }).then((d) => { data = d; }));
+      if (reqs.length && (force || r.rolling || !data)) jobs.push(api('/api/dash', { method: 'POST', body: { from: r.from, to: r.to, tiles: reqs } }).then((d) => { got.data = d; }));
       if (t.some((x) => x.type === 'poll')) jobs.push(loadPoll(t));
-      if (t.some((x) => x.type === 'health' || (x.type === 'kpi' && x.cfg?.metric === 'diskFree'))) jobs.push(api('/api/health').then((h) => { health = h; }));
-      if (t.some((x) => x.type === 'silent')) jobs.push(api('/api/devices').then((d) => { devices = d; }));
+      if (t.some((x) => x.type === 'health' || (x.type === 'kpi' && x.cfg?.metric === 'diskFree'))) jobs.push(api('/api/health').then((h) => { got.health = h; }));
+      if (t.some((x) => x.type === 'silent')) jobs.push(api('/api/devices').then((d) => { got.devices = d; }));
       if (t.some((x) => x.type === 'alarm')) jobs.push(loadAlarms());
-      await Promise.all(jobs); lastAt = Date.now();
-      $('#dInfo', el).textContent = `${r.label.charAt(0).toUpperCase() + r.label.slice(1)} · updated ${timeOf(lastAt, false)}`;
-      paint();
-    } catch (e) { $('#dInfo', el).textContent = 'Could not load: ' + e.message; } finally { fetching = false; }
+      await Promise.all(jobs);
+      if (key === memoKey()) {          // the answer is for the sheet that is still shown (you may have switched sheets while it was loading)
+        if ('data' in got) data = got.data; if ('health' in got) health = got.health; if ('devices' in got) devices = got.devices;
+        lastAt = Date.now(); DASH_MEMO.set(key, { data, health, devices, alarmData, at: lastAt });
+        $('#dInfo', el).textContent = `${r.label.charAt(0).toUpperCase() + r.label.slice(1)} · updated ${timeOf(lastAt, false)}`;
+        paint();
+      }
+    } catch (e) { $('#dInfo', el).textContent = 'Could not load: ' + e.message; } finally { fetching = false; if (again) { again = false; load(); } }
   }
   let alarmData = null;
+  const memoKey = () => `${boardId}|${sheetId}|${JSON.stringify(SP.dash?.range || {})}`;
+  /** paint the numbers of the last visit of this sheet (if any) before the fresh ones arrive */
+  function memoPaint() { const m = DASH_MEMO.get(memoKey()); if (!m || Date.now() - m.at > 900000) return false; ({ data, health, devices, alarmData } = m); lastAt = m.at; paint(); return true; }
   const dur2 = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? '<1 min' : m < 90 ? `${m} min` : m < 2880 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} days`; };
   async function loadAlarms() {
     try { const r = range(); alarmData = await api('/api/alarms?' + new URLSearchParams({ state: 'all', limit: 1, since: r.from || 1 })); paint(); } catch { /* the sign-in check reloads the page */ }
@@ -1302,7 +1314,7 @@ views.dashboard = (el) => {
   function useSheet(id) {
     if (!sheetList().some((x) => x.id === id) || id === sheetId) return;
     sheetId = id; try { localStorage.setItem(sheetKey(), id); } catch { /* not remembered */ }
-    tiles = null; data = null; cache.clear(); drawSheets(); frames(); load();
+    tiles = null; data = null; cache.clear(); drawSheets(); frames(); memoPaint(); load();
     grid.classList.remove('sheetin'); void grid.offsetWidth; grid.classList.add('sheetin');
   }
   /** small box with the icons to choose from; resolves the icon key or null */
@@ -1342,7 +1354,7 @@ views.dashboard = (el) => {
   if (boardId && !boards().some((b) => b.id === boardId)) boardId = '';
   const boardSel = $('#dBoard', el);
   const syncBoards = () => { boardSel.innerHTML = [{ id: '', name: S.prefs.dashMainName || 'Main dashboard' }, ...boards()].map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join(''); boardSel.value = boardId; $('#dDel', el).disabled = !boardId; };
-  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } initSheets(); tiles = null; data = null; cache.clear(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); load(); schedule(); }
+  function useBoard(id) { boardId = id; try { localStorage.setItem('ne.board', id); } catch { /* blocked storage: the choice is not remembered */ } initSheets(); tiles = null; data = null; cache.clear(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); memoPaint(); load(); schedule(); }
   const cleanName = (v) => String(v ?? '').replace(/[<>\r\n]/g, ' ').trim().slice(0, 40);
   const newId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 100).toString(36);
   async function boardAct(a) {
@@ -1401,7 +1413,7 @@ views.dashboard = (el) => {
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('kiosk')) wallMode(false); });
   const boardList = () => (boardId ? boards().find((b) => b.id === boardId) : { name: S.prefs.dashMainName || 'Main dashboard' }) || { name: 'Dashboard' };
   boardSel.addEventListener('change', () => useBoard(boardSel.value));
-  initSheets(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); load(); schedule();
+  initSheets(); applyStyle(); syncRange(); syncBoards(); drawSheets(); frames(); memoPaint(); load(); schedule();
   { const hq = S.hq; if (hq && hq.get('board') !== null && hq.get('board') !== boardId && (boards().some((b) => b.id === hq.get('board')) || hq.get('board') === '')) useBoard(hq.get('board')); if (hq && hq.get('sheet') && sheetList().some((x) => x.id === hq.get('sheet'))) useSheet(hq.get('sheet')); if (hq && hq.get('kiosk')) wallMode(true); }
   return () => { bar.remove(); clearTimeout(barTimer); document.body.classList.remove('kiosk'); $('#kioskExit')?.remove(); $('#wallBar')?.remove(); el.style.background = ''; for (const k of ['--accent', '--link', '--dr']) el.style.removeProperty(k); delete el.dataset.card; delete el.dataset.titles; S.onStats = null; clearInterval(timer); clearTimeout(roTimer); ro?.disconnect(); gro.disconnect(); window.removeEventListener('resize', resize); $$('.modal-back').forEach((n) => n.remove()); };
 };
