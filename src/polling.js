@@ -317,6 +317,8 @@ class Polling {
     if (d.via) return this.viaProbe(d.via, 'test', { device: { ...d, retries: Math.min(1, d.retries) } }, 45000);
     return this.collector.test({ ...d, retries: Math.min(1, d.retries) }, (id) => this.profile(id).name);
   }
+  /** 1.70: poll every device soon (spread over a few seconds), also those waiting in "no answer" back-off */
+  pollAll() { let n = 0; const now = Date.now(); for (const d of this.devices()) { if (d.enabled === false || d.via) continue; const rt = this.state(d); if (rt.busy) continue; rt.nextAt = now + Math.floor(Math.random() * 6000); n++; } return n; }
   pollNow(id) { const d = this.devices().find((x) => x.id === id); if (!d) return false; if (d.via) return true; /* a probe polls on its own schedule */ const rt = this.state(d); if (rt.busy) return true; this.pollDevice(d).catch(() => {}); return true; }
 
   // ---------- discovery ----------
@@ -528,8 +530,8 @@ class Polling {
     due.sort((a, b) => a[0] - b[0]);   // 1.60: the device that has waited longest goes first, so a long list never starves the devices at its end
     for (const [, d, rt] of due) {
       if (this.running >= cap) break;
-      // a device that does not answer is asked less and less often (2x, 4x, 8x ... up to 10 minutes) so a dead address costs nothing, and normal speed returns with its first answer
-      const step = (d.intervalSec || 60) * 1000, back = rt.misses >= 3 ? Math.min(step * 2 ** Math.min(rt.misses - 2, 5), Math.max(step, 600000)) : step;
+      // a device that does not answer is asked less and less often (2x, 4x, 8x ... up to 5 minutes) so a dead address costs nothing, and normal speed returns with its first answer
+      const step = (d.intervalSec || 60) * 1000, back = rt.misses >= 3 ? Math.min(step * 2 ** Math.min(rt.misses - 2, 5), Math.max(step, 300000)) : step;
       rt.nextAt = now + back; this.running++;
       this.pollDevice(d).catch((e) => console.error('[polling]', e.message)).finally(() => { this.running--; });
     }

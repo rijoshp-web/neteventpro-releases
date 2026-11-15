@@ -38,7 +38,7 @@
       const rows = grpView && named.length ? [...rows0].sort((x, y) => ((x.group || '\uffff').localeCompare(y.group || '\uffff')) || x.name.localeCompare(y.name)) : rows0;
       const ghead = (g) => { const o = groups[g] || { n: 0, up: 0, down: 0, alarms: 0 }; return `<tr class="grow"><td colspan="9"><b>${g ? esc(g) : 'No group'}</b> <span class="muted">${o.n} device${o.n === 1 ? '' : 's'} · ${o.up} up${o.down ? ` · <b style="color:var(--bad)">${o.down} no answer</b>` : ''}${o.alarms ? ` · <b style="color:var(--s3)">${o.alarms} alarm${o.alarms === 1 ? '' : 's'}</b>` : ''}</span></td></tr>`; };
       const chips = named.length ? `<div class="gchips" id="pGrp"><button class="gchip ${grp === null ? 'on' : ''}" data-g="*">All <span class="muted">${ov.devices.length}</span></button>${named.map((g) => `<button class="gchip ${grp === g ? 'on' : ''} ${groups[g].down ? 'bad' : ''}" data-g="${esc(g)}">${esc(g)} <span class="muted">${groups[g].up}/${groups[g].n}</span>${groups[g].alarms ? ` <span class="pill warn">${groups[g].alarms}</span>` : ''}</button>`).join('')}${groups[''] ? `<button class="gchip ${grp === '' ? 'on' : ''}" data-g="">No group <span class="muted">${groups[''].n}</span></button>` : ''}<span class="spacer"></span><label class="muted"><input type="checkbox" id="pGv" ${grpView ? 'checked' : ''}> Show group headings</label></div>` : '';
-      el.innerHTML = head('<span class="spacer"></span>' + (can('polling') ? '<button id="pDisc">Discover devices</button><button id="pAdd" class="primary">Add device</button>' : '')) + tabs() +
+      el.innerHTML = head('<span class="spacer"></span>' + (can('polling') ? '<button id="pAll" title="Ask every device now, including those waiting after missed polls">Poll all now</button><button id="pDisc">Discover devices</button><button id="pAdd" class="primary">Add device</button>' : '')) + tabs() +
         (ov.enabled ? '' : '<div class="banner" style="display:block;position:static;margin:0 0 12px">SNMP polling is switched off (Settings tab). Nothing is polled.</div>') +
         `<div class="hcards"><div class="hcard"><div><div class="hk">Polled devices</div><div class="hv">${c.total}</div></div></div>
           <div class="hcard"><div><div class="hk">Up</div><div class="hv" style="color:var(--ok)">${c.up}</div><div class="hs">${c.unknown ? c.unknown + ' waiting for the first answer' : 'answering SNMP'}</div></div></div>
@@ -58,6 +58,7 @@
       $$('#pGrp .gchip', el).forEach((b) => { b.onclick = () => { grp = b.dataset.g === '*' ? null : b.dataset.g; draw(); }; }); const gv = $('#pGv', el); if (gv) gv.onchange = () => { grpView = gv.checked; draw(); };
       const add = $('#pAdd', el); if (add) add.onclick = () => editDevice(null);
       const dsc = $('#pDisc', el); if (dsc) dsc.onclick = discover;
+      const pa = $('#pAll', el); if (pa) pa.onclick = async () => { try { const r = await api('/api/poll/now', { method: 'POST', body: { all: true } }); toast('Polling ' + r.devices + ' devices now…'); } catch (e) { toast(e.message, true); } };
     };
 
 

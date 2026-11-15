@@ -227,3 +227,12 @@ test('1.65.3 a shared / built-in lookup ends the old alarm when the state change
     assert.deepEqual(await poll(1), []);
   } finally { a.close(); }
 });
+
+test('1.70 pollAll brings every device forward, also one waiting in "no answer" back-off', () => {
+  const { pl } = setup();
+  const d = dev(pl, 1, 'W-1'), rt = pl.state(d); rt.misses = 8; rt.nextAt = Date.now() + 590000;
+  assert.equal(pl.pollAll() >= 1, true);
+  assert.ok(rt.nextAt - Date.now() <= 6500, 'due within a few seconds');
+  const off = dev(pl, 1, 'W-2'); pl.saveDevice({ ...pl.devices().find((x) => x.id === off.id), enabled: false });
+  const rt2 = pl.state(off); rt2.nextAt = 12345; pl.pollAll(); assert.equal(rt2.nextAt, 12345, 'a paused device is left alone');
+});

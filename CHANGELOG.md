@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.70.0
+- **Poll all now** button on the SNMP polling Devices page: asks every device now (spread over a few seconds), including devices that were waiting after missed polls. Use it after you bring devices back (for example, after starting the fake devices).
+- Why polling did not restart by itself: a device that does not answer is asked less and less often (every 2x, 4x, 8x ... of its interval). The longest wait was 10 minutes, so devices that came back kept looking down, and their "no SNMP answer" alarms stayed open, until the next try. The longest wait is now 5 minutes. A device is back to its normal interval as soon as it answers once.
+- Checked: a device that did not answer was marked down; after its agent started it stayed down for a while, and Poll all now brought it up in seconds.
+
 ## 1.69.0
 - Glass themes now look like real frosted glass: the side rail, status strip and every card blur and brighten what is behind them, with a soft highlight in the corner and a bright top edge, over a more colourful background. (No diagonal lines.) Text contrast was re-checked on all eight glass themes.
 - Cards use a live blur. This costs a little more drawing than the flat looks; Wall display mode turns the blur off, and so does the operating system setting "reduce transparency".
