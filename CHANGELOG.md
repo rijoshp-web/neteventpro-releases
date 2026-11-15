@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.76.0
+
+- **Glass is now a switch, not ten separate themes.** Settings → Appearance → Glass effect turns frosted glass on over any dark theme, so every theme can be glass. The ten glass themes (Glass smoke, Dark glass, Black glass, Glass ember, aqua, dusk, amber, violet, aurora, deep blue) are removed from the list. A saved glass theme is converted automatically to a matching normal theme with the glass effect on (for example Black glass becomes Black (OLED) with glass). The two iOS Glass themes stay.
+
 ## 1.75.0
 
 - **Realistic glass with a background picture.** Settings → Appearance → Background picture: upload your own image (resized to 1920 px, kept in this browser) or pick a built-in one (Smoke, Ember, Ocean, Aurora, Mist). The picture shows behind two glass layers: a blurred frosted pane for the page and sidebar, and frosted glass tiles with light edges and soft shadows on top. Sliders set the dim, the page glass blur and the tile frost. Works with any theme.
