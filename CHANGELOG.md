@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.74.2
+
+- **Chart colours now apply to severity, state and status charts too.** Choosing a colour set other than Classic / Follow the theme on a tile now recolours it; before, those charts kept fixed red/green/amber. The Mono set is now pure grey.
+
 ## 1.74.1
 
 - **New theme: Black glass** — the darkest glass theme: pure black background with grey glass panels and white/grey accents, no colour tint. Pick it in Settings → Theme.

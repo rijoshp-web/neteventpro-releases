@@ -106,7 +106,7 @@ const PALETTES = {
   cool: ['#4dabf7', '#38d9a9', '#748ffc', '#66d9e8', '#3bc9db', '#69db7c', '#9775fa', '#22b8cf', '#5c7cfa', '#20c997'],
   neon: ['#00f5d4', '#ff2e93', '#fee440', '#7b61ff', '#00bbf9', '#f15bb5', '#9b5de5', '#ff9e00', '#b6ff00', '#00f5ff'],
   pastel: ['#a5d8ff', '#b2f2bb', '#ffec99', '#d0bfff', '#ffc9c9', '#99e9f2', '#fcc2d7', '#ffd8a8', '#c0eb75', '#bac8ff'],
-  mono: ['#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155', '#1e293b', '#a1a1aa', '#71717a', '#52525b']
+  mono: ['#f2f2f4', '#d4d4d8', '#b4b4ba', '#94949b', '#76767d', '#5b5b61', '#46464b', '#a1a1aa', '#71717a', '#52525b']
 };
 const PAL_NAMES = [['theme', 'Follow the theme'], ['classic', 'Classic'], ['powerbi', 'Power BI'], ['grafana', 'Grafana'], ['warm', 'Warm'], ['cool', 'Cool'], ['neon', 'Neon'], ['pastel', 'Pastel'], ['mono', 'Greys']];
 // 1.72 glass looks: charts get glossy bars, glowing lines and a clear donut hole (only while a glass theme is on)
@@ -582,7 +582,7 @@ views.dashboard = (el) => {
   function paintTile(t) {
     const st = S.stats;
     {
-      const wb = wbOf(t.id); if (!wb) return; const d = data?.tiles?.[t.id]; curPal = PALETTES[t.cfg?.pal] || null;
+      const wb = wbOf(t.id); if (!wb) return; const d = data?.tiles?.[t.id]; curPal = PALETTES[t.cfg?.pal] || null; curPalName = t.cfg?.pal || '';
       if (t.type === 'kpi') setHtml(t.id, kpiHtml(t));
       else if (t.type === 'trend') { if (setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>') || true) drawTrend(t); }
       else if (t.type === 'rate') { if (setHtml(t.id, '<div class="cwrap"><canvas></canvas></div>') || true) drawRate(t); }
@@ -593,7 +593,7 @@ views.dashboard = (el) => {
         if (!d) setHtml(t.id, '<div class="muted">Loading…</div>'); else if (d.error) setHtml(t.id, `<div class="muted">${esc(d.error)}</div>`);
         else {
           const by = byOf(t);
-          setHtml(t.id, d.rows.length ? bars(d.rows, (r) => esc(catName(by, r.key)), (r) => by === 'severity' && SEV[r.key] !== undefined ? `var(--s${r.key})` : by === 'app' ? 'var(--s6)' : (r.worst !== undefined && by === 'host') ? `var(--s${r.worst})` : catColor(by, r.key, 0),
+          setHtml(t.id, d.rows.length ? bars(d.rows, (r) => esc(catName(by, r.key)), (r) => curPalOverrides() ? catColor(by, r.key, d.rows.indexOf(r)) : by === 'severity' && SEV[r.key] !== undefined ? `var(--s${r.key})` : by === 'app' ? 'var(--s6)' : (r.worst !== undefined && by === 'host') ? `var(--s${r.worst})` : catColor(by, r.key, 0),
             by === 'host' ? (r) => `<a href="#" class="hostlink2 trunc" data-host="${esc(r.key)}">${esc(r.key)}</a>` : null) : `<div class="muted">${noData(t)}</div>`);
         }
       } else if (t.type === 'latest') setHtml(t.id, latestHtml(t));
@@ -655,7 +655,7 @@ views.dashboard = (el) => {
   const STATE_NAME = { open: 'Open', ack: 'Acknowledged', cleared: 'Cleared', escalated: 'Escalated', reporting: 'Reporting', silent: 'Silent', muted: 'Muted', overdue: 'Overdue', alarms: 'With open alarms', syslog: 'Syslog', snmp: 'SNMP traps', trap: 'SNMP traps', both: 'Syslog + traps', none: 'Nothing received' };
   const catName = (by, k) => (by === 'severity' ? (SEV[k] ?? k) : by === 'facility' ? ((S.info.facilities || [])[k] ?? k) : (by === 'state' || by === 'status' || by === 'source' || by === 'kind') ? (STATE_NAME[k] || String(k)) : String(k) || '(none)');
   const STATE_COL = { open: '--bad', ack: '--s4', cleared: '--ok', escalated: '--bad', reporting: '--ok', silent: '--bad', muted: '--faint', overdue: '--s4', alarms: '--bad' };
-  const catColor = (by, k, i) => (by === 'severity' && SEV[k] !== undefined ? css('--s' + k) : (by === 'state' || by === 'status') && STATE_COL[k] ? css(STATE_COL[k]) : palc(i));
+  const catColor = (by, k, i) => (curPalOverrides() ? palc(i) : by === 'severity' && SEV[k] !== undefined ? css('--s' + k) : (by === 'state' || by === 'status') && STATE_COL[k] ? css(STATE_COL[k]) : palc(i));
   const noData = (t) => `Nothing to show in this time range for ${DS[dsOf(t)].chip.toLowerCase()}.`;
   function pieSlices(t) {
     const d = data?.tiles?.[t.id]; if (!d || d.error || !d.rows) return null; const by = byOf(t);
@@ -781,7 +781,9 @@ views.dashboard = (el) => {
   }
 
   // ----- 1.34 more visuals: bar chart, treemap, table, bar gauge, number with trend line, text note -----
-  let curPal = null;
+  let curPal = null, curPalName = '';
+  // 1.74.2: a palette picked on the tile (anything but Classic / Follow the theme) also recolours severity, state and status charts
+  const curPalOverrides = () => !!curPal && curPalName !== 'classic';
   const palc = (i) => (curPal ? curPal[i % curPal.length] : (css('--c' + (i % 10)) || PAL[i % PAL.length]));
   function topRows(t) {
     const d = data?.tiles?.[t.id]; if (!d) return { msg: 'Loading…' }; if (d.error) return { msg: esc(d.error) }; if (!d.rows?.length) return { msg: noData(t) };
@@ -922,7 +924,7 @@ views.dashboard = (el) => {
   // charts redraw when their tile changes size (dragging, side panel, window)
   let ro = null, roTimer;
   function observe() {
-    ro?.disconnect(); ro = new ResizeObserver(() => { clearTimeout(roTimer); roTimer = setTimeout(() => { for (const t of getTiles()) { curPal = PALETTES[t.cfg?.pal] || null; if (t.type === 'trend') drawTrend(t); if (t.type === 'rate') drawRate(t); if (t.type === 'line') drawLine(t); if (t.type === 'pie') drawPie(t); } }, 60); });
+    ro?.disconnect(); ro = new ResizeObserver(() => { clearTimeout(roTimer); roTimer = setTimeout(() => { for (const t of getTiles()) { curPal = PALETTES[t.cfg?.pal] || null; curPalName = t.cfg?.pal || ''; if (t.type === 'trend') drawTrend(t); if (t.type === 'rate') drawRate(t); if (t.type === 'line') drawLine(t); if (t.type === 'pie') drawPie(t); } }, 60); });
     for (const n of $$('.wb', grid)) ro.observe(n);
   }
 
