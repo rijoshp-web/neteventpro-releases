@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.80.0
+
+- Two new themes. Neumorphism: one soft grey surface where panels, buttons and the active menu item look raised or pressed in. Claymorphism: pastel, puffy, rounded panels and pill buttons with soft coloured shadows. Both are light themes with their own look, so they do not combine with the Glass effect (same as Hardware).
+
 ## 1.79.1
 
 - Glass sliders: Tile frost now also applies to dashboard tiles that have a custom look (they used a fixed blur). Settings explains that the Hardware theme has no glass, so the picture and sliders do nothing there.

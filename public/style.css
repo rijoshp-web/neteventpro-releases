@@ -1420,3 +1420,34 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-glass] .widget.panel h3 { font-weight: 500; }
 :root[data-glass] body.kiosk :is(.widget.panel, .rail, .status):not(#_) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 @media (prefers-reduced-transparency: reduce) { :root[data-glass] :is(.widget.panel, .rail, .status, .panel, fieldset):not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--panel); } }
+
+/* 1.80.0 Neumorphism: one surface colour, light from top-left, raised or pressed in */
+:root[data-theme="neumorphism"] { color-scheme: light; --bg: #e0e5ec; --panel: #e0e5ec; --panel2: #e0e5ec; --line: #cfd6df; --line2: #b8c1cc; --text: #2f3b4c; --muted: #5d6b7e; --faint: #8693a4; --accent: #4f6bed; --accent-ink: #fff; --link: #3a56d4; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 16px; --nm-hi: #ffffff; --nm-lo: #a3b1c6; }
+:root[data-theme="neumorphism"] body { background: var(--bg); }
+:root[data-theme="neumorphism"] :is(.rail, .status, #wallBar, .panel, fieldset):not(#_) { background: var(--bg); border: 0; border-radius: 20px; box-shadow: 9px 9px 18px var(--nm-lo), -9px -9px 18px var(--nm-hi); }
+:root[data-theme="neumorphism"] .main:not(#_) { background: transparent; border: 0; box-shadow: none; }
+:root[data-theme="neumorphism"] .widget.panel:not(#_) { box-shadow: 7px 7px 15px var(--nm-lo), -7px -7px 15px var(--nm-hi); }
+:root[data-theme="neumorphism"] :is(button, .pill, .btn):not(.primary):not(#_) { background: var(--bg); border: 0; border-radius: 14px; box-shadow: 5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi); }
+:root[data-theme="neumorphism"] :is(button, .pill, .btn):not(.primary):active { box-shadow: inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi); }
+:root[data-theme="neumorphism"] button.primary:not(#_) { border: 0; border-radius: 14px; box-shadow: 5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi); }
+:root[data-theme="neumorphism"] :is(input, select, textarea):not([type=checkbox]):not([type=radio]):not([type=range]):not(#_) { background: var(--bg); border: 0; border-radius: 14px; box-shadow: inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi); }
+:root[data-theme="neumorphism"] .rail a:not(#_) { border-radius: 14px; }
+:root[data-theme="neumorphism"] .rail a.on:not(#_) { background: var(--bg); color: var(--accent); box-shadow: inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi); }
+:root[data-theme="neumorphism"] .rail a:hover:not(.on) { box-shadow: 4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi); }
+:root[data-theme="neumorphism"] table { border-collapse: separate; }
+:root[data-theme="neumorphism"] thead th:not(#_) { background: var(--bg); }
+:root[data-theme="neumorphism"] :is(.tablewrap, .tbl, .logwrap):not(#_) { border-radius: 16px; box-shadow: inset 4px 4px 9px var(--nm-lo), inset -4px -4px 9px var(--nm-hi); }
+
+/* 1.80.0 Claymorphism: pastel, puffy, soft coloured shadows with an inner highlight and inner shade */
+:root[data-theme="claymorphism"] { color-scheme: light; --bg: #efe9ff; --panel: #fbf9ff; --panel2: #f1ecff; --line: #e0d6fa; --line2: #cdbff2; --text: #2d2552; --muted: #5f5688; --faint: #8f87b3; --accent: #7c5cf0; --accent-ink: #fff; --link: #5a3fd0; --s3: #c77c00; --s4: #9a8f00; --s6: #6a6a90; --radius: 22px; --cl-out: 0 14px 28px rgba(124,92,240,.20), 0 4px 8px rgba(124,92,240,.12); --cl-in: inset 0 -7px 12px rgba(124,92,240,.16), inset 0 7px 12px rgba(255,255,255,.95); }
+:root[data-theme="claymorphism"] body { background: radial-gradient(900px 600px at 0% 0%, #ffd9ec 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #cfe8ff 0%, transparent 60%), var(--bg); background-attachment: fixed; }
+:root[data-theme="claymorphism"] :is(.rail, .status, #wallBar, .panel, fieldset):not(#_) { background: var(--panel); border: 0; border-radius: 28px; box-shadow: var(--cl-out), var(--cl-in); }
+:root[data-theme="claymorphism"] .main:not(#_) { background: transparent; border: 0; box-shadow: none; }
+:root[data-theme="claymorphism"] .widget.panel:not(#_) { border-radius: 26px; }
+:root[data-theme="claymorphism"] :is(button, .pill, .btn):not(.primary):not(#_) { background: #fff; border: 0; border-radius: 999px; box-shadow: 0 6px 12px rgba(124,92,240,.18), inset 0 -3px 6px rgba(124,92,240,.14), inset 0 3px 6px rgba(255,255,255,.95); }
+:root[data-theme="claymorphism"] button:not(#_):active { transform: translateY(2px); box-shadow: 0 2px 4px rgba(124,92,240,.18), inset 0 2px 5px rgba(124,92,240,.18); }
+:root[data-theme="claymorphism"] button.primary:not(#_) { border: 0; border-radius: 999px; background: linear-gradient(180deg, #9a7dff, #7c5cf0); box-shadow: 0 8px 16px rgba(124,92,240,.38), inset 0 -4px 8px rgba(60,30,160,.35), inset 0 4px 8px rgba(255,255,255,.45); }
+:root[data-theme="claymorphism"] :is(input, select, textarea):not([type=checkbox]):not([type=radio]):not([type=range]):not(#_) { background: #fff; border: 0; border-radius: 16px; box-shadow: inset 0 3px 7px rgba(124,92,240,.18), 0 1px 0 rgba(255,255,255,.9); }
+:root[data-theme="claymorphism"] .rail a:not(#_) { border-radius: 18px; }
+:root[data-theme="claymorphism"] .rail a.on:not(#_) { background: linear-gradient(180deg, #9a7dff, #7c5cf0); color: #fff; box-shadow: 0 6px 12px rgba(124,92,240,.35), inset 0 -3px 6px rgba(60,30,160,.3), inset 0 3px 6px rgba(255,255,255,.4); }
+:root[data-theme="claymorphism"] thead th:not(#_) { background: var(--panel2); }
