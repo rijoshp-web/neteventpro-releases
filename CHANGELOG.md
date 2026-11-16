@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.76.5
+
+- **Clear glass tiles.** Removed the grey wash (gloss gradient and dark fill) from every tile, panel, side panel and status bar in glass mode. Tiles are now clear frosted glass: the background picture shows through the blur, with a thin soft border.
+
 ## 1.76.4
 
 - **Full screen is back in the side panel, directly under Settings**, as a normal side-panel button (it was moved into the Settings page in 1.76.1 by mistake). It is no longer on the Appearance page.

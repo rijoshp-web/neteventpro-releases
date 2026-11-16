@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.76.4</b> — Full screen is a side-panel button again, right under Settings.</li>
+    <ul><li><b>1.76.5</b> — Glass tiles and panels are now clear (no grey shade); the background picture shows through.</li>
+<li><b>1.76.4</b> — Full screen is a side-panel button again, right under Settings.</li>
 <li><b>1.76.3</b> — Fixed uploading a background picture.</li>
 <li><b>1.76.2</b> — Glass tiles and panels have thin soft edges and a dark frosted fill (more realistic).</li>
 <li><b>1.76.1</b> — Side panel bottom: round user badge, Sign out as a normal button; Full screen and the version number moved into Settings.</li>
