@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.79.0
+
+- One glass effect for the whole app, like iOS: tiles, panels, side panel and status bar are frosted over a blurred picture, with thin light edges, on every theme. Turn it on in Settings → Appearance → Glass effect; choosing a picture turns it on by itself and a built-in picture is used until you pick your own. Text colour follows the theme (dark themes get light text, light themes dark). The separate Clear glass, Glassmorphism and iOS Glass themes are removed; saved choices convert to Light, Midnight or Dark with glass on. Hardware keeps its own look.
+
 ## 1.78.2
 
 - **Clear glass now reads as real glass.** Added a bright rim light on the top and left edges, a soft diagonal sheen, an inner edge glow and a deeper shadow to every tile and panel. The built-in Sky, Sand and Pearl pictures now have crisp glossy spheres and a sharper ribbon, and the picture between the tiles stays crisp while behind each tile it is frosted, which is what makes glass look like glass.

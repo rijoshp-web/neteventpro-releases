@@ -1386,3 +1386,37 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-theme="clear"] :is(.widget.panel, .rail, .status):not(#_) { background: linear-gradient(135deg, rgba(255,255,255,.24) 0%, rgba(255,255,255,.04) 38%, rgba(255,255,255,.10) 100%); -webkit-backdrop-filter: blur(var(--bgfrost,20px)) saturate(1.9) brightness(1.04); backdrop-filter: blur(var(--bgfrost,20px)) saturate(1.9) brightness(1.04); border: 1px solid rgba(255,255,255,.45); border-radius: 18px; box-shadow: inset 1.5px 1.5px 0 rgba(255,255,255,.95), inset -1px -1px 0 rgba(255,255,255,.38), inset 0 0 22px rgba(255,255,255,.28), 0 14px 34px rgba(20,50,110,.28), 0 2px 6px rgba(20,50,110,.16); }
 :root[data-theme="clear"] .widget.panel:not(#_)::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(118deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,.08) 20%, rgba(255,255,255,0) 42%), linear-gradient(0deg, rgba(255,255,255,.14), rgba(255,255,255,0) 30%); z-index: 0; }
 :root[data-theme="clear"][data-bgimg] .main::before { filter: blur(calc(var(--bgblur,10px) * .25)) saturate(1.15); inset: 0; }
+
+/* 1.79.0 ONE glass system for every theme (dark and light), after the reference: a blurred page layer, soft frosted panels with a thin light edge, nested glass chips, solid accent buttons.
+   Layers: picture -> page pane (blurred picture) -> tiles and panels (frosted) -> inner chips (inputs, buttons, pills). */
+:root[data-glass] { --g-a: rgba(255,255,255,.115); --g-b: rgba(255,255,255,.03); --g-line: rgba(255,255,255,.17); --g-hi: rgba(255,255,255,.30); --g-inner: rgba(255,255,255,.075); --g-inner-line: rgba(255,255,255,.14); --g-pop: rgba(26,26,34,.82); --g-th: rgba(24,24,30,.80); --g-shadow: 0 10px 30px rgba(0,0,0,.26); --g-veil: rgba(0,0,0,var(--bgdim,.3)); --g-pane: rgba(255,255,255,.035); --g-tint: rgba(8,8,12,.26); --bgfx: radial-gradient(950px 620px at 8% 0%, color-mix(in srgb, var(--accent) 30%, transparent) 0%, transparent 62%), radial-gradient(950px 660px at 100% 100%, color-mix(in srgb, var(--link) 24%, transparent) 0%, transparent 62%); }
+:root[data-glass][data-tone="light"] { --g-a: rgba(255,255,255,.62); --g-b: rgba(255,255,255,.24); --g-line: rgba(255,255,255,.80); --g-hi: rgba(255,255,255,1); --g-inner: rgba(255,255,255,.42); --g-inner-line: rgba(255,255,255,.75); --g-pop: rgba(255,255,255,.90); --g-th: rgba(255,255,255,.86); --g-shadow: 0 10px 30px rgba(40,60,100,.16); --g-veil: rgba(255,255,255,calc(var(--bgdim,.3) * .5)); --g-pane: rgba(255,255,255,.10); --g-tint: rgba(255,255,255,0); }
+/* layer 0: the picture, or the theme's own colours when no picture is chosen */
+:root[data-glass] body { background: var(--bgfx), var(--bg); background-attachment: fixed; }
+:root[data-glass][data-pic] body { background: linear-gradient(var(--g-veil), var(--g-veil)), var(--bgimg) center / cover no-repeat fixed, var(--bg); }
+/* layer 1: the page pane, with its own blurred copy of the picture */
+:root[data-glass] .main:not(#_) { position: relative; isolation: isolate; overflow: hidden; background: var(--g-pane); background-image: none; border: 1px solid var(--g-line); border-radius: 24px; box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-glass][data-pic] .main::before { content: ''; position: absolute; inset: -40px; z-index: -1; background: linear-gradient(var(--g-veil), var(--g-veil)), var(--bgimg) center / cover no-repeat fixed; filter: blur(var(--bgblur,14px)) saturate(1.2); pointer-events: none; }
+/* layer 2: tiles, panels, side panel, status bar */
+:root[data-glass] :is(.widget.panel, .rail, .status, .panel, fieldset, #wallBar):not(#_) { background: linear-gradient(135deg, var(--g-a) 0%, var(--g-b) 75%), var(--g-tint); -webkit-backdrop-filter: blur(var(--bgfrost,20px)) saturate(1.6); backdrop-filter: blur(var(--bgfrost,20px)) saturate(1.6); border: 1px solid var(--g-line); border-radius: 18px; box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi); color: var(--text); }
+:root[data-glass] .rail:not(#_) { border-radius: 24px; }
+:root[data-glass] .status:not(#_) { border-radius: 16px; }
+:root[data-glass] .widget.panel:not(#_)::after, :root[data-glass] .widget.panel:not(#_)::before { content: none; }
+/* layer 3: inner glass chips */
+:root[data-glass] :is(input, select, textarea):not([type=checkbox]):not([type=radio]):not([type=range]):not(#_) { background: var(--g-inner); border: 1px solid var(--g-inner-line); border-radius: 12px; color: var(--text); box-shadow: none; }
+:root[data-glass] :is(button, .btn):not(.primary):not(.ghost):not(.danger):not(#_) { background: var(--g-inner); border: 1px solid var(--g-inner-line); border-radius: 12px; color: var(--text); box-shadow: inset 0 1px 0 var(--g-hi); }
+:root[data-glass] :is(button, .btn):not(.primary):not(.ghost):not(.danger):not(#_):hover { background: var(--g-a); }
+:root[data-glass] :is(button.primary, .btn.primary):not(#_) { background: var(--accent); color: var(--accent-ink, #fff); border: 1px solid color-mix(in srgb, var(--accent) 70%, #fff); border-radius: 12px; font-weight: 600; box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.4); }
+:root[data-glass] .rail a:not(#_) { border-radius: 14px; border: 1px solid transparent; }
+:root[data-glass] .rail a:hover:not(.on):not(#_) { background: var(--g-inner); border-color: var(--g-inner-line); }
+:root[data-glass] .rail a.on:not(#_) { background: var(--accent); color: var(--accent-ink, #fff); border-color: color-mix(in srgb, var(--accent) 70%, #fff); box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.4); }
+:root[data-glass] .rail a.on:not(#_) .ico { color: inherit; }
+:root[data-glass] .pill:not(#_) { background: var(--g-inner); border: 1px solid var(--g-inner-line); }
+/* lists and tables sit on the glass; headings stay readable while scrolling */
+:root[data-glass] :is(table.log th, table.alarms thead th, .scrollbox thead th, table.devtbl th):not(#_) { background: var(--g-th); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); color: var(--text); box-shadow: 0 1px 0 var(--g-inner-line); }
+:root[data-glass] :is(table.log td, table.alarms td, table.devtbl td):not(#_) { border-color: var(--g-inner-line); }
+:root[data-glass] :is(.dmenu, .toast, .modal, dialog):not(#_) { background: var(--g-pop); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); border: 1px solid var(--g-line); border-radius: 16px; color: var(--text); }
+:root[data-glass] select option { background: var(--panel); color: var(--text); }
+:root[data-glass] .widget.panel h3 { font-weight: 500; }
+:root[data-glass] body.kiosk :is(.widget.panel, .rail, .status):not(#_) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+@media (prefers-reduced-transparency: reduce) { :root[data-glass] :is(.widget.panel, .rail, .status, .panel, fieldset):not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--panel); } }
