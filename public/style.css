@@ -1492,3 +1492,33 @@ table.devtbl input::placeholder { color: var(--faint); opacity: .7; }
 #devWrap { overflow-x: auto; }
 table.devtbl td { padding: 2px 6px; }
 table.devtbl input.alias { width: 96px !important; } table.devtbl input.grp { width: 90px !important; } table.devtbl input.expect { width: 52px !important; }
+
+/* 1.83.0 sign-in page: brand panel on the left, form on the right */
+body.loginpage { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(360px, 1fr); place-items: stretch; padding: 0; gap: 0; }
+.login-side { display: flex; flex-direction: column; justify-content: space-between; padding: 40px 48px; background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg) 70%); border-right: 1px solid var(--line); }
+.login-side .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; }
+.login-pitch h2 { font-size: clamp(26px, 3.4vw, 42px); line-height: 1.12; margin: 0 0 14px; max-width: 14em; font-weight: 700; letter-spacing: -.01em; }
+.login-pitch p { margin: 0; color: var(--muted); font-size: 16px; max-width: 28em; line-height: 1.5; }
+.sevribbon { display: grid; gap: 7px; max-width: 420px; }
+.sevribbon i { display: block; height: 8px; border-radius: 4px; width: var(--w); opacity: .9; }
+body.loginpage .login-card { align-self: center; justify-self: center; width: min(400px, calc(100% - 32px)); background: transparent; border: 0; box-shadow: none; padding: 24px 0; }
+.login-brand { display: none !important; }
+.pwrow { position: relative; } .pwrow input { padding-right: 64px; }
+.pwtoggle { position: absolute; right: 4px; top: 4px; bottom: 4px; width: auto !important; margin: 0 !important; padding: 0 10px !important; font-size: 13px !important; background: transparent; border-color: transparent; color: var(--muted); }
+.pwtoggle:hover { color: var(--text); }
+.login-caps { margin-top: 6px; font-size: 13px; color: var(--s3); }
+@media (max-width: 860px) { body.loginpage { grid-template-columns: 1fr; } .login-side { display: none; } .login-brand { display: flex !important; margin-bottom: 18px; } body.loginpage .login-card { align-self: center; } }
+.login-pitch h2 { color: var(--text); }
+/* 1.83.0 NOC wall: very large numbers that can be read from across the room */
+.widget[data-id^="w_"] .kpi .num { font-size: clamp(40px, min(74cqh, 21cqw), 240px); font-weight: 700; line-height: 1; }
+.widget[data-id^="w_"] .wtitle { font-size: 18px; }
+.widget[data-id^="w_"] .kpi .sub { font-size: 15px; }
+body.kiosk .widget .wtitle { font-size: 16px; }
+body.kiosk .kpi .num { font-weight: 700; }
+
+/* 1.83.0 review fixes: help headings, light-theme severity colours, row tint, stronger focus ring */
+.guide-sec h2 { color: var(--text); font-size: 20px; }
+:root:is([data-theme="light"], [data-theme="cream"], [data-theme="fresh"], [data-theme="neumorphism"], [data-theme="claymorphism"]) { --s2: #c8431a; --s5: #1a62c9; --s6: #566a82; --s7: #44556b; }
+:root[data-tone="light"] table.alarms tbody tr.al-row.st-open td { background: color-mix(in srgb, var(--sevc, var(--s3)) 6%, transparent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--bg) 85%, transparent); }
+@media (forced-colors: active) { :focus-visible { outline: 3px solid Highlight; } }

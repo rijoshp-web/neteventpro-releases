@@ -1,4 +1,9 @@
 'use strict';
+try { const t = localStorage.getItem('sp.theme'); if (t) document.documentElement.dataset.theme = t; } catch {}   // the sign-in page follows the colour theme chosen in this browser
+const pw = document.getElementById('pw'), pin = document.getElementById('p'), caps = document.getElementById('caps');
+pw.addEventListener('click', () => { const show = pin.type === 'password'; pin.type = show ? 'text' : 'password'; pw.textContent = show ? 'Hide' : 'Show'; pw.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); pw.setAttribute('aria-pressed', String(show)); pin.focus(); });
+const capCheck = (e) => { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); };
+pin.addEventListener('keydown', capCheck); pin.addEventListener('keyup', capCheck); pin.addEventListener('blur', () => { caps.hidden = true; });
 const f = document.getElementById('f'), err = document.getElementById('err'), go = document.getElementById('go'), codeRow = document.getElementById('codeRow'), codeIn = document.getElementById('c');
 f.addEventListener('submit', async (e) => {
   e.preventDefault(); err.textContent = ''; go.disabled = true; go.textContent = 'Signing in…';

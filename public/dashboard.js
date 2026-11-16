@@ -239,6 +239,10 @@ const SHEET_DEFS = {
     T('y_rate', 'rate', 'Messages per second', 0, 11, 4, 7), T('y_hosts', 'top', 'Busiest devices', 4, 11, 4, 7, { ds: 'syslog', by: 'host', n: 8 }), T('y_apps', 'top', 'Busiest processes', 8, 11, 4, 7, { ds: 'syslog', by: 'app', n: 8 }),
     T('y_pie', 'pie', 'Messages by device', 0, 18, 4, 8, { ds: 'syslog', by: 'host', n: 6, style: 'donut' }), T('y_heat', 'heat', 'Busiest devices over time', 4, 18, 8, 8, { ds: 'syslog', mode: 'hostTime', n: 8 }),
     T('y_latest', 'latest', 'Latest errors and worse', 0, 26, 8, 9, { ds: 'syslog', n: 10, filter: { severityMax: 3 } }), T('y_io', 'io', 'Inputs and alert delivery', 8, 26, 4, 9)] },
+  wall: { name: 'NOC wall', tiles: () => [
+    T('w_active', 'kpi', 'Active alarms', 0, 0, 6, 6, { ds: 'alarms', metric: 'alActive' }), T('w_err', 'kpi', 'Errors and worse', 6, 0, 3, 6, { metric: 'errors' }), T('w_silent', 'kpi', 'Silent devices', 9, 0, 3, 6, { metric: 'silent' }),
+    T('w_sev', 'sevbars', 'Severity breakdown', 0, 6, 4, 10, { ds: 'syslog' }), T('w_latest', 'latest', 'Active alarms', 4, 6, 8, 10, { ds: 'alarms', n: 8, filter: { astate: 'active' } }),
+    T('w_trend', 'trend', 'Messages over time', 0, 16, 12, 7)] },
   traps: { name: 'SNMP traps', tiles: () => snmpTiles(0) },
   polling: { name: 'SNMP polling', tiles: () => [
     T('p_stat', 'poll', 'Polled devices', 0, 0, 8, 8, { poll: { src: 'status', view: 'tiles', shape: 'round', hours: 6, picks: [] } }), T('p_alm', 'poll', 'Polling alarms', 8, 0, 4, 8, { poll: { src: 'alarms', view: 'tiles', hours: 6, picks: [] } }),
@@ -254,6 +258,7 @@ const SHEET_ICON = {
   alarms: '<path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4z"/><path d="M10 21h4"/>',
   syslog: '<path d="M4 6h16M4 12h11M4 18h7"/>',
   traps: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  wall: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
   polling: '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>',
   devices: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>',
   chart: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>',
@@ -323,6 +328,7 @@ views.dashboard = (el) => {
   const sheetRef = () => (sheetId === 'main' ? null : extraSheets().find((x) => x.id === sheetId) || null);
   function initSheets() {
     if (!boardId && SP.dash?.sheets === undefined && !SP.dash?.blank) { SP.dash = { ...(SP.dash || {}), sheets: defaultSheets() }; keep(); }    // the main dashboard gets the standard sheets once
+    else if (!boardId && Array.isArray(SP.dash?.sheets) && !SP.dash.wallAdded && !SP.dash.sheets.some((s) => s.id === 'wall')) { SP.dash = { ...SP.dash, wallAdded: 1, sheets: [...SP.dash.sheets, { id: 'wall', name: SHEET_DEFS.wall.name, tiles: SHEET_DEFS.wall.tiles() }] }; keep(); }    // 1.83: one new sheet, added once to a dashboard that already has sheets (delete it if you do not want it)
     let want = 'main'; try { want = localStorage.getItem(sheetKey()) || 'main'; } catch { /* blocked storage */ }
     sheetId = sheetList().some((x) => x.id === want) ? want : 'main';
   }

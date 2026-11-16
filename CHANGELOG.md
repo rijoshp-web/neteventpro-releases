@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.83.0
+
+- Review pass. New: NOC wall sheet (very large Active alarms, Errors and Silent devices numbers, severity bars, active alarm list; added once as a new sheet tab, delete it if you do not want it) and a new sign-in page (brand panel, show-password button, Caps Lock hint, follows the saved theme). Fixes: Help section headings are readable, severity colours (Notice, Info, Critical) are darker on the light themes, the unacknowledged-alarm tint is softer on light themes, and the keyboard focus ring is thicker with a halo so it shows on every theme. Severity is always written as a word next to its colour, so colour-blind users do not depend on colour alone.
+
 ## 1.82.0
 
 - UI polish. Devices: names, groups and expect-every boxes look like plain text until you hover or click; Note, Mute and Forget are small icon buttons, so nothing runs off the screen; the help text is shorter. System health: charts use 24-hour time like the rest of the app (with seconds for short ranges), the last time label is no longer cut off, and the responsiveness axis shows decimals. Tile labels on System health and SNMP polling use the same style as the Dashboard. SNMP polling: the empty page shows three steps and an Add device button. Settings: each group has a one-line description and matching icons. Logs: the Date column is no longer shown by default (messages from another day show their date in the Time column); you can turn it back on under Columns.

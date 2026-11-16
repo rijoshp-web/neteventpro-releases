@@ -8,14 +8,23 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body class="loginpage">
-<main class="login-card">
+<aside class="login-side" aria-hidden="true">
   <div class="brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
+  <div class="login-pitch">
+    <h2>Every device message, in one place.</h2>
+    <p>Syslog, SNMP traps and polling, with alarms that say what needs you first.</p>
+  </div>
+  <div class="sevribbon"><i style="--w:92%;background:var(--s0)"></i><i style="--w:78%;background:var(--s1)"></i><i style="--w:64%;background:var(--s2)"></i><i style="--w:86%;background:var(--s3)"></i><i style="--w:50%;background:var(--s4)"></i><i style="--w:70%;background:var(--s5)"></i><i style="--w:58%;background:var(--s6)"></i></div>
+</aside>
+<main class="login-card">
+  <div class="brand login-brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
   <h1>Sign in</h1>
   <form id="f" autocomplete="on">
     <label for="u">User name</label>
     <input id="u" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
     <label for="p">Password</label>
-    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <div class="pwrow"><input id="p" name="password" type="password" autocomplete="current-password" required><button type="button" id="pw" class="pwtoggle" aria-label="Show password" aria-pressed="false">Show</button></div>
+    <div id="caps" class="login-caps" hidden>Caps Lock is on.</div>
     <div id="codeRow" hidden>
       <label for="c">Authenticator code</label>
       <input id="c" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" spellcheck="false" placeholder="6 digits, or a recovery code">

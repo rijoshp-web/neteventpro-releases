@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.82.0</b> — UI polish: cleaner Devices table, 24-hour chart axes, polling empty-state steps, Settings descriptions.</li>
+    <ul><li><b>1.83.0</b> — NOC wall sheet, new sign-in page, stronger focus ring, light-theme colour fixes.</li>
+      <li><b>1.82.0</b> — UI polish: cleaner Devices table, 24-hour chart axes, polling empty-state steps, Settings descriptions.</li>
       <li><b>1.81.0</b> — Design review: bigger Active alarms, cleaner tiles, tinted unacknowledged alarms, better phone layout.</li>
       <li><b>1.80.0</b> — New themes: Neumorphism and Claymorphism (Settings → Appearance).</li>
       <li><b>1.79.1</b> — Tile frost slider now works on tiles with a custom look; Hardware theme note in Appearance.</li>
