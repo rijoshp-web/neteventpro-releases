@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.78.1
+
+- **Clear glass now looks like glass out of the box.** With no background picture chosen, the Clear glass theme shows a built-in light picture (Sky) behind the transparent panels, so the glass effect is visible straight away. Pick another picture, or None, in Settings → Appearance → Background picture. The Sky and Sand pictures are more vivid, and the panels are a little more transparent with a stronger blur.
+
 ## 1.78.0
 
 - **New theme: Hardware (skeuomorphic).** Brushed-metal chassis, raised bevelled plates, tiles set into the panel like instrument windows with a metal bezel and a glass sheen, tactile pressable buttons, recessed input fields, amber LED accents and an engraved look. Pick it in Settings → Appearance → Theme.
