@@ -573,7 +573,7 @@ views.dashboard = (el) => {
     if (link) return `<a class="kpi alink ${sp ? 'hasspark' : ''}" href="${link === 'd' ? '#devices' : '#alarms'}" ${link.startsWith('a:') ? `data-al="${link.slice(2)}"` : ''} style="${alignStyle(t)}">${inner}</a>`;
     return `<div class="kpi ${sp ? 'hasspark' : ''}" style="${alignStyle(t)}">${inner}</div>`;
   }
-  const dayish = () => (data ? data.to - data.from > 36 * 3600000 : false);
+  const dayish = () => (data ? data.to - data.from > 20 * 3600000 : false);
   function latestHtml(t) {
     const d = data?.tiles?.[t.id]; if (!d) return '<div class="muted">Loading…</div>'; if (d.error) return `<div class="muted">${esc(d.error)}</div>`;
     if (d.alarms) {
@@ -733,7 +733,7 @@ views.dashboard = (el) => {
       g.beginPath(); pathPts(g, pts, !!ch.smooth, true); g.strokeStyle = l.color; g.lineWidth = lw; g.lineJoin = 'round'; if (glassy()) { g.shadowColor = l.color; g.shadowBlur = 9; } g.stroke(); g.shadowBlur = 0;
       if (ch.pts) { g.fillStyle = l.color; for (const [px, py] of pts) { g.beginPath(); g.arc(px, py, Math.max(2, lw + 0.8), 0, 7); g.fill(); } }
     }
-    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 36 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
+    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
     if (axis) { g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3); }
     cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - padL) / (w - padL - 8)) * (n - 1)); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs; cv.title = `${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)}\n` + lines.map((l) => `${l.name}: ${fmtN(l.v[i])}`).join('\n'); };
     const lg = $('.legend', wbOf(t.id)); if (lg) lg.innerHTML = lines.length > 1 && ch.legend !== 'hide' ? lines.map((l) => `<span class="muted"><span class="dot" style="background:${l.color};margin-right:5px"></span>${l.name}</span>`).join('') : '';
@@ -862,8 +862,8 @@ views.dashboard = (el) => {
     }
     if (ty === 'radial') {
       const k = rows.length, step = 84 / Math.max(k, 1), sw = Math.min(12, step * 0.72), A0 = -Math.PI / 2;
-      const rings = rows.map((r, i) => { const R = 92 - i * step, f = Math.max(0.02, r.n / max) * 0.75, y = 100 - R;
-        return `<path d="${arcPath(100, 100, R, A0, A0 + Math.PI * 1.5)}" fill="none" stroke="var(--line)" stroke-width="${sw}" opacity=".6" stroke-linecap="round"/><path d="${arcPath(100, 100, R, A0, A0 + Math.PI * 2 * f)}" fill="none" stroke="${r.color}" stroke-width="${sw}" stroke-linecap="round"><title>${esc(r.name)}: ${fmtN(r.n)}</title></path><text x="96" y="${(y + sw * 0.34).toFixed(1)}" text-anchor="end" class="rd-l" font-size="${Math.min(9, Math.max(5.5, sw * 0.85)).toFixed(1)}">${esc(String(r.name).slice(0, 14))}</text>`; }).join('');
+      const rings = rows.map((r, i) => { const R = 92 - i * step, f = Math.max(0.02, r.n / max) * 0.75;
+        return `<path d="${arcPath(100, 100, R, A0, A0 + Math.PI * 1.5)}" fill="none" stroke="var(--line)" stroke-width="${sw}" opacity=".6" stroke-linecap="round"/><path d="${arcPath(100, 100, R, A0, A0 + Math.PI * 2 * f)}" fill="none" stroke="${r.color}" stroke-width="${sw}" stroke-linecap="round"><title>${esc(r.name)}: ${fmtN(r.n)}</title></path>`; }).join('');
       return `<div class="radialv"><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet">${rings}</svg>${legendRows(t, rows, total)}</div>`;
     }
     if (ty === 'rose') {
@@ -931,7 +931,7 @@ views.dashboard = (el) => {
     g.strokeStyle = css('--line'); g.fillStyle = css('--faint'); g.textAlign = 'right';
     for (let i = 0; i <= 3; i++) { const v = (max / 3) * i, yy = y(v); if (t.cfg?.ch?.grid !== false) { g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); } if (t.cfg?.ch?.axis !== false) g.fillText(v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v), padL - 5, yy + 3); }
     d.series.forEach((a, i) => { let base = 0; GROUPS.forEach((grp, gi) => { const v = grp.reduce((s, k) => s + a[k], 0); if (!v) return; const y1 = y(base + v), y0 = y(base); if (glassy()) glossRect(g, padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1, colors[gi]); else { g.fillStyle = colors[gi]; g.fillRect(padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1); } base += v; }); });
-    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 36 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
+    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
     g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3);
     cv.onmousemove = (e) => { const i = Math.floor((e.offsetX - padL) / bw); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs;
       cv.title = `${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)} (${data.bucketMs >= 3600000 ? data.bucketMs / 3600000 + ' h' : data.bucketMs / 60000 + ' min'})\n` + GNAMES.map((nm, k) => `${nm}: ${fmtN(GROUPS[k].reduce((s, q) => s + d.series[i][q], 0))}`).join('\n'); };

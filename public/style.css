@@ -1544,3 +1544,29 @@ button.tcard[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0
 /* the Settings header follows the glass instead of staying a solid band */
 :root[data-glass] .stickyhead:not(#_) { background: var(--g-th); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid var(--g-line); }
 button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
+
+/* 1.85.0 dashboard visuals: text on a tile that is filled with a colour stays readable */
+.widget.tinted :is(.up-bad, .up-ok):not(#_) { color: var(--tintink) !important; font-weight: 600; }
+.widget.tinted .srcchip:not(#_) { background: color-mix(in srgb, var(--tintink) 18%, transparent); color: var(--tintink); }
+.pielegend { flex-basis: 50%; }
+.pielegend .pl > :nth-child(2) { white-space: normal !important; overflow-wrap: anywhere; text-overflow: clip !important; line-height: 1.2; }
+
+/* 1.85 one panel layout for every theme: the floating rail, status bar and rounded panels of Noir orange (colours stay per theme).
+   Low specificity on purpose: themes and looks that already shape their own layout (glass, ios, hardware, neumorphism, claymorphism, the Noir group) keep winning. */
+@media (min-width: 861px) {
+  :root .shell { padding: 12px; gap: 12px; height: 100vh; }
+  :root .rail { border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 10px 28px rgba(0,0,0,.2); }
+  :root .rail a { border-left: 0; border-radius: 12px; }
+  :root .rail a.active { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+  :root .main { height: calc(100vh - 24px); }
+  :root .status { border: 1px solid var(--line); border-radius: 16px; margin: 0 0 12px; padding: 9px 18px; }
+  :root .panel, :root fieldset { border-radius: 18px; box-shadow: 0 6px 20px rgba(0,0,0,.16); }
+  :root button { border-radius: 10px; padding: 7px 15px; }
+  :root button.primary { border-radius: 999px; }
+  :root input[type=text], :root input[type=number], :root input[type=password], :root input[type=search], :root select, :root textarea { border-radius: 10px; }
+}
+@media (max-width: 860px) {
+  :root .shell { padding: 6px; gap: 6px; }
+  :root .rail { border: 1px solid var(--line); border-radius: 18px; }
+  :root .status { border: 1px solid var(--line); border-radius: 18px; margin: 0 0 6px; }
+}

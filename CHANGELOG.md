@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.85.0
+- **Same floating layout in every theme.** The rounded side bar, the separate status bar and the rounded panels of Noir orange now apply to all themes; only the colours differ.
+- **Dashboard visuals checked option by option.** A generated test board covering every tile type, data source, ranking, metric and chart option showed no errors and no empty tiles.
+- **Charts.** Time axes now show the date as well as the time on ranges of a day or more, so the two ends are no longer both "22:50".
+- **Radial bars.** The tiny overlapping ring labels are gone; the legend names each ring.
+- **Tinted tiles and legends.** Up/down arrows and source chips keep readable contrast on tinted tiles, and long legend names wrap instead of being cut off.
+
 ## 1.84.0
 
 - Themes tidied and the theme list redesigned. Settings → Appearance now shows theme cards with a small preview, grouped Dark, Light and Special looks, instead of a plain list. Six themes that looked like another one were removed: Nord and Charcoal become Graphite, Navy control room becomes Midnight blue, Espresso and Copper become Noir orange, Neon pink becomes Violet (a saved choice moves automatically). Dracula is renamed Violet, Solarized dark is Solarized teal and Fresh lime is Fresh green. The top bar on Cream and Fresh is now the same calm panel as every other theme instead of a black or lime pill, and the Settings header follows the glass effect instead of staying a solid band.
