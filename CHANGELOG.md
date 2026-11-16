@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.78.0
+
+- **New theme: Hardware (skeuomorphic).** Brushed-metal chassis, raised bevelled plates, tiles set into the panel like instrument windows with a metal bezel and a glass sheen, tactile pressable buttons, recessed input fields, amber LED accents and an engraved look. Pick it in Settings → Appearance → Theme.
+- **New theme: Glassmorphism.** Vivid purple, pink and blue gradient background, translucent white frosted panels and tiles with soft white edges and large rounded corners, white text. Add a background picture to replace the gradient.
+- Both are normal themes; the Glass effect switch does not apply to them.
+
 ## 1.77.0
 
 - **New theme: Clear glass (transparent, dark text).** Panels, tiles, side panel and status bar are fully transparent frosted glass with a thin white edge and no colour scheme of their own, and all text is black or dark grey. It is made for a background picture, so the picture is the only colour. Pick it in Settings → Appearance → Theme, then choose a picture.
