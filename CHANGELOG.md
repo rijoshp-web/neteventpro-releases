@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.85.2
+- **Logs readable on light themes.** On Light, Cream, Fresh, Neumorphism, Claymorphism and glass over a light picture, the log table is now a solid surface with near-black text, bold severity names, darker links, alternate-row shading, stronger row lines and a solid header.
+
 ## 1.85.1
 - **Dialogs readable on glass themes.** The Edit rule and Edit report windows were shifted, clipped at the top and slid under the page header because a glass panel held them. They now open centred over the whole page, on a dimmed and blurred backdrop, with a solid enough background to read.
 
