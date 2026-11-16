@@ -1325,3 +1325,18 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-bgimg] :is(.rail, .status):not(#_), :root[data-look="glass"] :is(.rail, .status):not(#_) { background: rgba(255,255,255,.03); background-image: none; border: 1px solid rgba(255,255,255,.11); box-shadow: 0 10px 28px rgba(0,0,0,.22); }
 :root[data-bgimg] .main::before { background: linear-gradient(rgba(0,0,0,calc(var(--bgdim,.3) * .4)), rgba(0,0,0,calc(var(--bgdim,.3) * .4))), var(--bgimg) center / cover no-repeat fixed; }
 :root[data-bgimg] .widget.panel .wb, :root[data-bgimg] .widget.panel h3 { text-shadow: 0 1px 8px rgba(0,0,0,.45); }
+
+/* 1.77.0 Clear glass: fully transparent panels and tiles with dark text, made for a background picture */
+:root[data-theme="clear"] { color-scheme: light; --bg: #d9e1ea; --panel: #f6f8fb; --panel2: #eaeff5; --line: rgba(10,20,30,.20); --line2: rgba(10,20,30,.32); --text: #0b121a; --muted: #26323f; --faint: #4a5a6b; --accent: #0b6b5f; --accent-ink: #fff; --link: #0a4fa3; --s3: #b45f00; --s4: #7d6f00; --s6: #3f5368; --bgfx: radial-gradient(900px 600px at 8% 0%, rgba(120,170,230,.55), transparent 62%), radial-gradient(900px 650px at 100% 100%, rgba(240,170,120,.45), transparent 62%); }
+:root[data-theme="clear"] body { background: var(--bgfx), var(--bg); background-attachment: fixed; }
+:root[data-theme="clear"][data-bgimg] body { background: linear-gradient(rgba(255,255,255,calc(var(--bgdim,.3) * .5)), rgba(255,255,255,calc(var(--bgdim,.3) * .5))), var(--bgimg) center / cover no-repeat fixed, #fff; }
+:root[data-theme="clear"] :is(.widget.panel, .rail, .status, .main, fieldset, .panel, #wallBar):not(#_) { background: rgba(255,255,255,.10); background-image: none; -webkit-backdrop-filter: blur(var(--bgfrost,14px)) saturate(1.35); backdrop-filter: blur(var(--bgfrost,14px)) saturate(1.35); border: 1px solid rgba(255,255,255,.55); box-shadow: 0 8px 28px rgba(10,20,40,.14), inset 0 1px 0 rgba(255,255,255,.35); color: var(--text); }
+:root[data-theme="clear"] .main:not(#_) { background: rgba(255,255,255,.06); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-theme="clear"][data-bgimg] .main::before { background: linear-gradient(rgba(255,255,255,calc(var(--bgdim,.3) * .3)), rgba(255,255,255,calc(var(--bgdim,.3) * .3))), var(--bgimg) center / cover no-repeat fixed; filter: blur(var(--bgblur,10px)) saturate(1.2); }
+:root[data-theme="clear"] .widget.panel :is(h3, .wb, .big, .v, .sub, label, th, td, span, b, div) { text-shadow: 0 0 6px rgba(255,255,255,.65); }
+:root[data-theme="clear"] :is(input, select, textarea) { background: rgba(255,255,255,.72); color: var(--text); border-color: var(--line2); text-shadow: none; }
+:root[data-theme="clear"] :is(button, .btn):not(.primary):not(#_) { background: rgba(255,255,255,.45); color: var(--text); border-color: rgba(10,20,30,.28); }
+:root[data-theme="clear"] :is(table.log th, table.alarms thead th, .scrollbox thead th) { background: rgba(240,244,249,.88); color: var(--text); text-shadow: none; }
+:root[data-theme="clear"] .dmenu { background: rgba(250,252,255,.92); color: var(--text); }
+:root[data-theme="clear"] .rail a { color: var(--text); }
+:root[data-theme="clear"] .rail a.on { background: rgba(255,255,255,.55); color: var(--text); }

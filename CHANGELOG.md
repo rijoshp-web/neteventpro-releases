@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.77.0
+
+- **New theme: Clear glass (transparent, dark text).** Panels, tiles, side panel and status bar are fully transparent frosted glass with a thin white edge and no colour scheme of their own, and all text is black or dark grey. It is made for a background picture, so the picture is the only colour. Pick it in Settings → Appearance → Theme, then choose a picture.
+- Three light built-in pictures for it: Sky, Sand and Pearl. The Dim slider adds a white veil on this theme (raise it if text is hard to read).
+
 ## 1.76.5
 
 - **Clear glass tiles.** Removed the grey wash (gloss gradient and dark fill) from every tile, panel, side panel and status bar in glass mode. Tiles are now clear frosted glass: the background picture shows through the blur, with a thin soft border.
