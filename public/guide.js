@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.79.0</b> — One unified glass effect on every theme (Settings → Appearance → Glass effect); the separate glass themes were removed.</li>
+    <ul><li><b>1.79.1</b> — Tile frost slider now works on tiles with a custom look; Hardware theme note in Appearance.</li>
+      <li><b>1.79.0</b> — One unified glass effect on every theme (Settings → Appearance → Glass effect); the separate glass themes were removed.</li>
       <li><b>1.78.2</b> — Clear glass: rim light, sheen and crisp pictures behind frosted tiles, so it reads as real glass.</li>
 <li><b>1.78.1</b> — Clear glass shows a built-in light picture by default so it looks like glass straight away.</li>
 <li><b>1.78.0</b> — Two new themes: <b>Hardware</b> (skeuomorphic metal, bezels and LEDs) and <b>Glassmorphism</b> (frosted translucent panels over a vivid gradient).</li>

@@ -141,7 +141,7 @@ function lookOf(t) {
   if (L.bgMode === 'none') st.push('background:transparent', 'box-shadow:none', 'border-color:transparent');
   else if (L.bgMode === 'solid' && L.bg) st.push(`background:${hexA(L.bg, a)}`);
   else if (L.bgMode === 'gradient' && L.bg) st.push(`background:linear-gradient(${L.angle ?? 135}deg,${hexA(L.bg, a)},${hexA(L.bg2 || L.bg, a)})`);
-  if (L.bgMode === 'solid' || L.bgMode === 'gradient') { if (a < 100) st.push('backdrop-filter:blur(8px)'); }
+  if (L.bgMode === 'solid' || L.bgMode === 'gradient') { if (a < 100) st.push('backdrop-filter:blur(var(--bgfrost,8px))'); }
   if (L.bw !== undefined) st.push(`border:${L.bw}px solid ${L.bc || 'var(--line)'}`); else if (L.bc) st.push(`border-color:${L.bc}`);
   if (L.radius !== undefined) st.push(`border-radius:${L.radius}px`);
   const glow = L.bc || c.color || 'var(--accent)';

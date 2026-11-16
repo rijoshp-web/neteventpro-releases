@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.79.1
+
+- Glass sliders: Tile frost now also applies to dashboard tiles that have a custom look (they used a fixed blur). Settings explains that the Hardware theme has no glass, so the picture and sliders do nothing there.
+
 ## 1.79.0
 
 - One glass effect for the whole app, like iOS: tiles, panels, side panel and status bar are frosted over a blurred picture, with thin light edges, on every theme. Turn it on in Settings → Appearance → Glass effect; choosing a picture turns it on by itself and a built-in picture is used until you pick your own. Text colour follows the theme (dark themes get light text, light themes dark). The separate Clear glass, Glassmorphism and iOS Glass themes are removed; saved choices convert to Light, Midnight or Dark with glass on. Hardware keeps its own look.
