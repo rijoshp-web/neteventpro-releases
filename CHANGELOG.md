@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.85.1
+- **Dialogs readable on glass themes.** The Edit rule and Edit report windows were shifted, clipped at the top and slid under the page header because a glass panel held them. They now open centred over the whole page, on a dimmed and blurred backdrop, with a solid enough background to read.
+
 ## 1.85.0
 - **Same floating layout in every theme.** The rounded side bar, the separate status bar and the rounded panels of Noir orange now apply to all themes; only the colours differ.
 - **Dashboard visuals checked option by option.** A generated test board covering every tile type, data source, ranking, metric and chart option showed no errors and no empty tiles.

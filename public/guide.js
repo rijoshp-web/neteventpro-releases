@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.85.0</b> — Every theme now uses the same floating side bar, status bar and rounded panels. Dashboard visuals were checked option by option; chart axes show dates on long ranges, radial bars lost their overlapping labels, and tinted tiles and legends are easier to read.</li>
+    <ul><li><b>1.85.1</b> — The Edit rule and Edit report windows open centred and readable on glass themes.</li>
+    <li><b>1.85.0</b> — Every theme now uses the same floating side bar, status bar and rounded panels. Dashboard visuals were checked option by option; chart axes show dates on long ranges, radial bars lost their overlapping labels, and tinted tiles and legends are easier to read.</li>
     <li><b>1.84.0</b> — Theme cards in Appearance, similar themes merged, calmer top bar on Cream and Fresh.</li>
       <li><b>1.83.0</b> — NOC wall sheet, new sign-in page, stronger focus ring, light-theme colour fixes.</li>
       <li><b>1.82.0</b> — UI polish: cleaner Devices table, 24-hour chart axes, polling empty-state steps, Settings descriptions.</li>
