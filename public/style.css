@@ -1586,3 +1586,10 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 :root[data-tone="light"] table.log .sevname:not(#_) { font-weight: 700; filter: brightness(.72) saturate(1.15); }
 :root[data-tone="light"] table.log td a:not(#_) { color: #1d4ed8; text-decoration-thickness: 1px; }
 :root[data-tone="light"] table.log td.sev i:not(#_) { width: 6px; }
+
+/* 1.85.3 menus and windows never run off a short screen */
+.dmenu { max-height: calc(100vh - 100px); overflow-y: auto; }
+.popover { max-height: calc(100vh - 20px); }
+.modal { max-height: calc(100vh - 32px); }
+.modal.xwide, .modal.pe { max-height: calc(100vh - 32px); }
+.popover > .toolbar:last-child { position: sticky; bottom: -1px; background: var(--panel); padding-top: 8px; border-top: 1px solid var(--line); z-index: 2; }

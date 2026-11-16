@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.85.3
+- **Windows and menus always fit the screen.** Pop-up panels such as Log appearance, Views, Columns and Export are kept fully on screen: they slide up or sideways when needed and scroll inside on a short window, with their Done button pinned at the bottom. Menus and dialogs are capped to the window height too.
+
 ## 1.85.2
 - **Logs readable on light themes.** On Light, Cream, Fresh, Neumorphism, Claymorphism and glass over a light picture, the log table is now a solid surface with near-black text, bold severity names, darker links, alternate-row shading, stronger row lines and a solid header.
 

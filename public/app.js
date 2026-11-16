@@ -1628,7 +1628,20 @@ window.addEventListener('hashchange', route);
     });
   };
   const scan = (n) => { if (n.nodeType !== 1) return; if (n.matches('.modal, .popover')) grab(n); n.querySelectorAll?.('.modal, .popover').forEach(grab); };
-  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach(scan))).observe(document.body, { childList: true });
+  // 1.85.3 keep every popover fully on screen: cap its height to the window and slide it up or sideways until its bottom and edges are visible (it scrolls inside when the window is shorter than its content)
+  const fitPop = (n) => {
+    if (!n.isConnected) return;
+    const vh = innerHeight, vw = innerWidth;
+    n.style.maxHeight = (vh - 20) + 'px';
+    const h = Math.min(n.scrollHeight + (n.offsetHeight - n.clientHeight), vh - 20), r = n.getBoundingClientRect();
+    let top = r.top; if (top + h > vh - 10) top = vh - 10 - h; if (top < 10) top = 10;
+    if (Math.abs(top - r.top) > 1) { n.style.bottom = 'auto'; n.style.top = top + 'px'; }
+    const r2 = n.getBoundingClientRect();
+    if (r2.right > vw - 8 || r2.left < 8) { const left = Math.max(8, Math.min(r2.left, vw - r2.width - 8)); n.style.right = 'auto'; n.style.left = left + 'px'; }
+  };
+  const watchPop = (n) => { if (n.nodeType !== 1) return; const els = n.matches('.popover') ? [n] : [...(n.querySelectorAll?.('.popover') || [])]; els.forEach((p) => { fitPop(p); new ResizeObserver(() => fitPop(p)).observe(p); }); };
+  window.addEventListener('resize', () => document.querySelectorAll('.popover').forEach(fitPop));
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { scan(n); watchPop(n); }))).observe(document.body, { childList: true });
 })();
 
 // ---------- HTTPS certificate made in the app ---------------------------------------------------------------------------------------------
