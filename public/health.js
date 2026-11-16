@@ -13,7 +13,7 @@ function sysChart(cv, samples, series, o = {}) {
   const X = (t) => L + (t - t0) / Math.max(1, t1 - t0) * w, Y = (v) => T + h - Math.min(1, v / max) * h;
   g.strokeStyle = grid; g.fillStyle = txt; g.lineWidth = 1; g.textAlign = 'right';
   for (let i = 0; i <= 4; i++) { const y = T + h - h * i / 4; g.beginPath(); g.moveTo(L, y + .5); g.lineTo(W - R, y + .5); g.stroke(); g.fillText(fmt(max * i / 4), L - 6, y + 4); }
-  g.textAlign = 'center'; for (let i = 0; i <= 4; i++) { const t = t0 + (t1 - t0) * i / 4; g.fillText(new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), L + w * i / 4, H - 5); }
+  for (let i = 0; i <= 4; i++) { g.textAlign = i === 4 ? 'right' : 'center'; const t = t0 + (t1 - t0) * i / 4; g.fillText(new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: t1 - t0 < 900000 ? '2-digit' : undefined, hour12: false }), L + w * i / 4 + (i === 4 ? 2 : 0), H - 5); } g.textAlign = 'center';
   if (pts.length < 2) { g.textAlign = 'center'; g.fillText('Collecting data… (a point every ' + (o.step || 5) + ' s)', L + w / 2, T + h / 2); cv._pts = null; return; }
   for (const [si, sr] of series.entries()) {
     g.beginPath(); let started = false;
@@ -23,7 +23,7 @@ function sysChart(cv, samples, series, o = {}) {
   }
   cv._pts = { pts, X, Y, L, R, T, h, w, series, fmt };
   cv.onmousemove = (e) => { const c = cv._pts; if (!c) return; const r = cv.getBoundingClientRect(), mx = e.clientX - r.left; let best = null, bd = 1e9; for (const x of c.pts) { const d = Math.abs(c.X(x.t) - mx); if (d < bd) { bd = d; best = x; } }
-    cv.title = best ? `${new Date(best.t).toLocaleTimeString()}\n` + c.series.map((sr) => `${sr.name}: ${best[sr.key] === null || best[sr.key] === undefined ? '–' : c.fmt(best[sr.key])}`).join('\n') : ''; };
+    cv.title = best ? `${new Date(best.t).toLocaleTimeString([], { hour12: false })}\n` + c.series.map((sr) => `${sr.name}: ${best[sr.key] === null || best[sr.key] === undefined ? '–' : c.fmt(best[sr.key])}`).join('\n') : ''; };
 }
 
 views.health = (el, _main, embedded) => {
@@ -84,7 +84,7 @@ views.health = (el, _main, embedded) => {
     sysChart($('#cDisk', el), f, [{ name: 'Used', color: '#22c55e', key: 'disk' }], { max: 100, fmt: pc, step });
     sysChart($('#cNet', el), f, [{ name: 'Incoming', color: '#06b6d4', key: 'rx' }, { name: 'Outgoing', color: '#f472b6', key: 'tx' }], { fmt: mbps, step, fillAll: true });
     sysChart($('#cEps', el), f, [{ name: 'Messages/s', color: '#38bdf8', key: 'eps' }], { fmt: (v) => String(Math.round(v * 10) / 10), step });
-    sysChart($('#cLag', el), f, [{ name: 'Pause (ms)', color: '#fb7185', key: 'lag' }], { fmt: (v) => Math.round(v) + ' ms', step });
+    sysChart($('#cLag', el), f, [{ name: 'Pause (ms)', color: '#fb7185', key: 'lag' }], { fmt: (v) => (Math.round(v * 10) / 10) + ' ms', step });
     if (now.rx === null || now.rx === undefined) { const c = $('#cNet', el); const g = c.getContext('2d'); g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted'); g.textAlign = 'center'; g.fillText('Network counters are not available on this system', c.clientWidth / 2, 90); }
     $('#hMachine', el)?.remove();
     $('#hBody', el).insertAdjacentHTML('afterbegin', `<div class="panel" id="hMachine" style="margin-bottom:14px"><h2>This machine</h2>${kv([['Name', esc(m.host)], ['Operating system', `${esc(m.os)} (${esc(m.arch)}), up ${uptime(m.uptimeSec)}`], ['Processor', `${esc(m.cpuModel || 'unknown')} · ${m.cores} cores${m.speedMHz ? ' · ' + m.speedMHz + ' MHz' : ''}`], ['Memory', `${m.totalMemGB} GB`], m.load ? ['Load average (1/5/15 min)', m.load.join(' / ')] : null, ['Network cards', m.nets.map((n) => `${esc(n.name)} ${esc(n.ip)}`).join('<br>') || '–']])}</div>`);

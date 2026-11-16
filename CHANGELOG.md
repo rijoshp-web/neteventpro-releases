@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.82.0
+
+- UI polish. Devices: names, groups and expect-every boxes look like plain text until you hover or click; Note, Mute and Forget are small icon buttons, so nothing runs off the screen; the help text is shorter. System health: charts use 24-hour time like the rest of the app (with seconds for short ranges), the last time label is no longer cut off, and the responsiveness axis shows decimals. Tile labels on System health and SNMP polling use the same style as the Dashboard. SNMP polling: the empty page shows three steps and an Add device button. Settings: each group has a one-line description and matching icons. Logs: the Date column is no longer shown by default (messages from another day show their date in the Time column); you can turn it back on under Columns.
+
 ## 1.81.0
 
 - Design review fixes. Dashboard: Active alarms is now the biggest number with a red top edge; the repeated Alarms/Syslog/Traps tag is gone from tiles under a section heading; small grey text is brighter; empty SNMP polling tiles link to SNMP polling. Alarms: unacknowledged rows are tinted, empty Acknowledged/Escalated cells show a dash instead of No, and row buttons are bigger. Phone: the menu is one scrolling row, the status bar is one line with a smaller clock, and small number tiles sit two per row.
