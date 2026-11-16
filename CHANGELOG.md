@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.78.2
+
+- **Clear glass now reads as real glass.** Added a bright rim light on the top and left edges, a soft diagonal sheen, an inner edge glow and a deeper shadow to every tile and panel. The built-in Sky, Sand and Pearl pictures now have crisp glossy spheres and a sharper ribbon, and the picture between the tiles stays crisp while behind each tile it is frosted, which is what makes glass look like glass.
+
 ## 1.78.1
 
 - **Clear glass now looks like glass out of the box.** With no background picture chosen, the Clear glass theme shows a built-in light picture (Sky) behind the transparent panels, so the glass effect is visible straight away. Pick another picture, or None, in Settings → Appearance → Background picture. The Sky and Sand pictures are more vivid, and the panels are a little more transparent with a stronger blur.

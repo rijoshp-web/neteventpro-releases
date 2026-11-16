@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.78.1</b> — Clear glass shows a built-in light picture by default so it looks like glass straight away.</li>
+    <ul><li><b>1.78.2</b> — Clear glass: rim light, sheen and crisp pictures behind frosted tiles, so it reads as real glass.</li>
+<li><b>1.78.1</b> — Clear glass shows a built-in light picture by default so it looks like glass straight away.</li>
 <li><b>1.78.0</b> — Two new themes: <b>Hardware</b> (skeuomorphic metal, bezels and LEDs) and <b>Glassmorphism</b> (frosted translucent panels over a vivid gradient).</li>
 <li><b>1.77.0</b> — New <b>Clear glass</b> theme: transparent panels and tiles, dark text, made for a background picture (plus light pictures Sky, Sand, Pearl).</li>
 <li><b>1.76.5</b> — Glass tiles and panels are now clear (no grey shade); the background picture shows through.</li>
