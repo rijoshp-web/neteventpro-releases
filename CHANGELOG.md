@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.81.0
+
+- Design review fixes. Dashboard: Active alarms is now the biggest number with a red top edge; the repeated Alarms/Syslog/Traps tag is gone from tiles under a section heading; small grey text is brighter; empty SNMP polling tiles link to SNMP polling. Alarms: unacknowledged rows are tinted, empty Acknowledged/Escalated cells show a dash instead of No, and row buttons are bigger. Phone: the menu is one scrolling row, the status bar is one line with a smaller clock, and small number tiles sit two per row.
+
 ## 1.80.0
 
 - Two new themes. Neumorphism: one soft grey surface where panels, buttons and the active menu item look raised or pressed in. Claymorphism: pastel, puffy, rounded panels and pill buttons with soft coloured shadows. Both are light themes with their own look, so they do not combine with the Glass effect (same as Hardware).

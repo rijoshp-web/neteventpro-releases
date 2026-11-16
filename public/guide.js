@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.80.0</b> — New themes: Neumorphism and Claymorphism (Settings → Appearance).</li>
+    <ul><li><b>1.81.0</b> — Design review: bigger Active alarms, cleaner tiles, tinted unacknowledged alarms, better phone layout.</li>
+      <li><b>1.80.0</b> — New themes: Neumorphism and Claymorphism (Settings → Appearance).</li>
       <li><b>1.79.1</b> — Tile frost slider now works on tiles with a custom look; Hardware theme note in Appearance.</li>
       <li><b>1.79.0</b> — One unified glass effect on every theme (Settings → Appearance → Glass effect); the separate glass themes were removed.</li>
       <li><b>1.78.2</b> — Clear glass: rim light, sheen and crisp pictures behind frosted tiles, so it reads as real glass.</li>

@@ -1451,3 +1451,24 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-theme="claymorphism"] .rail a:not(#_) { border-radius: 18px; }
 :root[data-theme="claymorphism"] .rail a.on:not(#_) { background: linear-gradient(180deg, #9a7dff, #7c5cf0); color: #fff; box-shadow: 0 6px 12px rgba(124,92,240,.35), inset 0 -3px 6px rgba(60,30,160,.3), inset 0 3px 6px rgba(255,255,255,.4); }
 :root[data-theme="claymorphism"] thead th:not(#_) { background: var(--panel2); }
+
+/* 1.81.0 design review: hero alarm count, readable small text, alarm rows, bigger row buttons, phone layout */
+.widget[data-id="al_open"] .kpi .num { font-size: clamp(34px, 62cqh, 92px); font-weight: 700; }
+.widget[data-id="al_open"] { border-top: 3px solid var(--s2, #e5484d); }
+.kpi .sub, .widget .muted { color: color-mix(in srgb, var(--text) 62%, var(--bg)); }
+table.alarms tbody tr.al-row.st-open td { background: color-mix(in srgb, var(--sevc, var(--s3)) 12%, transparent); }
+table.alarms tbody tr.al-row.st-open td:first-child { font-weight: 600; }
+table.alarms .acts button.ib { padding: 6px 10px; min-width: 32px; min-height: 30px; }
+@media (pointer: coarse) { table.alarms .acts button.ib { min-width: 40px; min-height: 40px; } }
+@media (max-width: 860px) {
+  .rail { flex-wrap: nowrap; overflow-x: auto; gap: 2px; scrollbar-width: none; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail a { flex: none; white-space: nowrap; }
+  .brand { flex: none; }
+  .status { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .status .clock { flex: none; }
+  .dgrid > .widget .kpi .num { font-size: clamp(20px, 7vw, 34px); }
+  .widget[data-id="al_open"] .kpi .num { font-size: clamp(28px, 10vw, 48px); }
+}
+@media (max-width: 860px) { .status-items { flex-wrap: nowrap; white-space: nowrap; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } .status-items::-webkit-scrollbar { display: none; } }
+@media (max-width: 860px) { .clock { font-size: 22px; } .clock .ctime, .clock #ctime { font-size: 26px; } }

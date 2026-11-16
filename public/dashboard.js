@@ -371,21 +371,31 @@ views.dashboard = (el) => {
   function place(skipId) {
     const g = geo(); let stack = 0, bottom = 0;
     const order = narrow() ? [...getTiles()].sort((a, b) => a.y - b.y || a.x - b.x) : getTiles();
+    const nar = narrow(), half = (g.W - GRID.gap) / 2; let pend = null;      // phone: two small number tiles side by side
+    const put = (id, l, tp, w, h) => { const n = $(`[data-id="${id}"]`, grid); if (!n || id === skipId) return; n.style.left = l + 'px'; n.style.top = tp + 'px'; n.style.width = w + 'px'; n.style.height = h + 'px'; };
     for (const t of order) {
+      if (nar && t.type !== 'section' && t.w <= 3 && t.h <= 3) {
+        const h = Math.max(t.h, 3) * GRID.row + (Math.max(t.h, 3) - 1) * GRID.gap;
+        if (pend) { put(t.id, half + GRID.gap, pend.top, half, pend.h); stack = pend.top + Math.max(pend.h, h) + GRID.gap; bottom = Math.max(bottom, stack - GRID.gap); pend = null; }
+        else { pend = { top: stack, h }; put(t.id, 0, stack, half, h); stack += h + GRID.gap; bottom = Math.max(bottom, stack - GRID.gap); }
+        continue;
+      }
+      if (pend) pend = null;
       const r = rect(t, g, stack); stack += r.height + GRID.gap; bottom = Math.max(bottom, r.top + r.height);
-      const n = $(`[data-id="${t.id}"]`, grid); if (!n || t.id === skipId) continue;
-      n.style.left = r.left + 'px'; n.style.top = r.top + 'px'; n.style.width = r.width + 'px'; n.style.height = r.height + 'px';
+      put(t.id, r.left, r.top, r.width, r.height);
     }
     grid.style.height = (bottom + (editing ? 80 : 0)) + 'px';
   }
 
   // ----- frames (the boxes); their contents are painted separately -----
+  /** a tile under a section heading needs no source chip: the heading already says it */
+  const secAbove = (t) => getTiles().some((x) => x.type === 'section' && x.y <= t.y);
   function frames() {
     cache.clear();
     grid.classList.toggle('editing', editing && !narrow());
     grid.innerHTML = getTiles().map((t) => { if (t.type === 'section') { const k = lookOfSec(t); return `<div class="dsec" data-id="${t.id}" data-type="section" ${k.style ? `style="${k.style}"` : ''}><b ${k.title ? `style="${k.title}"` : ''}>${esc(t.title)}</b><span class="muted" id="sec_${t.id}"></span>${editing ? `<span class="spacer"></span><button data-a="seccfg" data-sid="${t.id}" title="Rename this section and change its look">Edit</button>` : ''}</div>`; }
       const k = lookOf(t); return `<section class="widget panel ${k.cls}" data-id="${t.id}" data-type="${t.type}" ${k.style ? `style="${k.style}"` : ''}>
-      <div class="whead ${k.hideTitle && !editing ? 'nohead' : ''}" ${k.head ? `style="${k.head}"` : ''} ${editing ? 'tabindex="0" title="Drag to move. Arrow keys move, Shift+arrows resize."' : ''}>${k.hideTitle ? '' : `<h2 class="wtitle" ${k.title ? `style="${k.title}"` : ''}>${esc(t.title || TYPES[t.type].label)}</h2>${hasDs(t) && t.cfg?.look?.tSrc !== false ? `<span class="srcchip" data-ds="${dsOf(t)}" title="${esc(DS[dsOf(t)].chip + ': ' + DS[dsOf(t)].desc)}">${esc(t.w <= 2 ? DS[dsOf(t)].short : DS[dsOf(t)].chip)}</span>` : ''}`}<span class="spacer"></span>
+      <div class="whead ${k.hideTitle && !editing ? 'nohead' : ''}" ${k.head ? `style="${k.head}"` : ''} ${editing ? 'tabindex="0" title="Drag to move. Arrow keys move, Shift+arrows resize."' : ''}>${k.hideTitle ? '' : `<h2 class="wtitle" ${k.title ? `style="${k.title}"` : ''}>${esc(t.title || TYPES[t.type].label)}</h2>${hasDs(t) && t.cfg?.look?.tSrc !== false && !secAbove(t) ? `<span class="srcchip" data-ds="${dsOf(t)}" title="${esc(DS[dsOf(t)].chip + ': ' + DS[dsOf(t)].desc)}">${esc(t.w <= 2 ? DS[dsOf(t)].short : DS[dsOf(t)].chip)}</span>` : ''}`}<span class="spacer"></span>
       ${editing ? `<button data-a="cfg" aria-label="Edit tile ${esc(t.title)}" title="Edit this tile">Edit</button><button data-a="del" class="danger" aria-label="Remove tile ${esc(t.title)}" title="Remove this tile">✕</button>` : ''}</div>
       <div class="wb" id="wb_${t.id}"></div>
       ${editing && !narrow() ? '<i class="dz dz-e" data-r="e"></i><i class="dz dz-s" data-r="s"></i><i class="dz dz-se" data-r="se"></i>' : ''}</section>`; }).join('')
@@ -1200,7 +1210,7 @@ views.dashboard = (el) => {
     const d = pollData.get(t.id), sp = t.cfg?.poll || {}, shape = sp.shape || 'square'; if (!d) return '<div class="muted">Loading…</div>'; if (d.error) return `<div class="muted">${esc(d.error)}</div>`;
     const cell = (name, big, small, col, tip) => `<div class="pcell shp-${shape}" style="--c:${col}" title="${esc(tip || name)}"><span class="pn">${esc(name)}</span><b>${big}</b>${small ? `<span class="tw">${small}</span>` : ''}</div>`;
     if (d.src === 'status' || d.src === 'alarms') {
-      const rows = d.devices || []; if (!rows.length) return '<div class="muted">No polled device' + (sp.group ? ' in this group' : '') + ' yet.</div>';
+      const rows = d.devices || []; if (!rows.length) return '<div class="muted">No polled device' + (sp.group ? ' in this group' : '') + ' yet. <a href="#polling">Add a device in SNMP polling</a>.</div>';
       const sum = Object.entries(d.groups).sort((a, b) => a[0].localeCompare(b[0]));
       const head = d.src === 'alarms' ? `<div class="bigv" style="color:${d.alarms ? 'var(--s3)' : 'var(--ok)'}">${d.alarms}</div><div class="muted" style="margin-bottom:6px">open polling alarm${d.alarms === 1 ? '' : 's'}</div>` : `<div class="muted" style="margin-bottom:6px">${rows.filter((r) => r.state === 'up').length} of ${rows.length} up${rows.some((r) => r.state === 'down') ? ` · <b style="color:var(--bad)">${rows.filter((r) => r.state === 'down').length} no answer</b>` : ''}${d.alarms ? ` · <b style="color:var(--s3)">${d.alarms} alarm${d.alarms === 1 ? '' : 's'}</b>` : ''}</div>`;
       const shown = d.src === 'alarms' ? rows.filter((r) => r.alarms) : rows;
