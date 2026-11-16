@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.84.0
+
+- Themes tidied and the theme list redesigned. Settings → Appearance now shows theme cards with a small preview, grouped Dark, Light and Special looks, instead of a plain list. Six themes that looked like another one were removed: Nord and Charcoal become Graphite, Navy control room becomes Midnight blue, Espresso and Copper become Noir orange, Neon pink becomes Violet (a saved choice moves automatically). Dracula is renamed Violet, Solarized dark is Solarized teal and Fresh lime is Fresh green. The top bar on Cream and Fresh is now the same calm panel as every other theme instead of a black or lime pill, and the Settings header follows the glass effect instead of staying a solid band.
+
 ## 1.83.0
 
 - Review pass. New: NOC wall sheet (very large Active alarms, Errors and Silent devices numbers, severity bars, active alarm list; added once as a new sheet tab, delete it if you do not want it) and a new sign-in page (brand panel, show-password button, Caps Lock hint, follows the saved theme). Fixes: Help section headings are readable, severity colours (Notice, Info, Critical) are darker on the light themes, the unacknowledged-alarm tint is softer on light themes, and the keyboard focus ring is thicker with a halo so it shows on every theme. Severity is always written as a word next to its colour, so colour-blind users do not depend on colour alone.
