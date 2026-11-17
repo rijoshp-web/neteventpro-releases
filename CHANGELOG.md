@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.87.0
+- **Eight new colour themes**, built from the palettes you sent: Pine and gold, Twilight amber, Lagoon copper, Slate rose, Harbour ember, Moss stone, Amethyst and Mocha. They sit in a new Palette group in Settings > Appearance, use the same floating layout, work with glass and background pictures, and meet contrast targets for text, muted text and the accent colour.
+- **Four similar themes removed:** Midnight blue, Forest, Solarized teal and Violet are replaced by Harbour ember, Moss stone, Lagoon copper and Amethyst. A saved choice (and older glass themes) moves to its closest new theme automatically.
+
 ## 1.86.0
 - **Animations, with a switch for each.** Settings > Appearance > Animations has a master switch and ten separate ones: number count-up, tile entrance, chart draw-in, smooth value changes, page transitions, live rows, windows and menus, hover and press, live pulse, and tile movement. They are movement only, never colours, and are built from plain CSS and a small script, so they apply to every theme and look and to every dashboard, including ones you add later. They start off on devices set to reduce motion. The choice is saved in the browser.
 - Numbers on tiles and in the side bar roll up to their value and roll to a new one when data refreshes; tiles rise in one after another; line and bar charts wipe in, round charts sweep clockwise and ranking bars grow; ranking bars glide to their new length; pages fade in; new log rows slide in; dialogs, menus and the detail drawer open softly; tiles lift under the pointer and glide when you rearrange them.

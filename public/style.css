@@ -1659,3 +1659,13 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 .mogrid .chk.mo { align-items: flex-start; }
 .mogrid .chk.mo span { display: grid; gap: 1px; }
 .mogrid .chk.mo small { font-size: 12px; line-height: 1.3; }
+
+/* 1.87 palette themes */
+:root[data-theme="pine-gold"] { --bg: #0b0f0d; --panel: #161e17; --panel2: #1d271d; --line: #283929; --line2: #385139; --text: #eee6d6; --muted: #afb696; --faint: #6e866f; --accent: #B08D57; --accent-ink: #0b0b0d; --link: #bea172; --radius: 12px; color-scheme: dark; }
+:root[data-theme="twilight"] { --bg: #1a1a1f; --panel: #24233d; --panel2: #2b2950; --line: #443c7e; --line2: #6052b7; --text: #f8eede; --muted: #c7a4b7; --faint: #9c80ad; --accent: #F4A62A; --accent-ink: #0b0b0d; --link: #f3b85b; --radius: 12px; color-scheme: dark; }
+:root[data-theme="lagoon"] { --bg: #0a0f14; --panel: #0d282b; --panel2: #0e383a; --line: #1c484b; --line2: #296468; --text: #f6efe6; --muted: #afc5bf; --faint: #629095; --accent: #E07A35; --accent-ink: #0b0b0d; --link: #e49c68; --radius: 12px; color-scheme: dark; }
+:root[data-theme="slate-rose"] { --bg: #121212; --panel: #191f26; --panel2: #1e2733; --line: #252e3b; --line2: #2f3c4e; --text: #f9fafc; --muted: #a3aebc; --faint: #778191; --accent: #ed4f9d; --accent-ink: #0b0b0d; --link: #ee89bd; --radius: 12px; color-scheme: dark; }
+:root[data-theme="harbour"] { --bg: #0b132b; --panel: #141d37; --panel2: #1a233f; --line: #25344e; --line2: #344863; --text: #faeddb; --muted: #a0cac9; --faint: #4997b4; --accent: #E8890C; --accent-ink: #0b0b0d; --link: #eca445; --radius: 12px; color-scheme: dark; }
+:root[data-theme="moss"] { --bg: #0f1f17; --panel: #172e24; --panel2: #1c372c; --line: #294230; --line2: #38533b; --text: #e6e8df; --muted: #a4af9c; --faint: #809080; --accent: #9DB58A; --accent-ink: #0b0b0d; --link: #acbd9a; --radius: 12px; color-scheme: dark; }
+:root[data-theme="amethyst"] { --bg: #0e0b1d; --panel: #1d1537; --panel2: #271c48; --line: #38265d; --line2: #51357f; --text: #e7e4f2; --muted: #a79cd4; --faint: #857ab1; --accent: #9A8BE0; --accent-ink: #0b0b0d; --link: #aa9ee1; --radius: 12px; color-scheme: dark; }
+:root[data-theme="mocha"] { --bg: #1a120e; --panel: #2c1c14; --panel2: #372217; --line: #483120; --line2: #62432a; --text: #ece4db; --muted: #bca184; --faint: #9b8069; --accent: #C09A72; --accent-ink: #0b0b0d; --link: #c7a987; --radius: 12px; color-scheme: dark; }
