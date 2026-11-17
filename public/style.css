@@ -1593,3 +1593,69 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 .modal { max-height: calc(100vh - 32px); }
 .modal.xwide, .modal.pe { max-height: calc(100vh - 32px); }
 .popover > .toolbar:last-child { position: sticky; bottom: -1px; background: var(--panel); padding-top: 8px; border-top: 1px solid var(--line); z-index: 2; }
+
+/* ====== 1.86 motion ======================================================================================================================
+   Animation only: nothing here sets a colour, so every theme, look and dashboard (existing or added later) animates the same way.
+   Each effect is switched by an attribute that motion.js puts on <html> from Settings > Appearance > Animations. */
+@property --m-a { syntax: '<angle>'; inherits: false; initial-value: 360deg; }
+@keyframes m-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes m-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes m-sweep { from { --m-a: 0deg; } to { --m-a: 360deg; } }
+@keyframes m-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-slide { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@keyframes m-row { from { opacity: 0; transform: translateY(-9px); } to { opacity: 1; transform: none; } }
+@keyframes m-win { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes m-pop { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes m-drawer { from { opacity: 0; transform: translateX(44px); } to { opacity: 1; transform: none; } }
+@keyframes m-page { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes m-icon { 0% { transform: scale(1); } 40% { transform: scale(1.3) rotate(-6deg); } 100% { transform: scale(1); } }
+@keyframes m-breathe { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.78); } }
+@keyframes m-ring { from { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } to { box-shadow: 0 0 0 12px transparent; } }
+
+/* tiles arriving */
+:root[data-m-enter] [data-m-in] { animation: m-rise .55s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--mi, 0) * 45ms); }
+
+/* chart draw-in: line and bar charts wipe from the left, round charts sweep clockwise, bar lists grow, tables and heat maps cascade */
+:root[data-m-charts] .widget[data-m-chart] .wb > * { animation: m-fade .6s ease both; }
+:root[data-m-charts] .widget[data-m-chart] :is(.cwrap canvas, svg.spark, canvas) { animation: m-wipe .95s cubic-bezier(.3,.7,.2,1) both; }
+:root[data-m-charts] .widget[data-m-chart]:is([data-type="pie"], [data-type="radial"], [data-type="rose"], [data-type="gauge"], [data-type="waffle"], [data-type="bubble"]) :is(canvas, svg) { animation: m-sweep 1.05s cubic-bezier(.3,.7,.2,1) both; -webkit-mask-image: conic-gradient(#000 var(--m-a), transparent 0); mask-image: conic-gradient(#000 var(--m-a), transparent 0); }
+:root[data-m-charts] .widget[data-m-chart] .bar > i { transform-origin: left center; animation: m-grow .85s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--ri, 0) * 55ms); }
+:root[data-m-charts] .widget[data-m-chart] tbody tr { animation: m-slide .45s ease both; animation-delay: calc(var(--ri, 0) * 40ms); }
+:root[data-m-charts] .widget[data-m-chart] .hm-row { animation: m-fade .5s ease both; animation-delay: calc(var(--ri, 0) * 50ms); }
+:root[data-m-glide] .widget .bar > i { transition: width .75s cubic-bezier(.2,.7,.2,1); }
+
+/* pages */
+:root[data-m-page] #view[data-m-page] > * { animation: m-page .42s cubic-bezier(.2,.7,.2,1) both; }
+
+/* live rows */
+:root[data-m-rows] table.log tr.new td { animation: flash 1.2s ease-out, m-row .38s cubic-bezier(.2,.7,.2,1); }
+:root[data-m-rows] table.alarms tr.new td, :root[data-m-rows] .alarm-card.new { animation: m-row .38s cubic-bezier(.2,.7,.2,1); }
+
+/* windows, menus, drawer */
+:root[data-m-windows] .modal-back { animation: m-fade .2s ease both; }
+:root[data-m-windows] .modal-back > .modal, :root[data-m-windows] .modal-back > form.modal { animation: m-win .3s cubic-bezier(.2,.8,.2,1) both; }
+:root[data-m-windows] .popover, :root[data-m-windows] .dmenu:not([hidden]), :root[data-m-windows] .dsub:not([hidden]) { animation: m-pop .2s cubic-bezier(.2,.8,.2,1) both; }
+:root[data-m-windows] .drawer:not([hidden]) { animation: m-drawer .3s cubic-bezier(.2,.8,.2,1) both; }
+
+/* hover and press */
+:root[data-m-hover] .dgrid:not(.editing) > .widget:not(.dragging) { transition: left .14s ease, top .14s ease, width .14s ease, height .14s ease, transform .2s cubic-bezier(.2,.7,.2,1); }
+:root[data-m-hover] .dgrid:not(.editing) > .widget:not(.dragging):hover { transform: translateY(-3px); }
+:root[data-m-hover] :is(button, .sheetbtn, .tcard, .bgp):not(:disabled):active { transform: scale(.96); }
+:root[data-m-hover] .rail a .ico { transition: transform .2s ease; }
+:root[data-m-hover] .rail a:hover .ico { transform: translateX(2px) scale(1.08); }
+:root[data-m-hover] .rail a.active .ico { animation: m-icon .45s ease; }
+
+/* live pulse */
+:root[data-m-pulse] .status-items .dot { animation: m-breathe 2.6s ease-in-out infinite; }
+:root[data-m-pulse] .m-pulse { animation: m-ring .9s ease-out; border-radius: 6px; }
+
+/* tile movement while editing */
+:root[data-m-reorder] .dgrid > .widget:not(.dragging), :root[data-m-reorder] .dgrid > .dsec { transition-duration: .38s; transition-timing-function: cubic-bezier(.3,1.25,.4,1); }
+
+/* master switch off, or "reduce motion" on the device: no movement at all */
+:root[data-anim="off"] *, :root[data-anim="off"] *::before, :root[data-anim="off"] *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+.mogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 18px; margin-top: 10px; }
+.mogrid .chk.mo { align-items: flex-start; }
+.mogrid .chk.mo span { display: grid; gap: 1px; }
+.mogrid .chk.mo small { font-size: 12px; line-height: 1.3; }
