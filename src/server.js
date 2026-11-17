@@ -281,7 +281,7 @@ async function main() {
         if (url.pathname === '/api/logout') { const t = cookieOf(req); if (t) { const se = sessions.get(sha(t)); if (se) audit({ name: se.name }, `signed out (${se.ip || 'unknown address'})`); sessions.delete(sha(t)); sessDirty = true; saveSessions(); } return json(res, { ok: true }, 200, { 'set-cookie': sessionCookie('', 0) }); }
         if (!cfg.adminPasswordHash && !users.enabled) return json(res, { ok: true });
         const ip = remoteIp(req); if (guard.locked(ip)) return json(res, { error: 'Too many failed attempts. Try again in 5 minutes.' }, 429, { 'retry-after': '300' });
-        const b = await readJson(req); const user = String(b.username || '').trim().toLowerCase(), pass = String(b.password || ''), code = String(b.code || ''), pol2 = policy();
+        const b = await readJson(req, 8192, 10000); const user = String(b.username || '').trim().toLowerCase().slice(0, 64), pass = String(b.password || '').slice(0, 256), code = String(b.code || '').slice(0, 32), pol2 = policy();   // small and quick: nobody signing in needs more, and a slow or huge body is how a stranger ties up the service before the lock-out can apply
         const until = isLoopbackIp(ip) ? 0 : acct.locked(user, pol2);   // the server's own console can always try (that is how a locked-out admin gets back in)
         if (until) return json(res, { error: `This account is locked after too many wrong attempts. Try again in ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} minutes.` }, 429, { 'retry-after': String(Math.ceil((until - Date.now()) / 1000)) });
         let ok = false;
@@ -452,9 +452,41 @@ async function main() {
       if (np.hsts && !state.https) throw new HttpError(400, 'HSTS needs the dashboard to run on HTTPS first (Settings → Dashboard access → HTTPS).');
       config.update({ security: np }); audit(who, 'changed the security settings'); return json(res, { ok: true, policy: np });
     }
+    if (p === '/api/security/check' && req.method === 'GET') {       // a plain-language report of what would let a stranger in, with the fix for each item
+      need('settings'); const pl = policy(), items = [], add = (level, title, fix) => items.push({ level, title, fix });
+      const signIn = !!(cfg.adminPasswordHash || users.enabled), remote = !isLoopback(state.bind);
+      if (!signIn) add('bad', 'Sign-in is off: anyone who can reach this address has full control.', 'Set the administrator password under Settings → Dashboard access.');
+      if (remote && !state.https) add('bad', 'The dashboard is served over plain HTTP to the network: passwords and session cookies can be read by anyone on the path.', 'Install a certificate under Settings → Dashboard access → HTTPS, or put the dashboard behind a reverse proxy that does HTTPS.');
+      else if (state.https) add('ok', 'The dashboard is served over HTTPS.', '');
+      if (state.https && !pl.hsts) add('warn', 'HSTS is off, so a browser may still try plain HTTP first.', 'Turn on HSTS under Settings → Security.');
+      if (remote && !pl.webAllow.length) add('warn', 'Any address can open the sign-in page.', 'List the office or VPN ranges under Settings → Security → Who can open the dashboard.');
+      else if (pl.webAllow.length) add('ok', 'Only listed addresses can open the dashboard.', '');
+      if (signIn) {
+        if (!twofa.has('admin') && cfg.adminPasswordHash) add('warn', 'The administrator account has no two-factor sign-in.', 'Open My account → Two-factor sign-in.');
+        const names = users.data.users.filter((u) => !u.disabled && !twofa.has(u.name)), priv = names.filter((u) => { const id = users.identity(u.name); return id && (id.perms.has('users') || id.perms.has('settings')); });
+        if (priv.length) add('warn', `${priv.length} account${priv.length > 1 ? 's' : ''} that can change settings or users ha${priv.length > 1 ? 've' : 's'} no two-factor sign-in (${priv.slice(0, 5).map((u) => u.name).join(', ')}).`, 'Ask each to set it up, or turn on “Require two-factor” under Settings → Security.');
+        if (!pl.require2fa) add('info', 'Two-factor is optional for accounts.', 'Turn on “Require two-factor” to make it compulsory.');
+        if (pl.minLength < 12) add('warn', `Passwords may be as short as ${pl.minLength} characters.`, 'Set the minimum length to 12 or more.');
+        if (!pl.complexity) add('info', 'The password rules do not ask for mixed characters.', 'Turn on the complexity rule, or use long pass phrases.');
+        if (!pl.accountLock) add('bad', 'Account lock-out is off: a password can be guessed for ever from many addresses.', 'Turn on account lock-out.');
+        const idle = Number(cfg.sessionIdleHours); if (!(idle > 0) || idle > 24) add('warn', 'A forgotten browser stays signed in for a day or more.', 'Set the idle sign-out to 8 hours or less.');
+        const days = Number(cfg.sessionMaxDays); if (!(days > 0) || days > 30) add('info', 'A session can last more than 30 days.', 'Set the longest session to 30 days or less.');
+      }
+      if (cfg.snmp?.enabled && !(cfg.snmp.communities || []).length && !(cfg.snmp.v3Users || []).length) add('info', 'The SNMP receiver accepts traps from any community, from any address.', 'List the communities or SNMPv3 users you really use, and the allowed source addresses.');
+      if (!(Array.isArray(cfg.allowedSources) ? cfg.allowedSources.length : String(cfg.allowedSources || '').trim())) add('info', 'Syslog and traps are accepted from any address.', 'List the device ranges under Settings → Accept syslog only from, so a stranger cannot fill the log.');
+      if (cfg.probe?.server && !/^https:/i.test(cfg.probe.server)) add('warn', 'This probe reports to its server over plain HTTP.', 'Use an https:// address for the central server.');
+      if (cfg.probe?.allowSelfSigned) add('info', 'The probe accepts a self-signed certificate from the central server.', 'Install the server certificate on the probe instead.');
+      if (cfg.webhooks && cfg.webhooks.some((h) => h.url && /^http:/i.test(h.url))) add('info', 'A webhook sends alerts over plain HTTP.', 'Use an https:// address.');
+      if (!items.some((i) => i.level === 'bad' || i.level === 'warn')) add('ok', 'No serious weakness found in the settings this report can see.', '');
+      return json(res, { items, https: !!state.https, bind: state.bind, signIn, at: Date.now(), note: 'This checks settings only. Keep the operating system patched, restrict who can sign in to this computer, and keep backups off it.' });
+    }
     if (p === '/api/security/unlock' && POST) { need('settings'); const b = await readJson(req); acct.unlock(String(b.name || '').toLowerCase()); audit(who, `unlocked the account ${cleanName(b.name)}`); return json(res, { ok: true }); }
     if (p === '/api/me/2fa/start' && POST) {
       if (who.anonymous) throw new HttpError(400, 'Turn sign-in on first (Settings → Dashboard access).');
+      const b0 = await readJson(req, 8192), pw0 = String(b0.password || '').slice(0, 256);   // a borrowed, unlocked browser must not be able to bind someone else's phone to the account
+      const good0 = who.builtin ? await verifyPassword(pw0, cfg.adminPasswordHash) : await users.verify(who.name, pw0);
+      if (!good0) { audit(who, 'wrong password while starting two-factor setup'); throw new HttpError(403, 'Enter your current password to set up two-factor sign-in.'); }
+      for (const [k, v] of pending2fa) if (Date.now() - v.t > 15 * 60000) pending2fa.delete(k);
       const secret = secmod.newSecret(); pending2fa.set(who.name, { secret, t: Date.now() });
       return json(res, { secret, uri: secmod.otpauthUri(secret, who.name) });
     }
@@ -865,7 +897,7 @@ async function main() {
     }
     if (!srv) srv = http.createServer(handler);
     srv.requestTimeout = 3600000;   // long enough to upload a large backup file; slow clients are still cut off by headersTimeout and the sign-in check
-     srv.headersTimeout = 15000; srv.keepAliveTimeout = 5000;
+     srv.headersTimeout = 15000; srv.keepAliveTimeout = 5000; srv.maxHeadersCount = 100; srv.maxRequestsPerSocket = 1000; srv.maxConnections = 2000;   // one stranger cannot hold every socket
     return srv;
   }
   const server = makeServer();
@@ -949,9 +981,10 @@ function send(res, code, body, type = 'text/plain; charset=utf-8', extra = {}) {
   res.writeHead(code, { ...SEC_HEADERS, 'content-type': type, 'cache-control': 'no-store', ...extra }); res.end(body);
 }
 function json(res, obj, code = 200, headers) { send(res, code, JSON.stringify(obj), 'application/json; charset=utf-8', headers); }
-function readJson(req, limit = 2e6) {
+function readJson(req, limit = 2e6, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
+    if (timeoutMs) { const tm = setTimeout(() => { reject(new HttpError(408, 'The request took too long')); req.destroy(); }, timeoutMs); tm.unref?.(); req.on('end', () => clearTimeout(tm)); req.on('close', () => clearTimeout(tm)); }
     req.on('data', (c) => { size += c.length; if (size > limit) { reject(new HttpError(413, 'Request is too large')); req.destroy(); } else chunks.push(c); });
     req.on('end', () => { try { const t = Buffer.concat(chunks).toString('utf8'); resolve(t ? JSON.parse(t) : {}); } catch { reject(new HttpError(400, 'The request is not valid JSON')); } });
     req.on('error', reject);

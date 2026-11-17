@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.89.0
+- **Security check.** Settings → Security opens with a plain-language report of what could let a stranger in (sign-in off, plain HTTP, no allow-list, admin accounts without two-factor, short passwords, long sessions, open trap/syslog sources, plain-HTTP probe or webhook), each with the fix.
+- **Two-factor setup asks for your current password**, so an unlocked, borrowed browser cannot bind someone else's phone to your account. Stale setup codes are cleaned up.
+- **Sign-in endpoint hardened:** the request body is limited to 8 KB and must arrive within 10 seconds; user name, password and code lengths are capped. The web server now limits headers, requests per connection and open connections.
+- A full authorisation sweep with a read-only account found no leak: every privileged route refuses it and secrets stay masked. New tests cover the new checks.
+
 ## 1.88.0
 - **Sign-in page never shows a password.** The password field starts empty, the browser is told not to fill it in, anything a browser still drops in without typing is wiped, and "Show" returns to hidden each time the page is shown (for example after signing out). Nobody can reveal a saved password by pressing Show.
 - **My account page for every user.** A new My account link in the side bar (also opened by clicking your name) lets any signed-in user, whatever the role, change their own password, set up or turn off two-factor sign-in, and choose their colour theme and animations. No Settings permission is needed, so Viewers and Operators can set up two-factor sign-in themselves. The built-in administrator has the same page.

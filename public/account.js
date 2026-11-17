@@ -9,7 +9,7 @@ views.account = (el) => {
   const twofa = () => me.anonymous ? '<p class="muted">Sign-in is switched off for this server, so there is nothing to protect with a code.</p>'
     : me.twofa ? `<p><span class="pill ok">On</span> You need a code from your authenticator app to sign in. ${me.recoveryLeft} recovery code${me.recoveryLeft === 1 ? '' : 's'} left.</p>
         <div class="toolbar" style="margin:0"><input type="password" id="tfPw" class="w-md" placeholder="Your password" autocomplete="new-password"><button id="tfOff">Turn off</button></div>`
-    : `<p class="muted">Adds a 6-digit code from an app such as Microsoft Authenticator, Google Authenticator or Authy to every sign-in. Scripts that use basic authentication cannot type a code, so keep scripts on a separate account without it.</p><div id="tfSetup"><button class="primary" id="tfStart">Set up two-factor sign-in</button></div>`;
+    : `<p class="muted">Adds a 6-digit code from an app such as Microsoft Authenticator, Google Authenticator or Authy to every sign-in. Scripts that use basic authentication cannot type a code, so keep scripts on a separate account without it.</p><div id="tfSetup"><div class="toolbar" style="margin:0"><input type="password" id="tfPw0" class="w-sm" autocomplete="current-password" placeholder="Your current password"> <button class="primary" id="tfStart">Set up two-factor sign-in</button></div></div>`;
   const draw = () => {
     el.innerHTML = `<div class="page-head"><h1>My account</h1></div>
       <fieldset><legend>Who you are</legend><div class="form">
@@ -29,7 +29,7 @@ views.account = (el) => {
     try {
       if (id === 'myPw') { await api('/api/me/password', { method: 'POST', body: { current: $('#myCur', el).value, password: $('#myNew', el).value } }); toast('Password changed. Please sign in again.'); setTimeout(() => location.reload(), 900); }
       else if (id === 'tfStart') {
-        const r = await api('/api/me/2fa/start', { method: 'POST', body: {} });
+        const r = await api('/api/me/2fa/start', { method: 'POST', body: { password: $('#tfPw0', el).value } });
         $('#tfSetup', el).innerHTML = `<p>In your authenticator app choose <b>Add account → Enter a setup key</b> and type this key (time based):</p><p><code style="font-size:16px;user-select:all">${esc(grp(r.secret))}</code></p><p class="muted">Or open this address on the phone: <span style="user-select:all;word-break:break-all">${esc(r.uri)}</span></p>
           <div class="toolbar" style="margin:0"><input type="text" id="tfCode" class="w-sm" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="123456"><button class="primary" id="tfOn">Turn on</button></div>`;
       } else if (id === 'tfOn') {

@@ -8,6 +8,8 @@ function securityMount(el) {
   const draw = () => {
     const p = d.policy, me = d.me;
     box.innerHTML = `
+      <h4 style="margin:0 0 6px">Security check <button id="scGo" style="margin-left:8px">Check again</button></h4>
+      <div id="scOut" class="muted" style="margin-bottom:14px">Checking…</div>
       <div class="form">
         <div class="field"><label for="spLen">Password length</label><div>at least <select id="spLen">${[8, 10, 12, 14, 16, 20].map((n) => `<option ${p.minLength === n ? 'selected' : ''}>${n}</option>`).join('')}</select> characters
           <label class="chk" style="margin-top:6px"><input type="checkbox" id="spCx" ${p.complexity ? 'checked' : ''}> Also require three of: lower case, upper case, digits, symbols</label>
@@ -23,13 +25,18 @@ function securityMount(el) {
       <h4 style="margin:18px 0 6px">My two-factor sign-in</h4>
       ${me.anonymous || !d.signIn ? '<p class="muted">Turn sign-in on first (a dashboard password).</p>' : me.twofa ? `<p><span class="pill ok">On</span> You need a code from your authenticator app to sign in. ${me.recoveryLeft} recovery code${me.recoveryLeft === 1 ? '' : 's'} left.</p>
         <div class="toolbar" style="margin:0"><input type="password" id="tfPw" class="w-md" placeholder="Your password" autocomplete="current-password"><button id="tfOff">Turn off</button></div>`
-        : `<p class="muted">Adds a 6-digit code from an app such as Microsoft Authenticator, Google Authenticator or Authy to every sign-in. Basic-auth scripts cannot use it, so keep scripts on a separate account without it.</p><div id="tfSetup"><button id="tfStart">Set up…</button></div>`}
+        : `<p class="muted">Adds a 6-digit code from an app such as Microsoft Authenticator, Google Authenticator or Authy to every sign-in. Basic-auth scripts cannot use it, so keep scripts on a separate account without it.</p><div id="tfSetup"><div class="toolbar" style="margin:0"><input type="password" id="tfPw0" class="w-sm" autocomplete="current-password" placeholder="Your current password"> <button class="primary" id="tfStart">Set up two-factor sign-in</button></div></div>`}
       <h4 style="margin:18px 0 6px">Accounts</h4>
       <div style="overflow:auto"><table class="data"><thead><tr><th>Account</th><th>Two-factor</th><th>Locked</th><th></th></tr></thead><tbody>${d.accounts.map((a) => { const lk = d.locked.find((x) => x.name === a.name); return `<tr data-n="${esc(a.name)}"><td><b>${esc(a.name)}</b>${a.builtin ? ' <span class="muted">(built-in)</span>' : ''}${a.disabled ? ' <span class="muted">(disabled)</span>' : ''}</td><td>${a.twofa ? '<span class="pill ok">On</span>' : '<span class="muted">Off</span>'}</td><td>${lk ? `<span class="pill bad">until ${esc(timeOf(lk.until))}</span>` : '<span class="muted">No</span>'}</td><td>${lk ? '<button data-un>Unlock</button> ' : ''}${a.twofa ? '<button data-rs>Reset two-factor</button>' : ''}</td></tr>`; }).join('')}</tbody></table></div>
       <h4 style="margin:18px 0 6px">Audit log <span class="muted">(who changed what, and every sign-in and failed sign-in; kept like the other messages)</span></h4>
       <div class="toolbar" style="margin:0 0 6px"><input type="text" id="auText" class="w-md" placeholder="Filter, for example a user name"><button id="auGo">Show</button><a class="btn" id="auCsv" href="/api/audit?format=csv&limit=5000" download>Download CSV</a></div>
       <div id="auList" class="muted">Loading…</div>`;
-    loadAudit();
+    loadAudit(); loadCheck();
+  };
+  const LV = { bad: ['Fix now', 'bad'], warn: ['Should fix', 'warn'], info: ['Advice', ''], ok: ['Good', 'ok'] };
+  const loadCheck = async () => {
+    const out = $('#scOut', box); if (!out) return;
+    try { const r = await api('/api/security/check'); out.className = ''; out.innerHTML = r.items.map((i) => `<div style="display:flex;gap:10px;align-items:baseline;margin:4px 0"><span class="pill ${LV[i.level][1]}" style="flex:none;min-width:74px;text-align:center">${LV[i.level][0]}</span><div>${esc(i.title)}${i.fix ? ` <span class="muted">${esc(i.fix)}</span>` : ''}</div></div>`).join('') + `<div class="muted" style="margin-top:6px">${esc(r.note)}</div>`; } catch (e) { out.textContent = e.message; }
   };
   const loadAudit = async () => {
     const out = $('#auList', box); if (!out) return;
@@ -46,9 +53,10 @@ function securityMount(el) {
       if (id === 'spSave') {
         await api('/api/security', { method: 'POST', body: { policy: { minLength: +$('#spLen', box).value, complexity: $('#spCx', box).checked, accountLock: $('#spLock', box).checked, lockFails: +$('#spFails', box).value, lockMinutes: +$('#spMin', box).value, webAllow: $('#spAllow', box).value.split(/[\s,;]+/).filter(Boolean), hsts: $('#spHsts', box).checked, require2fa: $('#spReq', box).checked } } });
         toast('Security settings saved'); load();
-      } else if (id === 'auGo') loadAudit();
+      } else if (id === 'scGo') loadCheck();
+      else if (id === 'auGo') loadAudit();
       else if (id === 'tfStart') {
-        const r = await api('/api/me/2fa/start', { method: 'POST', body: {} });
+        const r = await api('/api/me/2fa/start', { method: 'POST', body: { password: $('#tfPw0', box).value } });
         $('#tfSetup', box).innerHTML = `<p>In your authenticator app choose <b>Add account → Enter a setup key</b> and type this key (time based):</p><p><code style="font-size:16px;user-select:all">${esc(grp(r.secret))}</code></p><p class="muted">Or open this link on the phone that has the app: <a href="${esc(r.uri)}">${esc('otpauth link')}</a>. Then type the 6-digit code it shows:</p>
           <div class="toolbar" style="margin:0"><input type="text" id="tfCode" class="w-sm" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="123456"><button class="primary" id="tfOn">Turn on</button></div>`;
       } else if (id === 'tfOn') {

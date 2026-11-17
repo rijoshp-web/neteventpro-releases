@@ -802,7 +802,10 @@ END`;
       await jp('/api/security', { policy: { minLength: 8, complexity: false, webAllow: [] } });
       // two-factor
       r = await jp('/api/me/2fa/enable', { code: '123456' }); check('two-factor cannot be turned on without the setup step', r.status === 400);
-      r = await jp('/api/me/2fa/start'); const secret = r.json?.secret; check('setup gives a key and an otpauth link', r.status === 200 && /^[A-Z2-7]{32}$/.test(secret) && r.json.uri.startsWith('otpauth://totp/'), r.text.slice(0, 120));
+      r = await jp('/api/me/2fa/start', { password: 'wrong-password-xx' }); check('two-factor setup needs the current password', r.status === 403 && !r.json?.secret);
+      r = { ...(await jfetch('/api/security/check', {}, S3)) }; check('the security check lists findings with fixes', r.status === 200 && Array.isArray(r.json.items) && r.json.items.length > 0 && r.json.items.every((i) => ['ok','info','warn','bad'].includes(i.level)), r.text.slice(0, 120));
+      { let st = 0; try { st = (await lg({ username: 'x'.repeat(20000), password: 'y' })).status; } catch { st = -1; } check('an oversized sign-in body is refused', st === 413 || st === -1, String(st)); }
+      r = await jp('/api/me/2fa/start', { password: 'correct-horse-battery' }); const secret = r.json?.secret; check('setup gives a key and an otpauth link', r.status === 200 && /^[A-Z2-7]{32}$/.test(secret) && r.json.uri.startsWith('otpauth://totp/'), r.text.slice(0, 120));
       r = await jp('/api/me/2fa/enable', { code: '000000' }); check('a wrong code does not turn it on', r.status === 400);
       r = await jp('/api/me/2fa/enable', { code: sec.hotp(secret, Math.floor(Date.now() / 30000)) }); const rcodes = r.json?.codes || []; check('the right code turns it on and gives 10 recovery codes', r.status === 200 && rcodes.length === 10, r.text.slice(0, 100));
       let lr2 = await lg({ username: 'admin', password: 'correct-horse-battery' }); let lj = await lr2.json(); check('with two-factor on, the password alone asks for a code and gives no session', lr2.status === 200 && lj.need2fa === true && !lr2.headers.get('set-cookie'), JSON.stringify(lj));
