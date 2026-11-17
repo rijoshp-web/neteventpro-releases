@@ -13,7 +13,10 @@ function sysChart(cv, samples, series, o = {}) {
   const X = (t) => L + (t - t0) / Math.max(1, t1 - t0) * w, Y = (v) => T + h - Math.min(1, v / max) * h;
   g.strokeStyle = grid; g.fillStyle = txt; g.lineWidth = 1; g.textAlign = 'right';
   for (let i = 0; i <= 4; i++) { const y = T + h - h * i / 4; g.beginPath(); g.moveTo(L, y + .5); g.lineTo(W - R, y + .5); g.stroke(); g.fillText(fmt(max * i / 4), L - 6, y + 4); }
-  for (let i = 0; i <= 4; i++) { g.textAlign = i === 4 ? 'right' : 'center'; const t = t0 + (t1 - t0) * i / 4; g.fillText(new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: t1 - t0 < 900000 ? '2-digit' : undefined, hour12: false }), L + w * i / 4 + (i === 4 ? 2 : 0), H - 5); } g.textAlign = 'center';
+  if (pts.length > 1) for (let i = 0; i <= 4; i++) {   // time labels only when there is a time span to label (one point, or none, used to repeat the same time five times)
+    g.textAlign = i === 4 ? 'right' : 'center'; const t = t0 + (t1 - t0) * i / 4, d = new Date(t), long = t1 - t0 > 20 * 3600000;
+    g.fillText((long ? d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' : '') + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: t1 - t0 < 900000 ? '2-digit' : undefined, hour12: false }), L + w * i / 4 + (i === 4 ? 2 : 0), H - 5);
+  } g.textAlign = 'center';
   if (pts.length < 2) { g.textAlign = 'center'; g.fillText('Collecting data… (a point every ' + (o.step || 5) + ' s)', L + w / 2, T + h / 2); cv._pts = null; return; }
   for (const [si, sr] of series.entries()) {
     g.beginPath(); let started = false;

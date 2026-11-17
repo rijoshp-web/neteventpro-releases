@@ -16,8 +16,12 @@ async function downloadFrom(url, body, fallbackName) {
 function dialog(title, html, wide) {
   const back = document.createElement('div'); back.className = 'modal-back';
   back.innerHTML = `<div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3 style="margin:0 0 10px">${esc(title)}</h3><div id="dlgBody">${html}</div></div>`;
-  document.body.appendChild(back); const close = () => back.remove();
-  back.addEventListener('mousedown', (e) => { if (e.target === back) close(); }); back.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  document.body.appendChild(back);
+  // Esc closes the top-most window even when nothing inside it has the keyboard focus yet (it used to need a click inside first)
+  const onKey = (e) => { if (!back.isConnected) { document.removeEventListener('keydown', onKey); return; } if (e.key === 'Escape' && !e.defaultPrevented && back === [...document.querySelectorAll('.modal-back')].pop()) { e.preventDefault(); close(); } };
+  const close = () => { document.removeEventListener('keydown', onKey); back.remove(); };
+  document.addEventListener('keydown', onKey);
+  back.addEventListener('mousedown', (e) => { if (e.target === back) close(); });
   return { back, close, $: (s) => $(s, back) };
 }
 const uid = (p) => p + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36);

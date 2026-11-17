@@ -1669,3 +1669,7 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 :root[data-theme="moss"] { --bg: #0f1f17; --panel: #172e24; --panel2: #1c372c; --line: #294230; --line2: #38533b; --text: #e6e8df; --muted: #a4af9c; --faint: #809080; --accent: #9DB58A; --accent-ink: #0b0b0d; --link: #acbd9a; --radius: 12px; color-scheme: dark; }
 :root[data-theme="amethyst"] { --bg: #0e0b1d; --panel: #1d1537; --panel2: #271c48; --line: #38265d; --line2: #51357f; --text: #e7e4f2; --muted: #a79cd4; --faint: #857ab1; --accent: #9A8BE0; --accent-ink: #0b0b0d; --link: #aa9ee1; --radius: 12px; color-scheme: dark; }
 :root[data-theme="mocha"] { --bg: #1a120e; --panel: #2c1c14; --panel2: #372217; --line: #483120; --line2: #62432a; --text: #ece4db; --muted: #bca184; --faint: #9b8069; --accent: #C09A72; --accent-ink: #0b0b0d; --link: #c7a987; --radius: 12px; color-scheme: dark; }
+
+/* 1.90 SNMP polling dialogs: text boxes wide enough to read what is typed in them */
+:is(.modal:has(#dName), .modal:has(#rdName), .modal:has(#xR), .modal:has(#xCom)) input.w-md:not(#_) { width: 260px; max-width: 100%; }
+:is(.modal:has(#dName), .modal:has(#rdName)) .form .rdh:not(#_) { margin-top: 12px; }

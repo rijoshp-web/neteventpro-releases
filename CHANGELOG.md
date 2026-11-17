@@ -2,6 +2,14 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.90.0
+- **SNMP polling tidied up (nothing removed).** Settings now always shows all five parts in plain names: General, Alarm limits, Value meanings, Templates and Device profiles (the old “Advanced…” switch that hid three of them is gone; “Shared sets” is now “Device profiles”). Each has a hover hint saying what it is for.
+- **General settings are grouped** under When and how often, Load on the network and on devices, and Storage and logs, instead of one long list.
+- **Add / edit device is grouped** under Device (name, address, group, site), SNMP access (version, community or v3 user, probe) and Polling (interval, timeout, retries, interfaces). Text boxes in the device, reading and discovery windows are wide enough to read what you type.
+- The “Where do alarms come from?” explanation is shown once, on Alarm limits, instead of again on Value meanings.
+- **Fixed:** Esc now closes a window even before you click inside it (this applies to every window in the app). A chart with no data no longer prints the same time five times on its axis, and long ranges show the date too. “Poll all now” refreshes the list a few seconds later instead of waiting for the next automatic refresh.
+- Every polling feature was run against a simulated device (add/edit/test connection v1, v2c, v3, readings and test read, table readings, text and counter readings, alarms, value meanings, templates, copy from a device / template / built-in set, profiles, layout, interface selection, discovery, reports, CSV, pause, remove) and all worked.
+
 ## 1.89.1
 - **Two-factor setup shows a QR code.** Scan it with Microsoft Authenticator, Google Authenticator or Authy. The setup key and link stay underneath for phones that cannot scan. The code is drawn in the browser by a small built-in generator (no outside service, nothing leaves the page).
 
