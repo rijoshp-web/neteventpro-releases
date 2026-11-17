@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.90.1
+- **Alarm limits, Value meanings and Templates explained side by side.** Each of the three pages now starts with three cards (what it is, an example, where it is used) so you can see which one you need, and an order of work: add the device, add readings, add alarms (inside a reading, or one shared limit for many devices), then save as a template.
+- **Alarms in a reading explained.** The reading window now says that its Alarms section is for that reading on that device only, that the state of a value meaning (Warning / Critical) also raises an alarm by itself, and that Alarm limits are for the same limit on many devices.
+
 ## 1.90.0
 - **SNMP polling tidied up (nothing removed).** Settings now always shows all five parts in plain names: General, Alarm limits, Value meanings, Templates and Device profiles (the old “Advanced…” switch that hid three of them is gone; “Shared sets” is now “Device profiles”). Each has a hover hint saying what it is for.
 - **General settings are grouped** under When and how often, Load on the network and on devices, and Storage and logs, instead of one long list.
