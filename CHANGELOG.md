@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.88.0
+- **Sign-in page never shows a password.** The password field starts empty, the browser is told not to fill it in, anything a browser still drops in without typing is wiped, and "Show" returns to hidden each time the page is shown (for example after signing out). Nobody can reveal a saved password by pressing Show.
+- **My account page for every user.** A new My account link in the side bar (also opened by clicking your name) lets any signed-in user, whatever the role, change their own password, set up or turn off two-factor sign-in, and choose their colour theme and animations. No Settings permission is needed, so Viewers and Operators can set up two-factor sign-in themselves. The built-in administrator has the same page.
+- A read-only account no longer sees a "could not save your layout" error when it opens the dashboard.
+- The two-factor reminder now points to My account.
+
 ## 1.87.0
 - **Eight new colour themes**, built from the palettes you sent: Pine and gold, Twilight amber, Lagoon copper, Slate rose, Harbour ember, Moss stone, Amethyst and Mocha. They sit in a new Palette group in Settings > Appearance, use the same floating layout, work with glass and background pictures, and meet contrast targets for text, muted text and the accent colour.
 - **Four similar themes removed:** Midnight blue, Forest, Solarized teal and Violet are replaced by Harbour ember, Moss stone, Lagoon copper and Amethyst. A saved choice (and older glass themes) moves to its closest new theme automatically.

@@ -333,7 +333,7 @@ async function main() {
     const cfg = config.get();
     const who = req.who || ANON;
     const need = (perm) => { if (!who.perms.has(perm)) throw new HttpError(403, `Your account is not allowed to do this (it needs the "${perm}" permission).`); };
-    const meInfo = () => ({ name: who.name, fullName: who.fullName, roles: who.roleNames, perms: [...who.perms], builtin: !!who.builtin, anonymous: !!who.anonymous, twofa: twofa.has(who.name), need2fa: !who.anonymous && policy().require2fa && !twofa.has(who.name) });
+    const meInfo = () => ({ name: who.name, fullName: who.fullName, roles: who.roleNames, perms: [...who.perms], builtin: !!who.builtin, anonymous: !!who.anonymous, twofa: twofa.has(who.name), recoveryLeft: twofa.recoveryLeft(who.name), need2fa: !who.anonymous && policy().require2fa && !twofa.has(who.name) });
     const POST = req.method === 'POST';
 
     // ---- SNMP polling (1.46) ----

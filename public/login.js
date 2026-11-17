@@ -18,3 +18,16 @@ f.addEventListener('submit', async (e) => {
   } catch { err.textContent = 'Cannot reach the NetEventPro service.'; }
   go.disabled = false; go.textContent = 'Sign in';
 });
+
+// 1.88 a saved or leftover password must never appear here, so nobody can reveal it with "Show": the field starts empty, browser autofill is refused (autocomplete="new-password"),
+// anything a browser still drops in without the person typing or pasting is wiped, and "Show" always goes back to hidden when the page is shown again.
+let typed = false; const un = document.getElementById('u');
+const wipe = () => { if (!typed) { pin.value = ''; } };
+const hideAgain = () => { pin.type = 'password'; pw.textContent = 'Show'; pw.setAttribute('aria-pressed', 'false'); pw.setAttribute('aria-label', 'Show password'); };
+pin.addEventListener('keydown', (e) => { if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.ctrlKey || e.metaKey) typed = true; });
+pin.addEventListener('paste', () => { typed = true; });
+pin.addEventListener('focus', () => { pin.removeAttribute('readonly'); });
+pin.addEventListener('input', () => { if (!pin.value) typed = false; });
+[0, 120, 400, 1000, 2500].forEach((ms) => setTimeout(wipe, ms));
+window.addEventListener('pageshow', () => { typed = false; pin.value = ''; codeIn.value = ''; hideAgain(); [0, 150, 600].forEach((ms) => setTimeout(wipe, ms)); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !typed) pin.value = ''; });

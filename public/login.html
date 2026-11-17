@@ -19,11 +19,11 @@
 <main class="login-card">
   <div class="brand login-brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
   <h1>Sign in</h1>
-  <form id="f" autocomplete="on">
+  <form id="f" autocomplete="off">
     <label for="u">User name</label>
-    <input id="u" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+    <input id="u" name="username" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus>
     <label for="p">Password</label>
-    <div class="pwrow"><input id="p" name="password" type="password" autocomplete="current-password" required><button type="button" id="pw" class="pwtoggle" aria-label="Show password" aria-pressed="false">Show</button></div>
+    <div class="pwrow"><input id="p" name="password" type="password" autocomplete="new-password" readonly required><button type="button" id="pw" class="pwtoggle" aria-label="Show password" aria-pressed="false">Show</button></div>
     <div id="caps" class="login-caps" hidden>Caps Lock is on.</div>
     <div id="codeRow" hidden>
       <label for="c">Authenticator code</label>

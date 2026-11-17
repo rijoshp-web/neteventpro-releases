@@ -453,6 +453,7 @@ function rowHtml(m, terms, cols, extra = '', sel = null) {
 let prefsTimer;
 function savePrefs() {
   clearTimeout(prefsTimer);
+  if (S.info?.me && !S.info.me.anonymous && !S.info.me.perms?.includes('customize')) return;   // a read-only account has nothing to save, and must not see an error for it
   prefsTimer = setTimeout(() => api('/api/config', { method: 'PUT', body: { uiPrefs: S.prefs } }).catch((e) => toast('Could not save your layout: ' + e.message, true)), 400);
 }
 
@@ -1598,9 +1599,9 @@ window.addEventListener('hashchange', route);
   window.NEP = { THEMES, THEME_META, setTheme, DASHES, setDash, bgGet, bgSet, bgPick, bgPreset, bgApply }; setTheme(theme); setDash('classic'); bgApply();
   try { S.info = await api('/api/state'); S.stats = await api('/api/stats'); } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Cannot reach the NetEventPro service</b>${esc(e.message)}. Check that the NetEventPro service is running.</div>`; return; }
   S.prefs = S.info.config.uiPrefs || {};
-  { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: Settings → Security.'); } } catch { /* no storage */ } } }
+  { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: My account → Two-factor sign-in.'); } } catch { /* no storage */ } } }
   { const me = S.info.me || { perms: [] }; $$('.rail a[data-perm]').forEach((l) => { l.hidden = !me.perms.includes(l.dataset.perm); }); const st = $('.rail a[data-view="settings"]'); if (st) st.hidden = !me.perms.includes('settings'); if (me.perms.includes('settings')) $$('.rail a[data-view="users"], .rail a[data-view="backup"], .rail a[data-view="maintenance"], .rail a[data-view="rules"], .rail a[data-view="notifications"], .rail a[data-view="sqlcopy"], .rail a[data-view="reports"]').forEach((l) => { l.hidden = true; });
-    $('#signOut').hidden = !!me.anonymous; $('#meBox').hidden = !!me.anonymous; if (!me.anonymous) { const nm = String(me.name || '?'), ini = nm.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'; $('#meAv').textContent = ini; $('#meName').textContent = nm; $('#meRole').textContent = (me.roles || []).join(', '); $('#meBox').title = `${nm} · ${(me.roles || []).join(', ')}`; } }
+    $('#signOut').hidden = !!me.anonymous; $('#meBox').hidden = !!me.anonymous; { const al = $('#acctLink'); if (al) al.hidden = !!me.anonymous; } { const mb = $('#meBox'); if (mb && !mb.dataset.go) { mb.dataset.go = '1'; mb.style.cursor = 'pointer'; mb.addEventListener('click', () => { location.hash = '#account'; }); } } if (!me.anonymous) { const nm = String(me.name || '?'), ini = nm.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'; $('#meAv').textContent = ini; $('#meName').textContent = nm; $('#meRole').textContent = (me.roles || []).join(', '); $('#meBox').title = `${nm} · ${(me.roles || []).join(', ')}`; } }
   $('#signOut').onclick = async (ev) => { ev.preventDefault(); try { await api('/api/logout', { method: 'POST' }); } catch { /* reload anyway */ } location.reload(); };
   syncClock(S.info); drawClock(); setInterval(drawClock, 250);
   applyLook(); renderStatus(); connectStream(); route(); setInterval(pollStats, 2000);
