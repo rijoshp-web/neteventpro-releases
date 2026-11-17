@@ -737,7 +737,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
   let day = dayKey();
   S.filter = normFilter(S.filter);
   const f = S.filter;
-  el.innerHTML = `<div class="page-head"><h1>${isSyslog ? 'Logs' : 'SNMP traps'}</h1><span class="muted" id="resInfo"></span></div>
+  el.innerHTML = `<div class="page-head"><h1>${isSyslog ? 'Logs' : 'SNMP traps'}</h1><span class="muted" id="resInfo"></span><span class="headbtns">${isSyslog ? ibtn('bViews', 'views', 'Views', 'Saved views') : ''}${ibtn('bCols', 'columns', 'Columns', 'Choose and order columns')}${ibtn('bLook', 'look', 'Appearance', 'Font, size and colours')}${ibtn('bExport', 'download', 'Export', 'Download the matching messages')}</span></div>
   <div class="toolbar filterbar">
     <select id="qRange" aria-label="Time range">${RANGES.map(([v, l]) => `<option value="${v}" ${S.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     ${dayNavHtml('dayNav', day)}
@@ -752,9 +752,8 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     ${ibtn('bPause', 'pause', 'Pause', 'Stop new messages from being added while you read')}
     <button id="qMore" class="ib" hidden>${ico('more')}<span class="bt">Load 500 more</span></button><span class="spacer"></span>
     <label class="repeat" title="Combine repeated messages into one line with a count">${ico('layers')}<select id="bGroup" aria-label="Group repeated messages"><option value="off">Repeats: show all</option><option value="same">Repeats: group identical</option><option value="similar">Repeats: group, ignore numbers</option></select></label>
-    ${isSyslog ? '' : `${(S.prefs.trapViews || []).length === 1 ? '' : `<label class="repeat" title="Show the columns that fit one kind of trap. Each trap type has different values, so you choose them yourself.">${ico('columns')}<select id="tView" aria-label="Trap column view"><option value="">View: all traps</option>${(S.prefs.trapViews || []).map((v) => `<option value="${esc(v.id)}" ${(S.trapView === undefined ? S.prefs.trapViewDefault : S.trapView) === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>`}<button id="tViewEdit" class="ib" title="Create or change trap column views (Settings)">${ico('look')}<span class="bt">${(S.prefs.trapViews || []).length === 1 ? 'Trap columns' : 'Trap views'}</span></button>`}<span class="btngroup">${isSyslog ? ibtn('bViews', 'views', 'Views', 'Saved views') : ''}${ibtn('bCols', 'columns', 'Columns', 'Choose and order columns')}${ibtn('bLook', 'look', 'Appearance', 'Font, size and colours')}</span>
+    ${isSyslog ? '' : `${(S.prefs.trapViews || []).length === 1 ? '' : `<label class="repeat" title="Show the columns that fit one kind of trap. Each trap type has different values, so you choose them yourself.">${ico('columns')}<select id="tView" aria-label="Trap column view"><option value="">View: all traps</option>${(S.prefs.trapViews || []).map((v) => `<option value="${esc(v.id)}" ${(S.trapView === undefined ? S.prefs.trapViewDefault : S.trapView) === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>`}<button id="tViewEdit" class="ib" title="Create or change trap column views (Settings)">${ico('look')}<span class="bt">${(S.prefs.trapViews || []).length === 1 ? 'Trap columns' : 'Trap views'}</span></button>`}
     ${can('delete') ? ibtn('bSelect', 'check', 'Select', 'Tick messages to delete them') + `<button id="bDelete" class="ib danger" hidden>${ico('x')}<span class="bt">Delete…</span></button>` : ''}
-    ${ibtn('bExport', 'download', 'Export', 'Download the matching messages')}
   </div>
   <div class="logwrap" id="logwrap"><table class="log" id="lt"><colgroup id="cg"></colgroup><thead id="th"></thead><tbody id="tb"></tbody></table><div id="emptyMsg"></div></div>`;
   const tb = $('#tb'); const MAXDOM = 5000, MAXROWS = 20000;

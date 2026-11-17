@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.92.1
+- **Speedometer gauge:** the value no longer sits under the hub of the needle, and the needle stops inside the coloured band instead of overlapping it.
+- **Narrow screens:** the “Active alarms” card is no longer cut off at the bottom on a phone or a narrow window.
+- **Light theme (and Neumorphism, Nord, Solarized, Claymorphism):** the pale grey secondary text (table placeholders such as “Add a name”, units, hints) is darker, so it meets the 4.5:1 readability guideline.
+- **The same buttons in the same place on every list page.** Logs, SNMP traps and Alarms now keep Views, Columns, Appearance and Export at the top right, like Devices. The row under the search is only for working with the list: Pause, group repeats, Select (and the Acknowledge / Clear / Delete buttons on Alarms).
+
 ## 1.92.0
 - **Editions now mean something.** An activation key can switch parts of the program on or off and limit the number of polled devices: SNMP polling, SNMP trap receiver, scheduled reports, alert delivery (email, SMS, webhook), remote probes, and log export / database download. A part that is not in the key is hidden from the menu, refused by the server with a plain message (“… is not part of your licence”), and stops running in the background. A key may also cap the polled devices (adding one over the limit is refused with the reason). Keys made before this version carry no list and keep everything.
 - Settings → About shows the included features and the polled-device limit.

@@ -13,13 +13,13 @@
 :root[data-theme="midnight"] { --bg: #0a1024; --panel: #101a36; --panel2: #16224a; --line: #1f2f5c; --line2: #2c417a; --text: #dde6ff; --muted: #8fa3d6; --faint: #6176ad; --accent: #5aa9ff; --accent-ink: #04152e; --link: #8cc2ff; }
 :root[data-theme="graphite"] { --bg: #16171a; --panel: #1f2125; --panel2: #272a2f; --line: #33363c; --line2: #444850; --text: #e4e6ea; --muted: #9aa0aa; --faint: #6f7580; --accent: #7fb7ff; --accent-ink: #061427; --link: #8ec1ff; }
 :root[data-theme="black"] { --bg: #000000; --panel: #0b0b0d; --panel2: #141418; --line: #1d1d22; --line2: #2b2b33; --text: #e8e8ec; --muted: #8f8f9a; --faint: #62626c; --accent: #3ddc97; --accent-ink: #00180d; --link: #6cb6ff; }
-:root[data-theme="nord"] { --bg: #2e3440; --panel: #3b4252; --panel2: #434c5e; --line: #4c566a; --line2: #5b667d; --text: #eceff4; --muted: #a9b4c7; --faint: #7f8aa0; --accent: #88c0d0; --accent-ink: #14232b; --link: #8fbcff; --s0: #b48ead; --s1: #bf616a; --s2: #d08770; --s3: #ebcb8b; --s4: #e0d07a; --s5: #81a1c1; --s6: #8c9aaf; --s7: #6b7890; }
+:root[data-theme="nord"] { --bg: #2e3440; --panel: #3b4252; --panel2: #434c5e; --line: #4c566a; --line2: #5b667d; --text: #eceff4; --muted: #a9b4c7; --faint: #b7bdc9; --accent: #88c0d0; --accent-ink: #14232b; --link: #8fbcff; --s0: #b48ead; --s1: #bf616a; --s2: #d08770; --s3: #ebcb8b; --s4: #e0d07a; --s5: #81a1c1; --s6: #8c9aaf; --s7: #6b7890; }
 :root[data-theme="dracula"] { --bg: #1e1f29; --panel: #282a36; --panel2: #303344; --line: #3d4157; --line2: #51567a; --text: #f8f8f2; --muted: #a9b0d0; --faint: #7981a8; --accent: #bd93f9; --accent-ink: #1a1030; --link: #8be9fd; --s0: #ff79c6; --s1: #ff5555; --s2: #ffb86c; --s3: #f1fa8c; --s4: #d4e07a; --s5: #8be9fd; --s6: #8c93b8; --s7: #626a94; }
-:root[data-theme="solarized"] { --bg: #002b36; --panel: #073642; --panel2: #0b4150; --line: #164b59; --line2: #2a6270; --text: #eee8d5; --muted: #93a1a1; --faint: #6c8085; --accent: #2aa198; --accent-ink: #00201f; --link: #6cb6ff; --s3: #b58900; --s4: #a9a200; }
+:root[data-theme="solarized"] { --bg: #002b36; --panel: #073642; --panel2: #0b4150; --line: #164b59; --line2: #2a6270; --text: #eee8d5; --muted: #93a1a1; --faint: #9aaaad; --accent: #2aa198; --accent-ink: #00201f; --link: #6cb6ff; --s3: #b58900; --s4: #a9a200; }
 :root[data-theme="forest"] { --bg: #0c1511; --panel: #121e18; --panel2: #192a21; --line: #213a2d; --line2: #2f5240; --text: #dcefe4; --muted: #86ab98; --faint: #5e8470; --accent: #5fd38d; --accent-ink: #04200f; --link: #7fd1c0; }
 :root[data-theme="light"] {
   --bg: #eef2f6; --panel: #ffffff; --panel2: #f4f7fa; --line: #d8e0e9; --line2: #bfcbd8;
-  --text: #17222f; --muted: #536579; --faint: #8394a6; --accent: #0f8f75; --accent-ink: #fff; --link: #0a64c4;
+  --text: #17222f; --muted: #536579; --faint: #607386; --accent: #0f8f75; --accent-ink: #fff; --link: #0a64c4;
   --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389;
 }
 * { box-sizing: border-box; }
@@ -1422,7 +1422,7 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 @media (prefers-reduced-transparency: reduce) { :root[data-glass] :is(.widget.panel, .rail, .status, .panel, fieldset):not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--panel); } }
 
 /* 1.80.0 Neumorphism: one surface colour, light from top-left, raised or pressed in */
-:root[data-theme="neumorphism"] { color-scheme: light; --bg: #e0e5ec; --panel: #e0e5ec; --panel2: #e0e5ec; --line: #cfd6df; --line2: #b8c1cc; --text: #2f3b4c; --muted: #5d6b7e; --faint: #8693a4; --accent: #4f6bed; --accent-ink: #fff; --link: #3a56d4; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 16px; --nm-hi: #ffffff; --nm-lo: #a3b1c6; }
+:root[data-theme="neumorphism"] { color-scheme: light; --bg: #e0e5ec; --panel: #e0e5ec; --panel2: #e0e5ec; --line: #cfd6df; --line2: #b8c1cc; --text: #2f3b4c; --muted: #5d6b7e; --faint: #596576; --accent: #4f6bed; --accent-ink: #fff; --link: #3a56d4; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 16px; --nm-hi: #ffffff; --nm-lo: #a3b1c6; }
 :root[data-theme="neumorphism"] body { background: var(--bg); }
 :root[data-theme="neumorphism"] :is(.rail, .status, #wallBar, .panel, fieldset):not(#_) { background: var(--bg); border: 0; border-radius: 20px; box-shadow: 9px 9px 18px var(--nm-lo), -9px -9px 18px var(--nm-hi); }
 :root[data-theme="neumorphism"] .main:not(#_) { background: transparent; border: 0; box-shadow: none; }
@@ -1439,7 +1439,7 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-theme="neumorphism"] :is(.tablewrap, .tbl, .logwrap):not(#_) { border-radius: 16px; box-shadow: inset 4px 4px 9px var(--nm-lo), inset -4px -4px 9px var(--nm-hi); }
 
 /* 1.80.0 Claymorphism: pastel, puffy, soft coloured shadows with an inner highlight and inner shade */
-:root[data-theme="claymorphism"] { color-scheme: light; --bg: #efe9ff; --panel: #fbf9ff; --panel2: #f1ecff; --line: #e0d6fa; --line2: #cdbff2; --text: #2d2552; --muted: #5f5688; --faint: #8f87b3; --accent: #7c5cf0; --accent-ink: #fff; --link: #5a3fd0; --s3: #c77c00; --s4: #9a8f00; --s6: #6a6a90; --radius: 22px; --cl-out: 0 14px 28px rgba(124,92,240,.20), 0 4px 8px rgba(124,92,240,.12); --cl-in: inset 0 -7px 12px rgba(124,92,240,.16), inset 0 7px 12px rgba(255,255,255,.95); }
+:root[data-theme="claymorphism"] { color-scheme: light; --bg: #efe9ff; --panel: #fbf9ff; --panel2: #f1ecff; --line: #e0d6fa; --line2: #cdbff2; --text: #2d2552; --muted: #5f5688; --faint: #6f659d; --accent: #7c5cf0; --accent-ink: #fff; --link: #5a3fd0; --s3: #c77c00; --s4: #9a8f00; --s6: #6a6a90; --radius: 22px; --cl-out: 0 14px 28px rgba(124,92,240,.20), 0 4px 8px rgba(124,92,240,.12); --cl-in: inset 0 -7px 12px rgba(124,92,240,.16), inset 0 7px 12px rgba(255,255,255,.95); }
 :root[data-theme="claymorphism"] body { background: radial-gradient(900px 600px at 0% 0%, #ffd9ec 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #cfe8ff 0%, transparent 60%), var(--bg); background-attachment: fixed; }
 :root[data-theme="claymorphism"] :is(.rail, .status, #wallBar, .panel, fieldset):not(#_) { background: var(--panel); border: 0; border-radius: 28px; box-shadow: var(--cl-out), var(--cl-in); }
 :root[data-theme="claymorphism"] .main:not(#_) { background: transparent; border: 0; box-shadow: none; }
@@ -1453,7 +1453,7 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-theme="claymorphism"] thead th:not(#_) { background: var(--panel2); }
 
 /* 1.81.0 design review: hero alarm count, readable small text, alarm rows, bigger row buttons, phone layout */
-.widget[data-id="al_open"] .kpi .num { font-size: clamp(34px, 62cqh, 92px); font-weight: 700; }
+.widget[data-id="al_open"] .kpi .num { font-size: clamp(30px, min(46cqh, 24cqw), 92px); font-weight: 700; }
 .widget[data-id="al_open"] { border-top: 3px solid var(--s2, #e5484d); }
 .kpi .sub, .widget .muted { color: color-mix(in srgb, var(--text) 62%, var(--bg)); }
 table.alarms tbody tr.al-row.st-open td { background: color-mix(in srgb, var(--sevc, var(--s3)) 12%, transparent); }
@@ -1467,8 +1467,8 @@ table.alarms .acts button.ib { padding: 6px 10px; min-width: 32px; min-height: 3
   .brand { flex: none; }
   .status { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
   .status .clock { flex: none; }
-  .dgrid > .widget .kpi .num { font-size: clamp(20px, 7vw, 34px); }
-  .widget[data-id="al_open"] .kpi .num { font-size: clamp(28px, 10vw, 48px); }
+  .dgrid > .widget .kpi .num { font-size: clamp(20px, 6vw, 32px); }
+  .widget[data-id="al_open"] .kpi .num { font-size: clamp(22px, 6vw, 34px); }
 }
 @media (max-width: 860px) { .status-items { flex-wrap: nowrap; white-space: nowrap; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } .status-items::-webkit-scrollbar { display: none; } }
 @media (max-width: 860px) { .clock { font-size: 22px; } .clock .ctime, .clock #ctime { font-size: 26px; } }
@@ -1679,3 +1679,6 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 /* 1.91 windows taller than the screen: the title and the row of buttons (Save, Cancel, …) stay in view while the middle scrolls */
 .modal:not(#_) > h3:first-child { position: sticky; top: -18px; z-index: 3; background: var(--panel); margin: -18px -20px 10px !important; padding: 16px 20px 8px; }
 .modal:not(#_) #dlgBody > .toolbar:last-child { position: sticky; bottom: -18px; z-index: 3; background: var(--panel); margin: 10px -20px -18px !important; padding: 10px 20px 14px; border-top: 1px solid var(--line); }
+/* 1.92.1: the same buttons in the same place on every list page (Columns, Appearance, Export at the top right, like Devices) */
+.page-head .headbtns { display: inline-flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.actionbar .repeat { margin-left: 0; }

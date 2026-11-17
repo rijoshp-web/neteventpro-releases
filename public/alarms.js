@@ -51,7 +51,7 @@ views.alarms = (el) => {
   let data = { alarms: [], total: 0, counts: {}, canAct: false }, state = ['active', 'open', 'ack', 'escalated', 'cleared'].includes(S.alarmState) ? S.alarmState : 'active', sevs = S.alarmSevs || '', src = S.alarmSrc || '', range = S.alarmRange = 'day', day = dayKey(), cFrom = S.alarmFrom || '', cTo = S.alarmTo || '', seq = 0, sort = S.alarmSort || '', q = sessionStorage.getItem('sp.alarmQ') || '', timer, selected = new Set(), lastOpen = null, busy = false, lastSig = '', pressed = false, lastQuery = new URLSearchParams();
   const head = () => {
     const c = data.counts || {};
-    el.innerHTML = `<div class="page-head"><h1>Alarms</h1><span class="muted" id="alInfo"></span></div>
+    el.innerHTML = `<div class="page-head"><h1>Alarms</h1><span class="muted" id="alInfo"></span><span class="headbtns"><button id="alCols" class="ib" title="Choose, show, hide and move the columns">${ico('columns')}<span class="bt">Columns</span></button><button id="alCsv" class="ib" title="Download the alarms shown as a CSV file">${ico('download')}<span class="bt">Export</span></button></span></div>
     <div class="altabs" id="alChips" role="tablist"></div><div class="muted" id="alSum" style="margin:0 0 10px"></div>
     <div class="toolbar filterbar">
       <select id="alState" aria-label="Show"><option value="active">All active alarms</option><option value="open">Not acknowledged</option><option value="ack">Acknowledged</option><option value="escalated">Escalated</option></select>
@@ -61,8 +61,6 @@ views.alarms = (el) => {
       <button id="alSev" aria-haspopup="dialog" title="Choose one or more severities"></button>
       <input type="search" id="alQ" class="grow" placeholder="Search device, alarm name or message" value="${esc(q)}">
       <button id="alGo" class="ib">${ico('search')}<span class="bt">Search</span></button>
-      <button id="alCols" class="ib" title="Choose, show, hide and move the columns">${ico('columns')}<span class="bt">Columns</span></button>
-      <button id="alCsv" class="ib" title="Download the alarms shown as a CSV file">${ico('download')}<span class="bt">Export</span></button>
       <span class="spacer"></span>
       <span id="alBulk" class="btngroup" ${data.canAct || can('delete') ? '' : 'hidden'}><button id="alAckSel" class="ib" disabled>${ico('check')}<span class="bt">Acknowledge</span></button><button id="alClearSel" class="ib" disabled>${ico('x')}<span class="bt">Clear</span></button>${can('delete') ? `<button id="alDelSel" class="ib danger" disabled title="Delete the ticked alarms for good">${ico('x')}<span class="bt">Delete</span></button><button id="alDelAll" class="ib danger" hidden title="Delete every alarm that matches the filters above, not only the ones shown">${ico('x')}<span class="bt"></span></button>` : ''}</span>
     </div>
