@@ -806,6 +806,15 @@ END`;
       r = { ...(await jfetch('/api/security/check', {}, S3)) }; check('the security check lists findings with fixes', r.status === 200 && Array.isArray(r.json.items) && r.json.items.length > 0 && r.json.items.every((i) => ['ok','info','warn','bad'].includes(i.level)), r.text.slice(0, 120));
       r = await jfetch('/api/about', {}, S3); check('the About page data shows the version, the licence and who is signed in', r.status === 200 && r.json.version === require('../package.json').version && r.json.license.state === 'licensed' && /^[0-9A-F]{4}(-[0-9A-F]{4}){3}$/.test(r.json.license.machine) && r.json.you.name && !/\"key\"/.test(r.text), r.text.slice(0, 160));
       r = await jp('/api/license/activate', { key: 'NEP1-bad.key' }); check('a wrong key is refused from inside the program', r.status === 400);
+      { const cr = require('node:crypto'), fsx = require('node:fs'); const sk = cr.createPrivateKey(fsx.readFileSync(path.join(ROOT, 'test/fixtures/license-test-private.pem'), 'utf8'));
+        const kk = (o) => { const p = Buffer.from(JSON.stringify({ v: 1, id: 'T', customer: 'Test suite', edition: 'Basic', machine: '*', issued: '2026-01-01', expires: null, ...o })).toString('base64url'); return 'NEP1-' + p + '.' + cr.sign(null, Buffer.from(p), sk).toString('base64url'); };
+        r = await jp('/api/license/activate', { key: kk({ features: ['traps'], maxDevices: 3 }) }); check('a key with fewer features is accepted', r.status === 200);
+        r = await jfetch('/api/poll/overview', {}, S3); check('a feature the key leaves out is refused with a plain message', r.status === 402 && r.json.notLicensed === true && /not part of your licence/.test(r.json.error));
+        r = await jfetch('/api/reports', {}, S3); check('scheduled reports are refused when not licensed', r.status === 402);
+        r = await jfetch('/api/state', {}, S3); check('the dashboard is told which features are on', r.status === 200 && Array.isArray(r.json.features) && r.json.features.includes('traps') && !r.json.features.includes('polling'));
+        r = await jfetch('/api/about', {}, S3); check('About lists the features and the device limit', r.json.license.maxDevices === 3 && r.json.license.features.some((f) => f.id === 'polling' && f.on === false));
+        r = await jp('/api/license/activate', { key: kk({}) }); check('a full key switches everything back on', r.status === 200);
+        r = await jfetch('/api/poll/overview', {}, S3); check('polling works again with the full key', r.status === 200); }
       { let st = 0; try { st = (await lg({ username: 'x'.repeat(20000), password: 'y' })).status; } catch { st = -1; } check('an oversized sign-in body is refused', st === 413 || st === -1, String(st)); }
       r = await jp('/api/me/2fa/start', { password: 'correct-horse-battery' }); const secret = r.json?.secret; check('setup gives a key and an otpauth link', r.status === 200 && /^[A-Z2-7]{32}$/.test(secret) && r.json.uri.startsWith('otpauth://totp/'), r.text.slice(0, 120));
       r = await jp('/api/me/2fa/enable', { code: '000000' }); check('a wrong code does not turn it on', r.status === 400);

@@ -76,3 +76,17 @@ test('a program without a key serves only the activation page and collects nothi
     const js = await (await fetch(`http://127.0.0.1:${web}/app.js`)).text(); assert.doesNotMatch(js, /views\./, 'the program code is not served while locked');
   } finally { p.kill(); }
 });
+
+test('a key can switch features off and limit polled devices; a key without a list has everything', () => {
+  const act = (o) => { const l = new License(tmp(), { publicKey: PUB, machine: '1111-2222-3333-4444' }); assert.equal(l.activate(mk(o)).ok, true); return l; };
+  const all = act({});
+  for (const f of ['polling', 'traps', 'reports', 'notify', 'probes', 'export']) assert.equal(all.has(f), true, f);
+  assert.equal(all.maxDevices(), 0);
+  const lim = act({ features: ['traps', 'polling', 'bogus'], maxDevices: 25 });
+  assert.equal(lim.has('polling'), true); assert.equal(lim.has('traps'), true);
+  assert.equal(lim.has('reports'), false); assert.equal(lim.has('notify'), false); assert.equal(lim.has('export'), false);
+  assert.equal(lim.maxDevices(), 25);
+  assert.equal(act({ features: [] }).has('polling'), false, 'an empty list means nothing extra');
+  // before activation (14-day grace) nothing is taken away
+  const g = new License(tmp(), { publicKey: PUB, machine: '1' }); assert.equal(g.has('polling'), true);
+});

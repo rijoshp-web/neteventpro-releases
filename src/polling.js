@@ -296,6 +296,7 @@ class Polling {
   saveDevice(b) {
     const c = this.cfg, old = b.id ? this.devices().find((x) => x.id === b.id) : null; if (b.id && !old) { const e = new Error('No such device.'); e.status = 404; throw e; }
     const d = this.cleanDevice(b, old), list = old ? this.devices().map((x) => (x.id === old.id ? d : x)) : [...this.devices(), d];
+    const cap = this.maxDevices?.(); if (!old && cap && list.length > cap) { const e = new Error(`Your licence allows ${cap} polled device${cap === 1 ? '' : 's'}. Remove one or ask your supplier for a larger licence.`); e.status = 402; throw e; }
     if (list.length > 2000) { const e = new Error('At most 2000 polled devices.'); e.status = 400; throw e; }
     if (old && lower(old.name) !== lower(d.name)) this.clearAlarms(null, lower(old.name));
     this.config.update({ polling: { ...c, devices: list } });

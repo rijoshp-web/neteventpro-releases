@@ -61,6 +61,7 @@ class Reports {
   statusOf(id) { return { ...(this.state[id] || {}), running: this.running.has(id) }; }
 
   async tick() {
+    if (this.blocked?.()) return;
     const now = Date.now();
     for (const def of this.list()) {
       if (!def.enabled || this.running.has(def.id)) continue;

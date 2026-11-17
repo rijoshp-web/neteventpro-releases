@@ -14,6 +14,8 @@ const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA+oAZfWZRq9XHwLcX9Rz2VbFq6cSijD7BC6Q6ubxz8RA=
 -----END PUBLIC KEY-----`;
 const PREFIX = 'NEP1-';
+/** The parts of the program a key can switch on or off. A key with no "features" list (every key made before 1.92) has all of them. */
+const FEATURES = { polling: 'SNMP polling', traps: 'SNMP trap receiver', reports: 'Scheduled reports', notify: 'Alert delivery (email, SMS, webhook)', probes: 'Remote probes', export: 'Log export and database download' };
 const GRACE_DAYS = 14;       // an installation that existed before licensing was added keeps working for this long, so an update never stops a running system
 
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -80,7 +82,7 @@ class License {
       else {
         const d = r.data, bound = flat(d.machine) === '*' || flat(d.machine) === flat(this.machine);
         const exp = d.expires ? Date.parse(d.expires + 'T23:59:59Z') : 0;
-        const info = { machine: this.machine, customer: d.customer || '', edition: d.edition || 'Standard', licenseId: d.id || '', issued: d.issued || '', expires: d.expires || null, anyMachine: flat(d.machine) === '*', activatedAt: this.rec.activatedAt || null };
+        const info = { machine: this.machine, customer: d.customer || '', edition: d.edition || 'Standard', licenseId: d.id || '', issued: d.issued || '', expires: d.expires || null, anyMachine: flat(d.machine) === '*', activatedAt: this.rec.activatedAt || null, features: Array.isArray(d.features) ? d.features.filter((f) => f in FEATURES) : null, maxDevices: Number.isInteger(d.maxDevices) && d.maxDevices > 0 ? d.maxDevices : 0 };
         if (!bound) v = { ...info, state: 'wrongmachine', error: 'This key was issued for a different computer.' };
         else if (exp && now > exp) v = { ...info, state: 'expired', error: 'This licence expired on ' + d.expires + '.' };
         else v = { ...info, state: 'licensed' };
@@ -92,6 +94,9 @@ class License {
     }
     this.cache = { t: now, v }; return v;
   }
+  /** is this part of the program included in the key? Before activation (grace) and for keys without a list, everything is. */
+  has(f) { const v = this.status(); return v.state !== 'licensed' || !v.features || v.features.includes(f); }
+  maxDevices() { const v = this.status(); return v.state === 'licensed' ? v.maxDevices || 0 : 0; }
   ok() { const s = this.status().state; return s === 'licensed' || s === 'grace'; }
   activate(key) {
     const r = verifyKey(key, this.pub); if (!r.ok) return r;
@@ -103,4 +108,4 @@ class License {
   }
 }
 
-module.exports = { License, verifyKey, machineCode, PUBLIC_KEY, PREFIX, GRACE_DAYS };
+module.exports = { FEATURES, License, verifyKey, machineCode, PUBLIC_KEY, PREFIX, GRACE_DAYS };

@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.92.0
+- **Editions now mean something.** An activation key can switch parts of the program on or off and limit the number of polled devices: SNMP polling, SNMP trap receiver, scheduled reports, alert delivery (email, SMS, webhook), remote probes, and log export / database download. A part that is not in the key is hidden from the menu, refused by the server with a plain message (“… is not part of your licence”), and stops running in the background. A key may also cap the polled devices (adding one over the limit is refused with the reason). Keys made before this version carry no list and keep everything.
+- Settings → About shows the included features and the polled-device limit.
+- The key maker (private tool, not part of this package) has a features list and a device limit, filled in from the chosen edition.
+
 ## 1.91.0
 - **Activation key.** A new copy of NetEventPro is locked until an activation key is entered (one page shows this computer's machine code and asks for the key). Until then nothing is collected or shown. The key is a signed certificate tied to the computer, checked offline, kept in the data folder, so **updates never ask for it again**, and a copy of the program or of its data folder on another computer stays locked. An installation that already holds data gets 14 days to enter its key, with a banner showing the days left. The key can be renewed under Settings → About.
 - **Settings → About.** Version, licence (customer, edition, number, validity, machine code), who you are, this server (computer, system, ports, data folder, memory, running time) and the copyright statement, with a button that copies the details for a support request.

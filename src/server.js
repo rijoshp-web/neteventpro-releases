@@ -38,7 +38,7 @@ const { parseRecipients, validAddress, addrOf } = require('./mailer');
 const { sendSms, cleanNumber } = require('./smpp');
 const { SqlCopy } = require('./sqlcopy');
 const { Polling } = require('./polling');
-const { License } = require('./license');
+const { License, FEATURES } = require('./license');
 const { cleanPollSpec } = require('./readings');
 
 const VERSION = require('../package.json').version;
@@ -89,7 +89,7 @@ async function main() {
   await listeners.apply(config.get());
   try { const r = installStarterMibs(path.join(config.dir, 'mibs')); if (r.copied) console.log(`[snmp] ${r.copied} standard MIB files added to the MIB folder`); } catch (e) { console.error('[snmp] standard MIBs:', e.message); }
   const mibs = new MibStore(path.join(config.dir, 'mibs'));
-  const traps = new TrapReceiver({ config, mibs, engine, isAllowed: (ip) => license.ok() && sources.allows(ip) });
+  const traps = new TrapReceiver({ config, mibs, engine, isAllowed: (ip) => license.ok() && license.has('traps') && sources.allows(ip) });
   const v3 = new V3Engine(config.dir); traps.v3 = v3; engine.trapForwarder.v3 = v3;
   traps.forward = (buf, ip, rinfo) => { if (!probe.on) return false; probe.addTrap(buf, ip, rinfo, traps.sock); return true; };
   await traps.apply(config.get());
@@ -101,7 +101,7 @@ async function main() {
   const maint = new Maintenance(config); engine.maint = maint;
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
-  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok(); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
+  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
   const guard = new LoginGuard(); const authCache = new Map();
@@ -318,6 +318,7 @@ async function main() {
         return json(res, { ok: true }, 200, { 'set-cookie': sessionCookie(newSession(user, config.get(), req), cookieAge(cfg)) });
       }
       // a remote probe sends its packets here with its own token (no dashboard sign-in, no cookies)
+      if (url.pathname.startsWith('/api/probe/') && !license.has('probes')) return json(res, { error: 'Remote probes are not part of this licence.', notLicensed: true }, 402);
       if (url.pathname === '/api/probe/ingest') return await probeIngest(req, res, cfg);
       if (url.pathname === '/api/probe/selfupdate') return await probeUpdate(req, res, cfg, 'info');
       if (url.pathname === '/api/probe/selfupdatepkg') return await probeUpdate(req, res, cfg, 'pkg');
@@ -354,6 +355,9 @@ async function main() {
     const need = (perm) => { if (!who.perms.has(perm)) throw new HttpError(403, `Your account is not allowed to do this (it needs the "${perm}" permission).`); };
     const meInfo = () => ({ name: who.name, fullName: who.fullName, roles: who.roleNames, perms: [...who.perms], builtin: !!who.builtin, anonymous: !!who.anonymous, twofa: twofa.has(who.name), recoveryLeft: twofa.recoveryLeft(who.name), need2fa: !who.anonymous && policy().require2fa && !twofa.has(who.name) });
     const POST = req.method === 'POST';
+    // parts of the program the licence key leaves out (see license.js FEATURES)
+    { const f = p.startsWith('/api/poll/') ? 'polling' : p.startsWith('/api/reports') ? 'reports' : (p === '/api/export' || p === '/api/db/download') ? 'export' : (p === '/api/probes' || p === '/api/probe/status') ? 'probes' : (p.startsWith('/api/notify/') || ['/api/test-email', '/api/test-webhook', '/api/test-smpp'].includes(p)) ? 'notify' : '';
+      if (f && !license.has(f)) return json(res, { error: `${FEATURES[f]} is not part of your licence (${license.status().edition || 'edition'}). Ask your supplier to upgrade it.`, feature: f, notLicensed: true }, 402); }
 
     // ---- SNMP polling (1.46) ----
     if (p.startsWith('/api/poll/')) {
@@ -449,7 +453,7 @@ async function main() {
       let boot = Date.now() - process.uptime() * 1000, installed = null; try { installed = fs.statSync(path.join(__dirname, '..', 'package.json')).mtime.getTime(); } catch { /* unknown */ }
       return json(res, {
         product: 'NetEventPro', version: VERSION, copyright: `© ${new Date().getFullYear()} NetEventPro. All rights reserved.`,
-        license: { state: lic.state, customer: lic.customer || '', edition: lic.edition || '', licenseId: lic.licenseId || '', issued: lic.issued || '', expires: lic.expires || null, machine: lic.machine, anyMachine: !!lic.anyMachine, graceDaysLeft: lic.graceDaysLeft || 0, activatedAt: lic.activatedAt || null, error: lic.error || '' },
+        license: { state: lic.state, customer: lic.customer || '', edition: lic.edition || '', licenseId: lic.licenseId || '', issued: lic.issued || '', expires: lic.expires || null, machine: lic.machine, anyMachine: !!lic.anyMachine, features: Object.keys(FEATURES).map((f) => ({ id: f, name: FEATURES[f], on: license.has(f) })), maxDevices: lic.maxDevices || 0, graceDaysLeft: lic.graceDaysLeft || 0, activatedAt: lic.activatedAt || null, error: lic.error || '' },
         you: { name: me.name, fullName: me.fullName || '', roles: me.roles, twofa: me.twofa, anonymous: me.anonymous },
         server: { host: os.hostname(), os: `${os.type()} ${os.release()} (${process.arch})`, node: process.version, pid: process.pid, started: boot, uptimeSec: Math.round(process.uptime()), installed, mode: c.mode || 'central', web: { bind: state.bind, port: c.webPort, https: !!state.https }, ports: { udp: c.udpEnabled ? c.udpPort : 0, tcp: c.tcpEnabled ? c.tcpPort : 0, trap: c.snmp?.enabled === false ? 0 : (c.snmp?.port || 162) }, dataDir: isAdmin ? config.dir : '', memoryMB: Math.round(process.memoryUsage().rss / 1048576) },
         counts: { users: users.data?.users?.length ?? 0, polledDevices: polling.devices().length },
@@ -691,6 +695,7 @@ async function main() {
       version: VERSION, now: ntp.now(), clock: (({ server, ...rest }) => (who.perms.has('settings') ? { server, ...rest } : rest))(ntp.info()), platform: process.platform, node: process.version,
       dataDirs: { data: config.dir, db: store.file, config: config.file, rawLogs: path.join(config.dir, 'raw'), serviceLogs: path.join(config.dir, 'logs') }, backupBusy: !!state.backupBusy,
       listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES,
+      features: (() => { const l = license.status(); return Object.keys(FEATURES).filter((f) => license.has(f)); })(),
       licenseNote: (() => { const l = license.status(); return l.state === 'grace' ? `This copy is not activated yet: ${l.graceDaysLeft} day${l.graceDaysLeft === 1 ? '' : 's'} left. Machine code ${l.machine}. Enter the key under Settings → About.` : ''; })(),
       me: meInfo(), authEnabled: !!cfg.adminPasswordHash || users.enabled, https: state.https, webBindActive: state.bind, webWarning: state.webWarning
     });

@@ -204,6 +204,7 @@ class AlertMailer {
   }
   /** info: { rule, suppressed, to, cc, report }  (report = attach the last-24-hours report) */
   enqueue(info, msg) {
+    if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(), m = buildAlert(info, msg, ok.to, cfg);
     this.queue.push({ ...m, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), report: !!info.report, o: m.o, meta: info.meta });
@@ -211,6 +212,7 @@ class AlertMailer {
   }
   /** the escalation e-mail of one alarm: ctx has what the page and the text need (see mailtpl.js) */
   enqueueEscalation(info, o) {
+    if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms');
     this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] ESCALATION: ${o.severityName.toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'escalation' }, report: !!info.report, meta: info.meta });
@@ -218,6 +220,7 @@ class AlertMailer {
   }
   /** the recovery e-mail of an escalated alarm that has cleared */
   enqueueRecovery(info, o) {
+    if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms');
     this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] CLEARED: ${o.severityName.toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'recovery' }, report: false, meta: info.meta });

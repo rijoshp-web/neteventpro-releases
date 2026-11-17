@@ -21,6 +21,8 @@ function aboutMount(el) {
         ${row('Licence number', esc(L.licenseId || '–'))}
         ${row('Issued', esc(L.issued || '–'))}
         ${row('Valid until', L.state === 'licensed' || L.state === 'expired' ? esc(L.expires || 'No end date') : '–')}
+        ${row('Included features', (L.features || []).map((f) => `<span style="white-space:nowrap;margin-right:12px;color:${f.on ? 'inherit' : 'var(--muted)'}">${f.on ? '✔' : '✖'} ${esc(f.name)}</span>`).join(' ') || '–')}
+        ${row('Polled devices allowed', L.maxDevices ? String(L.maxDevices) : 'No limit')}
         ${row('Locked to', L.anyMachine ? 'Any computer' : 'This computer only')}
         ${row('Machine code', `<code style="user-select:all">${esc(L.machine)}</code> <button id="abMc">Copy</button>`)}
         ${row('Activated on', esc(when(L.activatedAt)))}
