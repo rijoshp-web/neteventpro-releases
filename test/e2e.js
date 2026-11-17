@@ -611,7 +611,11 @@ END`;
   r = await put({ update: { url: 'ftp://x', publicKey: '' } }); check('an update address that is not http(s) is refused', r.status === 400);
   r = await put({ update: { url: 'https://updates.example.com/latest.json', publicKey: 'not a key; drop table', autoCheck: false } }); check('a key with odd characters is refused', r.status === 400);
   r = await put({ update: { url: 'https://updates.example.com/latest.json', publicKey: '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAabc=\n-----END PUBLIC KEY-----', autoCheck: false } }); check('update address and key are saved', r.status === 200 && r.json.config.update.url === 'https://updates.example.com/latest.json' && r.json.config.update.autoCheck === false, r.text.slice(0, 200));
+  { const jr = await fetch(`http://127.0.0.1:${WEB}/bg/aurora.jpg`); const buf = Buffer.from(await jr.arrayBuffer()); check('the built-in glass background pictures are served', jr.status === 200 && /image\/jpeg/.test(jr.headers.get('content-type')) && buf.length > 20000 && buf[0] === 0xff && buf[1] === 0xd8); }
   r = await api('/api/update/status'); check('update status is available to admins', r.status === 200 && r.json.current && r.json.hasKey === true, r.text.slice(0, 160));
+  r = await put({ update: { autoInstall: true, installHour: 25 } }); check('automatic install is saved and the hour is kept in range', r.status === 200);
+  r = await api('/api/update/status'); check('update status shows the automatic install settings', r.status === 200 && r.json.settings.autoInstall === true && r.json.settings.installHour === 23 && r.json.settings.autoCheck === false, JSON.stringify(r.json.settings));
+  r = await put({ update: { autoInstall: false, installHour: 3 } }); check('automatic install can be switched off again', r.status === 200);
   r = await api('/api/update/install', { method: 'POST', body: JSON.stringify({}) }); check('installing without confirmation is refused', r.status === 400);
   r = await put({ update: { url: '', publicKey: '', autoCheck: true, nodeBase: 'file:///x' } }); check('a bad Node.js download address is refused', r.status === 400);
   r = await put({ update: { url: '', publicKey: '', autoCheck: true, nodeBase: 'http://nodemirror.example/dist/' } }); check('a Node.js download address is saved', r.status === 200 && r.json.config.update.nodeBase === 'http://nodemirror.example/dist');

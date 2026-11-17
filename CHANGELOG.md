@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.93.0
+- **Automatic updates (Settings → Updates).** New switches: look for new versions automatically (every 6 hours) and install new versions automatically at a chosen hour of the day (server time). Off by default. Only packages signed by the release key are installed, the old files are kept and put back if the new version does not start, and every automatic install or failure is written to the audit log. A given version is tried once a day, so a failing update cannot loop.
+- **New background pictures for the glass look:** Aurora, Nebula, Deep sea, Sunset, Forest and Graphite (dark) and Sky, Peach and Pearl (light): soft colour-mesh pictures made to show off frosted glass. A picture chosen before moves to its closest new one (Smoke and Mist → Graphite, Ember → Sunset, Ocean → Deep sea, Sand → Peach). The pictures live in `public/bg`.
+- **Fewer look-alike themes.** Removed from the list: Graphite, Amethyst, Harbour ember, Moss stone, Fresh green, Hardware and Claymorphism. A saved choice moves to the closest remaining theme (Graphite → Dark, Amethyst → Twilight amber, Harbour → Lagoon copper, Moss → Pine and gold, Fresh → Light, Hardware → Skeuomorphic, Claymorphism → Neumorphism).
+- **Seven new themes in the style of well-known admin templates:** Devias Kit, Berry Free, Mantis Free, Minimal Free, Paperbase, StrikingDash and Skeuomorphic. They use their own palettes and shapes in the general style of those templates (no template code or artwork).
+
 ## 1.92.1
 - **Speedometer gauge:** the value no longer sits under the hub of the needle, and the needle stops inside the coloured band instead of overlapping it.
 - **Narrow screens:** the “Active alarms” card is no longer cut off at the bottom on a phone or a narrow window.

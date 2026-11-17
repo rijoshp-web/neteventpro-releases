@@ -90,3 +90,15 @@ test('a key can switch features off and limit polled devices; a key without a li
   // before activation (14-day grace) nothing is taken away
   const g = new License(tmp(), { publicKey: PUB, machine: '1' }); assert.equal(g.has('polling'), true);
 });
+
+test('automatic update runs only when switched on, inside the chosen hour, once per version', () => {
+  const { Updater } = require('../src/update'); const u = Object.create(Updater.prototype); u.info = { latest: '9.9.9' }; u.busy = false; u.auto = null;
+  const at = (h) => new Date(2026, 0, 5, h, 10);
+  assert.equal(u.autoDue({ autoInstall: false, installHour: 3 }, at(3)), false, 'off by default');
+  assert.equal(u.autoDue({ autoInstall: true, installHour: 3 }, at(4)), false, 'outside the hour');
+  assert.equal(u.autoDue({ autoInstall: true, installHour: 3 }, at(3)), true);
+  u.auto = { version: '9.9.9', at: at(3).getTime() };
+  assert.equal(u.autoDue({ autoInstall: true, installHour: 3 }, at(3)), false, 'the same version is not retried within a day');
+  u.auto = { version: '9.9.8', at: at(3).getTime() }; assert.equal(u.autoDue({ autoInstall: true, installHour: 3 }, at(3)), true, 'a newer version is');
+  u.busy = true; assert.equal(u.autoDue({ autoInstall: true, installHour: 3 }, at(3)), false);
+});

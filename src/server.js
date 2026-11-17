@@ -43,7 +43,7 @@ const { cleanPollSpec } = require('./readings');
 
 const VERSION = require('../package.json').version;
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const MAX_SSE_CLIENTS = 200;
 const COUNT_CAP = 100000;
 
@@ -76,6 +76,17 @@ async function main() {
   } catch (e) { console.error('[setup] apply-setup.json ignored:', e.message); }
   require('./update').bootGuard(config.dir);    // after an update: put the old files back if the new version keeps failing to start
   const updater = new (require('./update').Updater)(config, VERSION);
+  // automatic install (off unless chosen in Settings → Updates): inside the chosen hour, check, then install a signed update and restart
+  setInterval(async () => {
+    try {
+      const u = config.get().update || {}; if (u.autoInstall !== true || updater.busy) return;
+      if (new Date().getHours() !== (Number.isInteger(u.installHour) ? u.installHour : 3)) return;
+      await updater.check(); if (!updater.pub().canInstall || !updater.autoDue(u)) return;
+      updater.auto = { version: updater.info.latest, at: Date.now(), error: '' };
+      try { const v = await updater.install(); audit({ name: 'automatic update' }, `update installed automatically: ${VERSION} -> ${v}`); setTimeout(() => shutdown(1), 800); }
+      catch (e) { updater.auto.error = e.message; audit({ name: 'automatic update' }, `automatic update failed: ${e.message}`); }
+    } catch { /* tried again at the next tick */ }
+  }, 5 * 60000).unref?.();
   if (config.get().update?.autoCheck !== false) { setTimeout(() => updater.check().catch(() => {}), 60000).unref?.(); setInterval(() => { if (config.get().update?.autoCheck !== false) updater.check().catch(() => {}); }, 6 * 3600000).unref?.(); }
   // a probe is a lean program of its own: only the listeners, the queue and a small local status page (see probe-main.js)
   if (config.get().mode === 'probe') { await require('./probe-main').run(config, { version: VERSION, updater }); return; }
@@ -841,7 +852,7 @@ async function main() {
     }
     if (p === '/api/device/forget' && req.method === 'POST') { const b = await readJson(req); engine.forgetDevice(String(b.key ?? b.srcIp)); return json(res, { ok: true }); }
     if (p === '/api/clear' && req.method === 'POST') { store.clearAll(); engine.live.length = 0; return json(res, { ok: true }); }
-    if (p === '/api/update/status' && req.method === 'GET') { need('settings'); return json(res, updater.pub()); }
+    if (p === '/api/update/status' && req.method === 'GET') { need('settings'); const u = cfg.update || {}; return json(res, { ...updater.pub(), settings: { autoCheck: u.autoCheck !== false, autoInstall: u.autoInstall === true, installHour: Number.isInteger(u.installHour) ? u.installHour : 3 } }); }
     if (p === '/api/update/check' && POST) { need('settings'); return json(res, await updater.check()); }
     if (p === '/api/update/install' && POST) {
       need('settings'); const b = await readJson(req); if (b.confirm !== 'INSTALL') return json(res, { error: 'Confirmation is missing.' }, 400);
@@ -1496,7 +1507,7 @@ async function sanitize(body, current) {
     if (key && !/^[A-Za-z0-9+/=\s-]*(BEGIN PUBLIC KEY[A-Za-z0-9+/=\s-]*)?$/.test(key)) bad('The update public key has unexpected characters.');
     if (nb && !/^https?:\/\/[^\s]+$/i.test(nb)) bad('The Node.js download address must start with https:// (or http:// on your own network).');
     const flag = (k) => (k in u ? u[k] !== false : cur[k] !== false);
-    out.update = { url, publicKey: key, custom: 'custom' in u ? u.custom === true : cur.custom === true, autoCheck: flag('autoCheck'), nodeBase: nb, autoProbes: flag('autoProbes'), probeAuto: flag('probeAuto'), probeTrust: flag('probeTrust') };
+    out.update = { url, publicKey: key, custom: 'custom' in u ? u.custom === true : cur.custom === true, autoCheck: flag('autoCheck'), autoInstall: ('autoInstall' in u ? u.autoInstall === true : cur.autoInstall === true), installHour: clampInt('installHour' in u ? u.installHour : cur.installHour, 0, 23, 3), nodeBase: nb, autoProbes: flag('autoProbes'), probeAuto: flag('probeAuto'), probeTrust: flag('probeTrust') };
   }
   if ('trapForwardTargets' in out) {
     if (!Array.isArray(out.trapForwardTargets)) delete out.trapForwardTargets;

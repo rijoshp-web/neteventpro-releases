@@ -1682,3 +1682,55 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 /* 1.92.1: the same buttons in the same place on every list page (Columns, Appearance, Export at the top right, like Devices) */
 .page-head .headbtns { display: inline-flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .actionbar .repeat { margin-left: 0; }
+
+/* ===== 1.93 admin-template looks: Devias Kit, Berry Free, Mantis Free, Minimal Free, Paperbase, StrikingDash, Skeuomorphic.
+   Original palettes and shapes in the general style of those templates (no template code or artwork is used). ===== */
+:root[data-theme="devias"] { --bg: #f8f9fa; --panel: #ffffff; --panel2: #f3f4f6; --line: #e5e7eb; --line2: #d2d6db; --text: #111927; --muted: #4b5563; --faint: #636b78; --accent: #6366f1; --accent-ink: #fff; --link: #4f46e5; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 8px; color-scheme: light; --dark: #111927; --dark-ink: #f3f4f6; }
+:root[data-theme="berry"] { --bg: #eef2f6; --panel: #ffffff; --panel2: #f8fafc; --line: #e3e8ef; --line2: #cdd5df; --text: #121926; --muted: #4b5565; --faint: #5f6b7d; --accent: #5e35b1; --accent-ink: #fff; --link: #1e6fd9; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 12px; color-scheme: light; }
+:root[data-theme="mantis"] { --bg: #fafafb; --panel: #ffffff; --panel2: #f5f5f5; --line: #e6ebf1; --line2: #d0d7e1; --text: #262626; --muted: #595959; --faint: #66707d; --accent: #1668dc; --accent-ink: #fff; --link: #0b62e0; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 6px; color-scheme: light; }
+:root[data-theme="minimal"] { --bg: #f9fafb; --panel: #ffffff; --panel2: #f4f6f8; --line: #dfe3e8; --line2: #c4cdd5; --text: #1c252e; --muted: #454f5b; --faint: #5d6b79; --accent: #00835a; --accent-ink: #fff; --link: #007b55; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 16px; color-scheme: light; }
+:root[data-theme="paperbase"] { --bg: #eaeff1; --panel: #ffffff; --panel2: #f5f7f8; --line: #dde3e6; --line2: #c3cdd2; --text: #263238; --muted: #455a64; --faint: #587380; --accent: #0277bd; --accent-ink: #fff; --link: #01579b; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 4px; color-scheme: light; --dark: #081627; --dark-ink: #e3f2fd; }
+:root[data-theme="strikingdash"] { --bg: #f4f5f7; --panel: #ffffff; --panel2: #f8f9fb; --line: #e3e6ef; --line2: #c6d0d9; --text: #272b41; --muted: #565b78; --faint: #64698a; --accent: #5f63f2; --accent-ink: #fff; --link: #4a4ee0; --s3: #c77c00; --s4: #9a8f00; --s6: #5f7389; --radius: 10px; color-scheme: light; }
+:root[data-theme="skeuomorphic"] { --bg: #d9d4cb; --panel: #eee9df; --panel2: #e3ddd1; --line: #bdb5a6; --line2: #a39a89; --text: #2a2722; --muted: #4d473e; --faint: #5c5446; --accent: #2f6fdb; --accent-ink: #fff; --link: #1f56b5; --s3: #b06f00; --s4: #8a8000; --s6: #5a6573; --radius: 10px; color-scheme: light; }
+
+/* dark navy sidebar, light page (Devias Kit, Paperbase) */
+:root[data-look="nav"] .rail { background: var(--dark); color: var(--dark-ink); border-right: 0; }
+:root[data-look="nav"] .rail a { color: color-mix(in srgb, var(--dark-ink) 68%, transparent); }
+:root[data-look="nav"] .rail a:hover { background: rgba(255,255,255,.07); color: var(--dark-ink); }
+:root[data-look="nav"] .rail a.active { background: rgba(255,255,255,.10); color: #fff; border-left-color: var(--accent); }
+:root[data-look="nav"] .brand, :root[data-look="nav"] .ver { color: var(--dark-ink); }
+:root[data-look="nav"] .rail button { background: rgba(255,255,255,.08); color: var(--dark-ink); border-color: transparent; }
+:root[data-look="nav"] .panel, :root[data-look="nav"] fieldset { border-radius: calc(var(--radius) + 4px); box-shadow: 0 1px 2px rgba(17,25,39,.06); }
+:root[data-theme="devias"] .rail a.active .ico { color: #a5b4fc; }
+:root[data-theme="paperbase"] .status { background: linear-gradient(90deg, #0288d1, #0277bd); color: #fff; border-color: transparent; }
+:root[data-theme="paperbase"] .status .item, :root[data-theme="paperbase"] .clock .cdate { color: rgba(255,255,255,.88); }
+:root[data-theme="paperbase"] .status b, :root[data-theme="paperbase"] .clock .ctime { color: #fff; }
+:root[data-theme="paperbase"] .status .dot.ok { background: #b9f6ca; box-shadow: 0 0 0 3px rgba(255,255,255,.22); }
+
+/* clean white cards with a soft shadow and a tinted active menu item (Berry, Mantis, Minimal, StrikingDash) */
+:root[data-look="clean"] .rail { background: var(--panel); }
+:root[data-look="clean"] .rail a { border-left: 0; border-radius: var(--radius); }
+:root[data-look="clean"] .rail a.active { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); color: var(--accent); }
+:root[data-look="clean"] .panel, :root[data-look="clean"] fieldset { border-radius: calc(var(--radius) + 2px); border-color: var(--line); box-shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07); }
+:root[data-look="clean"] button { border-radius: max(4px, calc(var(--radius) - 2px)); }
+:root[data-look="clean"] button.primary { box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+:root[data-theme="mantis"] .rail a.active { border-radius: 0; box-shadow: inset -3px 0 0 var(--accent); }
+:root[data-theme="berry"] .rail a.active { background: #ede7f6; color: #5e35b1; }
+:root[data-theme="minimal"] .rail a.active { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); font-weight: 600; }
+:root[data-theme="minimal"] .panel, :root[data-theme="minimal"] fieldset { border-color: transparent; box-shadow: 0 0 2px rgba(145,158,171,.2), 0 12px 24px -4px rgba(145,158,171,.14); }
+:root[data-theme="strikingdash"] .panel, :root[data-theme="strikingdash"] fieldset { box-shadow: 0 5px 20px rgba(146,153,184,.08); border-color: transparent; }
+
+/* raised, bevelled, textured surfaces (Skeuomorphic) */
+:root[data-look="skeu"] body { background: repeating-linear-gradient(0deg, rgba(255,255,255,.10) 0 1px, transparent 1px 3px), radial-gradient(900px 500px at 20% -10%, rgba(255,255,255,.35), transparent 70%), var(--bg); }
+:root[data-look="skeu"] .rail { background: linear-gradient(180deg, #f3eee4, #dcd5c8); border-right: 1px solid var(--line2); box-shadow: 1px 0 0 rgba(255,255,255,.7) inset, 4px 0 12px rgba(60,50,30,.18); }
+:root[data-look="skeu"] .rail a { border-left: 0; border-radius: 9px; text-shadow: 0 1px 0 rgba(255,255,255,.7); }
+:root[data-look="skeu"] .rail a:hover { background: rgba(255,255,255,.45); }
+:root[data-look="skeu"] .rail a.active { background: linear-gradient(180deg, #cdc6b7, #e2dbce); color: var(--text); box-shadow: 0 2px 5px rgba(0,0,0,.28) inset, 0 1px 0 rgba(255,255,255,.8); }
+:root[data-look="skeu"] .status { background: linear-gradient(180deg, #f4f0e7, #dad3c6); border: 1px solid var(--line2); box-shadow: 0 1px 0 #fff inset, 0 2px 6px rgba(60,50,30,.18); }
+:root[data-look="skeu"] .panel, :root[data-look="skeu"] fieldset { background: linear-gradient(180deg, #f7f3ec, #e8e2d6); border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 1px 0 rgba(255,255,255,.95) inset, 0 2px 4px rgba(60,50,30,.18), 0 10px 22px rgba(60,50,30,.12); }
+:root[data-look="skeu"] button { background: linear-gradient(180deg, #fcf9f3, #e0d9cb); border: 1px solid #a39a89; border-radius: 8px; box-shadow: 0 1px 0 #fff inset, 0 2px 3px rgba(0,0,0,.18); text-shadow: 0 1px 0 rgba(255,255,255,.7); }
+:root[data-look="skeu"] button:hover:not(:disabled) { background: linear-gradient(180deg, #fff, #e8e1d4); }
+:root[data-look="skeu"] button:active:not(:disabled), :root[data-look="skeu"] button.on { background: linear-gradient(180deg, #d3ccbd, #e4ddd0); box-shadow: 0 2px 6px rgba(0,0,0,.30) inset; transform: translateY(1px); }
+:root[data-look="skeu"] button.primary { background: linear-gradient(180deg, #5b93ef, #2f6fdb 55%, #2358b5); color: #fff; border-color: #1d4a9c; text-shadow: 0 -1px 0 rgba(0,0,0,.35); box-shadow: 0 1px 0 rgba(255,255,255,.45) inset, 0 2px 4px rgba(20,50,120,.4); }
+:root[data-look="skeu"] input, :root[data-look="skeu"] select, :root[data-look="skeu"] textarea { background: linear-gradient(180deg, #e2dccf, #f4f0e7); border: 1px solid #a39a89; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.16) inset; }
+:root[data-look="skeu"] table.log, :root[data-look="skeu"] table.data { border-radius: 10px; }

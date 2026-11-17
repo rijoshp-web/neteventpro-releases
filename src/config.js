@@ -55,7 +55,7 @@ const DEFAULTS = {
   liveBufferSize: 5000,           // messages kept in memory for the live view
   silentDeviceMinutes: 15,        // raise an alert when a known device stops sending for this long (0 = off)
   rawLogEnabled: false,           // also write plain-text daily files to <data folder>\raw
-  update: { url: '', publicKey: '', autoCheck: true, nodeBase: '', autoProbes: true, probeAuto: true, probeTrust: true },   // autoProbes: a central server offers its update to its probes; probeAuto: a probe installs what its server offers   // online update: address of latest.json and the release public key
+  update: { url: '', publicKey: '', autoCheck: true, autoInstall: false, installHour: 3, nodeBase: '', autoProbes: true, probeAuto: true, probeTrust: true },   // autoProbes: a central server offers its update to its probes; probeAuto: a probe installs what its server offers   // online update: address of latest.json and the release public key
   trapForwardTargets: [],         // northbound SNMP: [{ name, host, port:162, community, version:'v2c'|'v1', minSeverity, enabled }]
   forwardTargets: [],             // [{ name, host, port, protocol:'udp'|'tcp', enabled:true }]
   replacements: [],               // [{ id, enabled, find, replace, regex, wholeWord, matchCase, scope }]

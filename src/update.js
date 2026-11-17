@@ -98,7 +98,15 @@ class Updater {
     } catch (e) { info.node = null; info.nodeError = e.message; }
     this.info = info; return this.pub();
   }
-  pub() { const { manifest, ...rest } = this.info; return { ...rest, canInstall: !!(this.info.available && manifest && this.cfg.publicKey), hasKey: !!this.cfg.publicKey, busy: this.busy }; }
+  /** is this the moment to install a waiting update by itself? Only inside the chosen hour (server time), and a given version is tried once per day. */
+  autoDue(cfg, now = new Date()) {
+    if (!cfg || cfg.autoInstall !== true || this.busy) return false;
+    if (now.getHours() !== (Number.isInteger(cfg.installHour) ? cfg.installHour : 3)) return false;
+    const key = this.info.latest || ''; if (!key) return false;
+    if (this.auto && this.auto.version === key && now.getTime() - this.auto.at < 20 * 3600000) return false;
+    return true;
+  }
+  pub() { const { manifest, ...rest } = this.info; return { auto: this.auto || null, ...rest, canInstall: !!(this.info.available && manifest && this.cfg.publicKey), hasKey: !!this.cfg.publicKey, busy: this.busy }; }
 
   /** Replaces node.exe with the newest patch release of the same major version. Windows will not let a running exe be overwritten, but it does let it be renamed:
    *  download -> check SHA-256 against nodejs.org's list -> test-run the new file -> rename old to node.exe.old -> put new in place -> restart. */
