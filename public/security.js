@@ -57,7 +57,7 @@ function securityMount(el) {
       else if (id === 'auGo') loadAudit();
       else if (id === 'tfStart') {
         const r = await api('/api/me/2fa/start', { method: 'POST', body: { password: $('#tfPw0', box).value } });
-        $('#tfSetup', box).innerHTML = `<p>In your authenticator app choose <b>Add account → Enter a setup key</b> and type this key (time based):</p><p><code style="font-size:16px;user-select:all">${esc(grp(r.secret))}</code></p><p class="muted">Or open this link on the phone that has the app: <a href="${esc(r.uri)}">${esc('otpauth link')}</a>. Then type the 6-digit code it shows:</p>
+        $('#tfSetup', box).innerHTML = `<p>Open your authenticator app, choose <b>Add account → Scan a QR code</b> and scan this code:</p><div class="qrbox" style="display:inline-block;padding:6px;background:#fff;border-radius:10px;line-height:0">${(() => { try { return window.QR.svg(r.uri, 4); } catch { return ''; } })()}</div><p class="muted">Cannot scan? Choose <b>Enter a setup key</b> and type this key (time based): <code style="font-size:15px;user-select:all">${esc(grp(r.secret))}</code></p><p class="muted"><p class="muted">On the phone itself, open this link instead: <a href="${esc(r.uri)}">${esc('otpauth link')}</a>. Then type the 6-digit code the app shows:</p>
           <div class="toolbar" style="margin:0"><input type="text" id="tfCode" class="w-sm" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="123456"><button class="primary" id="tfOn">Turn on</button></div>`;
       } else if (id === 'tfOn') {
         const r = await api('/api/me/2fa/enable', { method: 'POST', body: { code: $('#tfCode', box).value } });

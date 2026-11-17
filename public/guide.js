@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.89.0</b> — Settings → Security now starts with a Security check that lists weaknesses and how to fix them. Two-factor setup asks for your current password. The sign-in request is size- and time-limited, and the web server limits connections.</li>
+    <ul><li><b>1.89.1</b> — Two-factor setup now shows a QR code to scan (the key is still shown as a fallback).</li>
+    <li><b>1.89.0</b> — Settings → Security now starts with a Security check that lists weaknesses and how to fix them. Two-factor setup asks for your current password. The sign-in request is size- and time-limited, and the web server limits connections.</li>
 <li><b>1.88.0</b> — The sign-in page never shows a saved password. New My account page for every user: change your password, set up two-factor sign-in, pick your theme.</li>
     <li><b>1.87.0</b> — Eight new colour themes (Pine and gold, Twilight amber, Lagoon copper, Slate rose, Harbour ember, Moss stone, Amethyst, Mocha); Midnight blue, Forest, Solarized teal and Violet were removed as too similar.</li>
     <li><b>1.86.0</b> — Animations for the app and every dashboard, each with its own switch in Settings &gt; Appearance &gt; Animations. Movement only, no colour changes, works with all themes.</li>

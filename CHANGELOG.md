@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.89.1
+- **Two-factor setup shows a QR code.** Scan it with Microsoft Authenticator, Google Authenticator or Authy. The setup key and link stay underneath for phones that cannot scan. The code is drawn in the browser by a small built-in generator (no outside service, nothing leaves the page).
+
 ## 1.89.0
 - **Security check.** Settings → Security opens with a plain-language report of what could let a stranger in (sign-in off, plain HTTP, no allow-list, admin accounts without two-factor, short passwords, long sessions, open trap/syslog sources, plain-HTTP probe or webhook), each with the fix.
 - **Two-factor setup asks for your current password**, so an unlocked, borrowed browser cannot bind someone else's phone to your account. Stale setup codes are cleaned up.
