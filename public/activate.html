@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activate · NetEventPro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101722'/%3E%3Cpath d='M6 9h20M6 16h14M6 23h9' stroke='%2345c2a5' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="loginpage">
+<aside class="login-side" aria-hidden="true">
+  <div class="brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
+  <div class="login-pitch">
+    <h2>Every device message, in one place.</h2>
+    <p>Syslog, SNMP traps and polling, with alarms that say what needs you first.</p>
+  </div>
+  <div class="sevribbon"><i style="--w:92%;background:var(--s0)"></i><i style="--w:78%;background:var(--s1)"></i><i style="--w:64%;background:var(--s2)"></i><i style="--w:86%;background:var(--s3)"></i><i style="--w:50%;background:var(--s4)"></i><i style="--w:70%;background:var(--s5)"></i><i style="--w:58%;background:var(--s6)"></i></div>
+</aside>
+<main class="login-card">
+  <div class="brand login-brand"><span class="mark"></span><span class="lbl">NetEventPro</span></div>
+  <h1>Activate NetEventPro</h1>
+  <p class="muted login-note" id="why" style="margin:0 0 10px">This copy needs an activation key. You enter it once; updates never ask for it again.</p>
+  <label>Machine code of this computer</label>
+  <div class="pwrow"><input id="mc" type="text" readonly aria-label="Machine code" style="font-family:ui-monospace,Consolas,monospace;letter-spacing:.06em"><button type="button" id="cp" class="pwtoggle">Copy</button></div>
+  <p class="muted login-note" style="margin:4px 0 10px">Send this code to your supplier to receive your key. The key works on this computer only.</p>
+  <form id="f" autocomplete="off">
+    <label for="k">Activation key</label>
+    <textarea id="k" rows="5" spellcheck="false" autocomplete="off" placeholder="NEP1-…" required style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
+    <div id="err" class="login-err" role="alert" aria-live="polite"></div>
+    <button type="submit" class="primary" id="go">Activate</button>
+  </form>
+  <p class="muted login-note" style="margin-top:14px">© NetEventPro. All rights reserved. Use of this program is governed by its licence agreement.</p>
+</main>
+<script src="/activate.js"></script>
+</body>
+</html>

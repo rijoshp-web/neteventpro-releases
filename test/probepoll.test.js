@@ -12,7 +12,7 @@ const MIB = [['1.3.6.1.2.1.1.1.0', 'octets', 'Probe-side switch'], ['1.3.6.1.2.1
 test('a probe polls a device for the server: test, readings, interfaces, no-answer alarm', { timeout: 150000 }, async (t) => {
   const agent = await startAgent({ mib: MIB });
   const d1 = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-pp-c-')), d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-pp-p-'));
-  const spawnSrv = (dir, env) => spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, NETEVENTPRO_DATA: dir, NODE_NO_WARNINGS: '1', ...env }, stdio: 'ignore' });
+  const spawnSrv = (dir, env) => spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--require', path.join(__dirname, 'license-hook.js'), path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, NETEVENTPRO_DATA: dir, NODE_NO_WARNINGS: '1', ...env }, stdio: 'ignore' });
   const central = spawnSrv(d1, { NETEVENTPRO_UDP_PORT: '5861', NETEVENTPRO_TCP_PORT: '5861', NETEVENTPRO_WEB_PORT: '8861', NETEVENTPRO_SNMP_PORT: '5862' });
   let probe = null;
   t.after(async () => { central.kill(); probe?.kill(); try { agent.close(); } catch { /* closed */ } await sleep(800); for (const d of [d1, d2]) { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }); } catch { /* temp folder: the system cleans it */ } } });

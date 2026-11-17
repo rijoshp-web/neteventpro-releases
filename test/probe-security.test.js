@@ -46,7 +46,7 @@ test('the probe page: sign-in, lockout of guessing, encrypted queue and token on
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-probe-sec-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ mode: 'probe', probe: { server: `http://127.0.0.1:${main.address().port}`, token: 'nep_plain_token', name: 'S' } }));
   const env = { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: '5841', NETEVENTPRO_TCP_PORT: '5841', NETEVENTPRO_WEB_PORT: '8841', NETEVENTPRO_SNMP_PORT: '5842', NETEVENTPRO_SCRYPT_N: '4096', NODE_NO_WARNINGS: '1' };
-  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--require', path.join(__dirname, 'license-hook.js'), path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
   t.after(() => { child.kill(); main.close(); });
   const web = (p, o = {}) => fetch('http://127.0.0.1:8841' + p, o);
   for (let i = 0; i < 160; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }

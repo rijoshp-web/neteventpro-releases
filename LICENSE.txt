@@ -1,0 +1,19 @@
+NetEventPro - Software Licence Agreement
+Copyright (c) NetEventPro. All rights reserved.
+
+This is a summary licence for the software owner's use. Have it reviewed by a lawyer before you sell the program.
+
+1. Grant. The owner grants the licensee a non-exclusive, non-transferable right to install and use NetEventPro on the one computer named in
+   the activation key (or, for a key marked "any computer", on the number of computers stated in the licence), for the licensee's own internal
+   monitoring. The program is licensed, not sold.
+2. Activation. The program must be activated with a valid activation key. An update of the program does not need a new key. A key issued for
+   one computer must not be used on another.
+3. Restrictions. The licensee must not copy the program or its activation key except for one backup, share, sell, rent, lend or sub-license it,
+   remove or change any copyright notice, reverse engineer, decompile or modify it, or remove, bypass or tamper with the activation or
+   licence check, except where the law gives that right and cannot be excluded by contract.
+4. Ownership. The program, its documentation and all related intellectual property belong to the owner. No ownership passes to the licensee.
+5. Term. The licence lasts for the period stated in the key (no end date if none is stated) and ends at once if the licensee breaks this agreement.
+   After the licence ends the licensee must stop using the program and delete all copies.
+6. Third-party software. The program runs on Node.js, which is licensed to the licensee under its own open-source (MIT) licence.
+7. No warranty. The program is supplied "as is", without warranty of any kind. To the extent the law allows, the owner is not liable for lost data,
+   lost profit or indirect loss arising from the use of the program, and total liability is limited to the licence fee paid.

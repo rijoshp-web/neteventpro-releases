@@ -38,6 +38,7 @@ const { parseRecipients, validAddress, addrOf } = require('./mailer');
 const { sendSms, cleanNumber } = require('./smpp');
 const { SqlCopy } = require('./sqlcopy');
 const { Polling } = require('./polling');
+const { License } = require('./license');
 const { cleanPollSpec } = require('./readings');
 
 const VERSION = require('../package.json').version;
@@ -62,6 +63,7 @@ const isLoopback = (b) => ['127.0.0.1', '::1', 'localhost'].includes(b);
 
 async function main() {
   applyPendingRestore(dataDir());     // a restore chosen in the dashboard is applied here, before any file is opened
+  const license = new License(dataDir());   // the activation key (see license.js); opened before the config so an installation that already holds data is recognised
   const config = new Config();
   try {   // the setup program asks for a change of type (full / probe) on an existing installation by leaving this file
     const f = path.join(config.dir, 'apply-setup.json');
@@ -83,11 +85,11 @@ async function main() {
   const engine = new Engine(config, store);
   const sources = new SourceFilter(); sources.load(config.get().allowedSources);
   const probe = new Probe(config, config.dir), probes = new ProbeRegistry(config);
-  const listeners = new Listeners((buf, ip, proto) => (probe.on ? probe.addSyslog(buf, ip) : engine.handlePacket(buf, ip, proto)), (ip) => sources.allows(ip));
+  const listeners = new Listeners((buf, ip, proto) => !license.ok() ? undefined : (probe.on ? probe.addSyslog(buf, ip) : engine.handlePacket(buf, ip, proto)), (ip) => sources.allows(ip));
   await listeners.apply(config.get());
   try { const r = installStarterMibs(path.join(config.dir, 'mibs')); if (r.copied) console.log(`[snmp] ${r.copied} standard MIB files added to the MIB folder`); } catch (e) { console.error('[snmp] standard MIBs:', e.message); }
   const mibs = new MibStore(path.join(config.dir, 'mibs'));
-  const traps = new TrapReceiver({ config, mibs, engine, isAllowed: (ip) => sources.allows(ip) });
+  const traps = new TrapReceiver({ config, mibs, engine, isAllowed: (ip) => license.ok() && sources.allows(ip) });
   const v3 = new V3Engine(config.dir); traps.v3 = v3; engine.trapForwarder.v3 = v3;
   traps.forward = (buf, ip, rinfo) => { if (!probe.on) return false; probe.addTrap(buf, ip, rinfo, traps.sock); return true; };
   await traps.apply(config.get());
@@ -99,7 +101,7 @@ async function main() {
   const maint = new Maintenance(config); engine.maint = maint;
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
-  const polling = new Polling(config, store, engine); health.polling = polling; engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
+  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok(); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
   const guard = new LoginGuard(); const authCache = new Map();
@@ -255,6 +257,14 @@ async function main() {
   }
 
   // ---- HTTP handler --------------------------------------------------------
+  async function activateKey(req, res) {
+    if (!XRW.has(req.headers['x-requested-with'])) return send(res, 403, 'Missing X-Requested-With header');
+    const ip = remoteIp(req); if (guard.locked(ip)) return json(res, { error: 'Too many wrong keys. Try again in 5 minutes.' }, 429, { 'retry-after': '300' });
+    const b = await readJson(req, 8192, 10000), r = license.activate(String(b.key || '').slice(0, 4000));
+    if (!r.ok) { guard.fail(ip); audit({ name: 'activation' }, `a wrong activation key was entered from ${ip}`); return json(res, { error: r.error }, 400); }
+    audit({ name: 'activation' }, `licence activated for ${r.status.customer || 'customer'} (${r.status.licenseId || ''})`);
+    return json(res, { ok: true, status: r.status });
+  }
   const handler = async (req, res) => {
     try {
       const cfg = config.get();
@@ -275,6 +285,15 @@ async function main() {
       // build a full database copy or run a huge export without anyone asking. ("none" = typed in the address bar.)
       const site = req.headers['sec-fetch-site'];
       if (url.pathname.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') return send(res, 403, 'Cross-site request refused');
+      // Not activated yet: only the activation page and its two calls are served. Nothing is collected or shown until a valid key is entered.
+      if (!license.ok()) {
+        const lp = url.pathname;
+        if (lp === '/api/license' && req.method === 'GET') return json(res, license.status());
+        if (lp === '/api/license/activate' && req.method === 'POST') return await activateKey(req, res);
+        if (lp.startsWith('/api/')) return json(res, { error: 'This copy of NetEventPro is not activated yet.', unlicensed: true, machine: license.machine }, 402);
+        if (lp === '/activate.js' || lp === '/style.css') return serveStatic(req, res, lp);
+        return serveStatic(req, res, '/activate.html', { 'cache-control': 'no-store' });
+      }
       // sign-in and sign-out are handled before the normal check: the sign-in page posts here
       if (url.pathname === '/api/login' || url.pathname === '/api/logout') {
         if (req.method !== 'POST' || !XRW.has(req.headers['x-requested-with'])) return send(res, 405, 'Method not allowed');
@@ -425,6 +444,19 @@ async function main() {
       for (const c of [...clients]) if (c.sessionKey === hit[0]) { try { c.res.destroy(); } catch { /* closed */ } clients.delete(c); }
       return json(res, { ok: true });
     }
+    if (p === '/api/about') {
+      const c = config.get(), lic = license.status(), os = require('node:os'), me = meInfo(), isAdmin = who.perms.has('settings');
+      let boot = Date.now() - process.uptime() * 1000, installed = null; try { installed = fs.statSync(path.join(__dirname, '..', 'package.json')).mtime.getTime(); } catch { /* unknown */ }
+      return json(res, {
+        product: 'NetEventPro', version: VERSION, copyright: `© ${new Date().getFullYear()} NetEventPro. All rights reserved.`,
+        license: { state: lic.state, customer: lic.customer || '', edition: lic.edition || '', licenseId: lic.licenseId || '', issued: lic.issued || '', expires: lic.expires || null, machine: lic.machine, anyMachine: !!lic.anyMachine, graceDaysLeft: lic.graceDaysLeft || 0, activatedAt: lic.activatedAt || null, error: lic.error || '' },
+        you: { name: me.name, fullName: me.fullName || '', roles: me.roles, twofa: me.twofa, anonymous: me.anonymous },
+        server: { host: os.hostname(), os: `${os.type()} ${os.release()} (${process.arch})`, node: process.version, pid: process.pid, started: boot, uptimeSec: Math.round(process.uptime()), installed, mode: c.mode || 'central', web: { bind: state.bind, port: c.webPort, https: !!state.https }, ports: { udp: c.udpEnabled ? c.udpPort : 0, tcp: c.tcpEnabled ? c.tcpPort : 0, trap: c.snmp?.enabled === false ? 0 : (c.snmp?.port || 162) }, dataDir: isAdmin ? config.dir : '', memoryMB: Math.round(process.memoryUsage().rss / 1048576) },
+        counts: { users: users.data?.users?.length ?? 0, polledDevices: polling.devices().length },
+        support: c.supportContact || '',
+      });
+    }
+    if (p === '/api/license/activate' && POST) { need('settings'); return await activateKey(req, res); }
     if (p === '/api/me') return json(res, meInfo());
     if (p === '/api/me/password' && POST) {
       if (who.anonymous) throw new HttpError(400, 'Sign-in is not turned on, so there is no password to change.');
@@ -659,6 +691,7 @@ async function main() {
       version: VERSION, now: ntp.now(), clock: (({ server, ...rest }) => (who.perms.has('settings') ? { server, ...rest } : rest))(ntp.info()), platform: process.platform, node: process.version,
       dataDirs: { data: config.dir, db: store.file, config: config.file, rawLogs: path.join(config.dir, 'raw'), serviceLogs: path.join(config.dir, 'logs') }, backupBusy: !!state.backupBusy,
       listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES,
+      licenseNote: (() => { const l = license.status(); return l.state === 'grace' ? `This copy is not activated yet: ${l.graceDaysLeft} day${l.graceDaysLeft === 1 ? '' : 's'} left. Machine code ${l.machine}. Enter the key under Settings → About.` : ''; })(),
       me: meInfo(), authEnabled: !!cfg.adminPasswordHash || users.enabled, https: state.https, webBindActive: state.bind, webWarning: state.webWarning
     });
 

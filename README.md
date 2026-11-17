@@ -92,3 +92,7 @@ npm run test:e2e                     # starts a throw-away server and a fake mai
 Settings -> Updates is one button. The release address and the signing public key are built into the program (`src/update-defaults.js`), so a copy installed on any other computer updates the same way with no setup: **Check for updates**, then **Update to x.y.z**. The package is signed, its SHA-256 is checked, only program files are replaced, and a version that fails to start is rolled back. Probes follow their main server by themselves. A server without internet is updated with the installer; probes still follow it.
 
 Publishing a release (GitHub Actions signs and publishes it when you push a tag) is described in `docs/RELEASING.md`. Advanced: `update.url` / `update.publicKey` in `config.json` override the built-in source (for a private mirror).
+
+## Activation and licence
+
+NetEventPro needs an activation key, entered once on first start (the page shows this computer's machine code, which you send to the supplier). The key is kept in the data folder, so updates never ask again. See `LICENSE.txt`. Settings → About shows the version, licence and server details.

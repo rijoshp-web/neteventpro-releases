@@ -54,7 +54,7 @@ function askText(message, value = '') {
     document.body.appendChild(back); ta.focus();
   });
 }
-function toast(msg, err = false) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), err ? 5000 : 2200); }
+function toast(msg, err = false) { const t = $('#toast'); t.textContent = msg; t.setAttribute('role', err ? 'alert' : 'status'); t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), Math.max(err ? 5000 : 2200, String(msg).length * 60)); }
 const store = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
 
 // ---------- global state --------------------------------------------------------------
@@ -674,7 +674,7 @@ function renderStatus() {
     (i.config.snmp?.enabled !== false && l.snmp ? item('SNMP trap', l.snmp) : '') +
     (st?.health ? `<a class="item" href="#health" title="System health: disk space, database, listeners, mail. Click to open the System health page."><span class="dot ${st.health.bad ? 'bad' : st.health.warn ? 'warn' : 'ok'}"></span>Health <b>${st.health.bad ? st.health.bad + ' problem' + (st.health.bad > 1 ? 's' : '') : st.health.warn ? st.health.warn + ' warning' + (st.health.warn > 1 ? 's' : '') : 'OK'}</b></a>` : '') +
     `<span class="item"><span class="dot ${S.streamOk ? 'ok' : 'bad'}"></span>Live feed <b>${S.streamOk ? 'connected' : 'reconnecting…'}</b></span>`;
-  const errs = [l.udp.error, l.tcp.error, i.webWarning].filter(Boolean); const b = $('#banner');
+  const errs = [l.udp.error, l.tcp.error, i.webWarning, i.licenseNote].filter(Boolean); const b = $('#banner');
   b.hidden = !errs.length && !S.restartNeeded;
   b.innerHTML = esc(errs.join('  ')) + (S.restartNeeded ? ' Web settings changed — <button id="restartNow">Restart service now</button>' : '');
   $('#restartNow')?.addEventListener('click', restartService);
@@ -1266,8 +1266,8 @@ views.replace = (el, _main, embedded) => {
 // ---------- Settings ------------------------------------------------------------------------------------------------------------------------
 const VENDOR_FAMILIES = { cisco: 'Cisco IOS / IOS-XE / NX-OS', dell: 'Dell switches and iDRAC', hp: 'HP / HPE / Aruba switches', apc: 'APC UPS, PDU and NetBotz', eltek: 'Eltek power systems' };
 const EMBED_TAB = { users: 'users', backup: 'backup', maintenance: 'maint', rules: 'rules', notifications: 'notify', sqlcopy: 'sqlcopy', reports: 'reports' };   // page -> its tab inside Settings
-const SETTINGS_TABS = [['syslog', 'Syslog'], ['snmp', 'SNMP & MIBs'], ['trapcols', 'Trap columns'], ['replace', 'Text replacement'], ['storage', 'Storage & time'], ['access', 'Access & updates'], ['look', 'Look & sound'], ['rules', 'Rules & alerts', 'rules'], ['notify', 'Notifications', 'settings'], ['sqlcopy', 'SQL Server', 'settings'], ['reports', 'Reports', 'reports'], ['probe', 'Remote probes', 'settings'], ['users', 'Users', 'users'], ['backup', 'Backup', 'backup'], ['maint', 'Maintenance', 'rules']];
-const TAB_OF = { 'sec-security': 'access', 'sec-inputs': 'syslog', 'sec-replace': 'replace', 'sec-vendor': 'syslog', 'sec-sysmsg': 'syslog', 'sec-fwd': 'syslog', 'sec-snmp': 'snmp', 'sec-trapfwd': 'snmp', 'sec-trapviews': 'trapcols', 'sec-storage': 'storage', 'sec-time': 'storage', 'sec-data': 'storage', 'sec-access': 'access', 'sec-update': 'access', 'sec-tools': 'access', 'sec-sendtest': 'syslog', 'sec-sessions': 'access', 'sec-appearance': 'look', 'sec-sound': 'look', 'sec-rules': 'rules', 'sec-notifs': 'notify', 'sec-sqlcopy': 'sqlcopy', 'sec-reports': 'reports', 'sec-probe': 'probe', 'sec-users': 'users', 'sec-backup': 'backup', 'sec-maint': 'maint' };
+const SETTINGS_TABS = [['syslog', 'Syslog'], ['snmp', 'SNMP & MIBs'], ['trapcols', 'Trap columns'], ['replace', 'Text replacement'], ['storage', 'Storage & time'], ['access', 'Access & updates'], ['look', 'Look & sound'], ['rules', 'Rules & alerts', 'rules'], ['notify', 'Notifications', 'settings'], ['sqlcopy', 'SQL Server', 'settings'], ['reports', 'Reports', 'reports'], ['probe', 'Remote probes', 'settings'], ['users', 'Users', 'users'], ['backup', 'Backup', 'backup'], ['maint', 'Maintenance', 'rules'], ['about', 'About']];
+const TAB_OF = { 'sec-security': 'access', 'sec-inputs': 'syslog', 'sec-replace': 'replace', 'sec-vendor': 'syslog', 'sec-sysmsg': 'syslog', 'sec-fwd': 'syslog', 'sec-snmp': 'snmp', 'sec-trapfwd': 'snmp', 'sec-trapviews': 'trapcols', 'sec-storage': 'storage', 'sec-time': 'storage', 'sec-data': 'storage', 'sec-access': 'access', 'sec-update': 'access', 'sec-tools': 'access', 'sec-sendtest': 'syslog', 'sec-sessions': 'access', 'sec-appearance': 'look', 'sec-sound': 'look', 'sec-rules': 'rules', 'sec-notifs': 'notify', 'sec-sqlcopy': 'sqlcopy', 'sec-reports': 'reports', 'sec-probe': 'probe', 'sec-users': 'users', 'sec-backup': 'backup', 'sec-maint': 'maint', 'sec-about': 'about' };
 const SETUP_DESC = { 'Receiving': 'Which ports listen and how messages are read', 'Forwarding and remote': 'Send messages on to other systems and sites', 'Alerts and notifications': 'Rules, e-mail and SMS, reports', 'Users and security': 'Who can sign in and what they can do', 'Storage and time': 'How long data is kept, clock, backups', 'Look and sound': 'Theme, glass effect, alert sounds', 'Service': 'Updates, restart and test messages' };
 const SETUP_MENU = [   // the Settings start page: groups of links to one section each (id, name, extra search words)
   { n: 'Receiving', ic: 'download', items: [['sec-inputs', 'Syslog inputs', 'udp tcp tls port buffer 514 listen'], ['sec-snmp', 'SNMP & MIBs', 'trap community v3 engine mib 162 usm'], ['sec-trapviews', 'Trap column views', 'columns traps table'], ['sec-vendor', 'Vendor recognition', 'cisco dell hp apc eltek tags'], ['sec-replace', 'Text replacement', 'rewrite mask regex'], ['sec-sysmsg', 'System messages', 'audit own messages log']] },
@@ -1276,7 +1276,7 @@ const SETUP_MENU = [   // the Settings start page: groups of links to one sectio
   { n: 'Users and security', ic: 'users', items: [['sec-users', 'Users, roles and groups', 'permission password account ldap'], ['sec-security', 'Security', 'password two-factor 2fa allow ip audit https tls certificate'], ['sec-access', 'Dashboard access', 'web port https bind address'], ['sec-sessions', 'Login sessions', 'logged in who signed']] },
   { n: 'Storage and time', ic: 'db', items: [['sec-storage', 'Storage', 'keep days retention disk size prune old logs'], ['sec-time', 'Time (NTP)', 'clock timezone ntp server'], ['sec-data', 'Where your data is stored', 'folder path directory'], ['sec-backup', 'Backup and restore', 'export import nepbak']] },
   { n: 'Look and sound', ic: 'look', items: [['sec-appearance', 'Appearance', 'theme colour dark light font'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
-  { n: 'Service', ic: 'tool', items: [['sec-update', 'Updates', 'upgrade version install'], ['sec-tools', 'Service', 'restart stop start'], ['sec-sendtest', 'Send a test message', 'test syslog send']] },
+  { n: 'Service', ic: 'tool', items: [['sec-update', 'Updates', 'upgrade version install'], ['sec-about', 'About and licence', 'version licence activation key machine code copyright support'], ['sec-tools', 'Service', 'restart stop start'], ['sec-sendtest', 'Send a test message', 'test syslog send']] },
 ];
 function sessionsMount(el) {
   const box = $('#sesBox', el); if (!box) return;
@@ -1436,6 +1436,9 @@ views.settings = (el) => {
     <fieldset id="sec-security"><legend>Security <span class="muted">(passwords, two-factor, who may connect, audit log)</span></legend>
       <div id="secBox" class="muted">Loading…</div>
     </fieldset>
+    <fieldset id="sec-about"><legend>About NetEventPro <span class="muted">(version, licence, this server, copyright)</span></legend>
+      <div id="aboutBox" class="muted">Loading…</div>
+    </fieldset>
     <fieldset id="sec-sessions"><legend>Login sessions <span class="muted">(who is using the dashboard)</span></legend>
       <div id="sesBox" class="muted">Loading…</div>
     </fieldset>
@@ -1459,7 +1462,7 @@ views.settings = (el) => {
     setDirty(dirty);
     showTab();
     httpsRefresh(el);
-    probeMount(el); sessionsMount(el); securityMount(el);
+    probeMount(el); sessionsMount(el); securityMount(el); aboutMount(el);
     api('/api/snmp').then((r) => { const e = $('#v3Engine', el); if (e) e.textContent = r.engineId || '-'; }).catch(() => {});
   };
   const secAllowed = (id) => { const t = SETTINGS_TABS.find((x) => x[0] === TAB_OF[id]); return !t || !t[2] || can(t[2]); };

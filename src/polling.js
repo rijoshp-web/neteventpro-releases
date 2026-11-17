@@ -519,7 +519,7 @@ class Polling {
   }
   stop() { clearInterval(this.timer); clearInterval(this.maintTimer); }
   tick() {
-    const c = this.cfg; if (c.enabled === false) return; const now = Date.now(), cap = this.workersNow(); this.client.gapMs = num(c.gapMs, 30, 0, 2000);
+    const c = this.cfg; if (c.enabled === false || this.locked?.()) return; const now = Date.now(), cap = this.workersNow(); this.client.gapMs = num(c.gapMs, 30, 0, 2000);
     const due = [];
     for (const d of this.devices()) {
       if (d.enabled === false || d.via) continue;       // a device polled through a probe is polled by that probe

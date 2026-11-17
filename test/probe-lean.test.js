@@ -19,7 +19,7 @@ test('probe mode runs the lean program and forwards what it receives', async (t)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nep-probe-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ mode: 'probe', probe: { server: `http://127.0.0.1:${mport}`, token: 'nep_test', name: 'SiteX' } }));
   const env = { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: '5831', NETEVENTPRO_TCP_PORT: '5831', NETEVENTPRO_WEB_PORT: '8831', NETEVENTPRO_SNMP_PORT: '5832', NODE_NO_WARNINGS: '1' };
-  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--require', path.join(__dirname, 'license-hook.js'), path.join(__dirname, '..', 'src', 'server.js')], { env, stdio: 'ignore' });
   t.after(() => { child.kill(); main.close(); });
   const web = (p, o = {}) => fetch('http://127.0.0.1:8831' + p, o);
   for (let i = 0; i < 160; i++) { try { if ((await web('/')).ok) break; } catch { /* starting */ } await sleep(250); }

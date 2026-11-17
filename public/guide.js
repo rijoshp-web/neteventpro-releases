@@ -185,7 +185,8 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.90.1</b> — Alarm limits, Value meanings and Templates explained side by side with examples; the reading window says where each kind of alarm comes from.</li>
+    <ul><li><b>1.91.0</b> — Activation key (entered once, never asked again on updates), Settings → About, messages always above windows, window buttons stay in view.</li>
+    <li><b>1.90.1</b> — Alarm limits, Value meanings and Templates explained side by side with examples; the reading window says where each kind of alarm comes from.</li>
     <li><b>1.90.0</b> — SNMP polling settings regrouped with clear names (General, Alarm limits, Value meanings, Templates, Device profiles), clearer Add device window, Esc closes every window, chart axis fix.</li>
     <li><b>1.89.1</b> — Two-factor setup now shows a QR code to scan (the key is still shown as a fallback).</li>
     <li><b>1.89.0</b> — Settings → Security now starts with a Security check that lists weaknesses and how to fix them. Two-factor setup asks for your current password. The sign-in request is size- and time-limited, and the web server limits connections.</li>

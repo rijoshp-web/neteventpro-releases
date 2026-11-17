@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process'); const fs = require('node:fs'); 
 const ROOT = path.join(__dirname, '..'), WEB = 8561, H = { 'content-type': 'application/json', 'x-requested-with': 'NetEventPro' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const start = async (dir, n) => {
-  const p = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(ROOT, 'src/server.js')], { env: { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: '5561', NETEVENTPRO_TCP_PORT: '5561', NETEVENTPRO_WEB_PORT: String(WEB), NETEVENTPRO_SNMP_PORT: '5562', NETEVENTPRO_SCRYPT_N: String(n) }, cwd: ROOT, stdio: 'ignore' });
+  const p = spawn('node', ['--disable-warning=ExperimentalWarning', '--require', path.join(__dirname, 'license-hook.js'), path.join(ROOT, 'src/server.js')], { env: { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: '5561', NETEVENTPRO_TCP_PORT: '5561', NETEVENTPRO_WEB_PORT: String(WEB), NETEVENTPRO_SNMP_PORT: '5562', NETEVENTPRO_SCRYPT_N: String(n) }, cwd: ROOT, stdio: 'ignore' });
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`http://127.0.0.1:${WEB}/api/state`, { headers: H })).status) break; } catch { /* starting */ } await sleep(250); }
   return p;
 };

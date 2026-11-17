@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.91.0
+- **Activation key.** A new copy of NetEventPro is locked until an activation key is entered (one page shows this computer's machine code and asks for the key). Until then nothing is collected or shown. The key is a signed certificate tied to the computer, checked offline, kept in the data folder, so **updates never ask for it again**, and a copy of the program or of its data folder on another computer stays locked. An installation that already holds data gets 14 days to enter its key, with a banner showing the days left. The key can be renewed under Settings → About.
+- **Settings → About.** Version, licence (customer, edition, number, validity, machine code), who you are, this server (computer, system, ports, data folder, memory, running time) and the copyright statement, with a button that copies the details for a support request.
+- **Messages are no longer hidden behind windows.** An error such as “Give the device a name.” raised from inside a window used to appear underneath it and only showed after closing the window. Messages now sit above every window and stay up longer when long.
+- **Windows taller than the screen keep their title and their Save / Cancel buttons in view** while the middle scrolls.
+- Added LICENCE.txt (software licence agreement) and copyright lines on the sign-in page. A scripted sweep of every page, tab, window and button found no further hidden messages or off-screen buttons.
+
 ## 1.90.1
 - **Alarm limits, Value meanings and Templates explained side by side.** Each of the three pages now starts with three cards (what it is, an example, where it is used) so you can see which one you need, and an order of work: add the device, add readings, add alarms (inside a reading, or one shared limit for many devices), then save as a template.
 - **Alarms in a reading explained.** The reading window now says that its Alarms section is for that reading on that device only, that the state of a value meaning (Warning / Critical) also raises an alarm by itself, and that Alarm limits are for the same limit on many devices.

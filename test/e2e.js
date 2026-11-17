@@ -51,7 +51,7 @@ const logs = async (q = '') => (await api('/api/logs?limit=50' + q)).json.rows;
 
 (async () => {
   await new Promise((r) => smtp.listen(SMTP_PORT, '127.0.0.1', r));
-  const srv = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(ROOT, 'src/server.js')], {
+  const srv = spawn('node', ['--disable-warning=ExperimentalWarning', '--require', path.join(ROOT, 'test/license-hook.js'), path.join(ROOT, 'src/server.js')], {
     env: { ...process.env, NETEVENTPRO_DATA: dir, NETEVENTPRO_UDP_PORT: UDP, NETEVENTPRO_TCP_PORT: UDP, NETEVENTPRO_WEB_PORT: WEB, NETEVENTPRO_SNMP_PORT: SNMP, NETEVENTPRO_HEALTH_INTERVAL_MS: '500' }, cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; srv.stdout.on('data', (d) => (log += d)); srv.stderr.on('data', (d) => (log += d));
   for (let i = 0; i < 160; i++) { try { if ((await api('/api/state')).status === 200) break; } catch { /* starting */ } await sleep(250); }
@@ -804,6 +804,8 @@ END`;
       r = await jp('/api/me/2fa/enable', { code: '123456' }); check('two-factor cannot be turned on without the setup step', r.status === 400);
       r = await jp('/api/me/2fa/start', { password: 'wrong-password-xx' }); check('two-factor setup needs the current password', r.status === 403 && !r.json?.secret);
       r = { ...(await jfetch('/api/security/check', {}, S3)) }; check('the security check lists findings with fixes', r.status === 200 && Array.isArray(r.json.items) && r.json.items.length > 0 && r.json.items.every((i) => ['ok','info','warn','bad'].includes(i.level)), r.text.slice(0, 120));
+      r = await jfetch('/api/about', {}, S3); check('the About page data shows the version, the licence and who is signed in', r.status === 200 && r.json.version === require('../package.json').version && r.json.license.state === 'licensed' && /^[0-9A-F]{4}(-[0-9A-F]{4}){3}$/.test(r.json.license.machine) && r.json.you.name && !/\"key\"/.test(r.text), r.text.slice(0, 160));
+      r = await jp('/api/license/activate', { key: 'NEP1-bad.key' }); check('a wrong key is refused from inside the program', r.status === 400);
       { let st = 0; try { st = (await lg({ username: 'x'.repeat(20000), password: 'y' })).status; } catch { st = -1; } check('an oversized sign-in body is refused', st === 413 || st === -1, String(st)); }
       r = await jp('/api/me/2fa/start', { password: 'correct-horse-battery' }); const secret = r.json?.secret; check('setup gives a key and an otpauth link', r.status === 200 && /^[A-Z2-7]{32}$/.test(secret) && r.json.uri.startsWith('otpauth://totp/'), r.text.slice(0, 120));
       r = await jp('/api/me/2fa/enable', { code: '000000' }); check('a wrong code does not turn it on', r.status === 400);
