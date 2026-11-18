@@ -56,7 +56,7 @@ const SEC_HEADERS = {
 
 // settings the dashboard may change (everything else in config.json is ignored)
 const EDITABLE = ['tlsSyslogEnabled', 'tlsSyslogPort', 'udpPort', 'udpRecvMB', 'tcpPort', 'udpEnabled', 'tcpEnabled', 'syslogBind', 'allowedSources', 'webPort', 'webBind', 'adminPassword', 'tlsCertFile', 'tlsKeyFile',
-  'retentionDays', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
+  'retentionDays', 'format', 'branding', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const isLoopback = (b) => ['127.0.0.1', '::1', 'localhost'].includes(b);
@@ -65,6 +65,7 @@ async function main() {
   applyPendingRestore(dataDir());     // a restore chosen in the dashboard is applied here, before any file is opened
   const license = new License(dataDir());   // the activation key (see license.js); opened before the config so an installation that already holds data is recognised
   const config = new Config();
+  require('./fmt').configure(config.get()); config.onChange((c) => require('./fmt').configure(c));       // time zone and date / clock format used by exports, reports and e-mails
   try {   // the setup program asks for a change of type (full / probe) on an existing installation by leaving this file
     const f = path.join(config.dir, 'apply-setup.json');
     if (fs.existsSync(f)) {
@@ -113,6 +114,7 @@ async function main() {
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
   const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
+  reports.polling = polling; reports.dashFn = (body) => dashData(body);
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
   const guard = new LoginGuard(); const authCache = new Map();
@@ -386,7 +388,15 @@ async function main() {
       }
       if (p === '/api/poll/report' && req.method === 'GET') { need('polling'); return json(res, polling.summary(+url.searchParams.get('hours') || 24)); }
       if (p === '/api/poll/export' && req.method === 'GET') {
-        need('polling'); need('export'); const id = url.searchParams.get('id') || '', text = polling.csv(+url.searchParams.get('hours') || 24, id); if (text === null) throw new HttpError(404, 'No such device.');
+        need('polling'); need('export'); const id = url.searchParams.get('id') || '';
+        if (url.searchParams.get('format') === 'xlsx') {
+          const rows = polling.table(+url.searchParams.get('hours') || 24, id); if (rows === null) throw new HttpError(404, 'No such device.');
+          audit(who, id ? 'exported SNMP polling readings of a device (Excel)' : 'exported the SNMP polling summary (Excel)');
+          const w = (rows[0] || []).map((h, k) => (k === 0 ? 24 : Math.max(10, Math.min(30, String(h).length + 4))));
+          res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'content-disposition': `attachment; filename="NetEventPro-polling${id ? '-readings' : '-summary'}.xlsx"`, 'cache-control': 'no-store' });
+          return res.end(require('./xlsx').buildXlsx([{ name: id ? 'Readings' : 'Polled devices', rows, widths: w }]));
+        }
+        const text = polling.csv(+url.searchParams.get('hours') || 24, id); if (text === null) throw new HttpError(404, 'No such device.');
         audit(who, id ? 'exported SNMP polling readings of a device (CSV)' : 'exported the SNMP polling summary (CSV)');
         res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="NetEventPro-polling${id ? '-readings' : '-summary'}.csv"`, 'cache-control': 'no-store' }); return res.end(text);
       }
@@ -882,12 +892,12 @@ async function main() {
     try {
       const tv = q.view ? (config.get().uiPrefs?.trapViews || []).find((v) => v.id === q.view) : null, vcols = tv ? require('./trapcols').viewColumns(tv) : null;      // the Traps page exports the columns of the chosen view
       // the CSV has the columns of the window it came from (Live log / Search, or Traps), in the same order and with the same headings
-      const ccols = vcols || (fmt === 'csv' ? require('./viewcols').logColumns(config.get().uiPrefs, q.source === 'snmp' ? 'traps' : 'logs') : null);
+      const ccols = vcols || (q.raw === '1' && fmt === 'json' ? null : require('./viewcols').logColumns(config.get().uiPrefs, q.source === 'snmp' ? 'traps' : 'logs'));   // JSON follows the chosen columns too; add raw=1 for every stored field
       let buf = ccols && fmt === 'csv' ? '\ufeff' + ccols.map((c) => csv(c.label)).join(',') + '\r\n' : '';
       const max = Math.min(Math.max(+q.max || 100000, 1), 2000000);
       for await (const r of store.iterate(q, max)) {
         if (closed) break;
-        if (vcols && fmt === 'json') buf += JSON.stringify(Object.fromEntries(vcols.map((c) => [c.label, c.get(r)]))) + '\n';
+        if (ccols && fmt === 'json') buf += JSON.stringify(Object.fromEntries(ccols.map((c) => [c.label, c.get(r)]))) + '\n';
         else if (ccols && fmt === 'csv') buf += ccols.map((c) => csv(c.get(r))).join(',') + '\r\n';
         else if (fmt === 'json') buf += JSON.stringify({ ...r, time: new Date(r.ts).toISOString(), facility: FACILITIES[r.facility], severity: SEVERITIES[r.severity] }) + '\n';
         else buf += [r.id, new Date(r.ts).toISOString(), r.devTs ? new Date(r.devTs).toISOString() : '', r.srcIp, r.host, FACILITIES[r.facility], SEVERITIES[r.severity], r.app, r.pid, r.message, (r.tags || []).join('|')].map(csv).join(',') + '\r\n';
@@ -1295,7 +1305,7 @@ function sanitizeReports(list, cur) {
     const folder = { enabled: !!fo.enabled, path: str(fo.path, 500), keep: clampInt(fo.keep, 0, 1000, 30), user: str(fo.user, 200), password: fo.password === '********' ? ((cur || []).find((x) => x.id === id)?.folder?.password || '') : String(fo.password ?? '').slice(0, 200) };
     if (folder.enabled) { try { checkFolder(folder.path); } catch (e) { bad(`Report "${name}": ${e.message}`); } }
     const ct = r?.content || {};
-    return { id, name, enabled: r?.enabled !== false, schedule, period: Object.keys(PERIODS).includes(r?.period) ? r.period : 'last24h', filter: cleanTileFilter(r?.filter), content: { messages: ct.messages !== false, maxRows: clampInt(ct.maxRows, 1, 100000, 5000), traps: !!ct.traps, maxTrapRows: clampInt(ct.maxTrapRows, 1, 100000, 2000), alarmsActive: !!ct.alarmsActive, alarmHistory: !!ct.alarmHistory, maxAlarmRows: clampInt(ct.maxAlarmRows, 1, 20000, 2000) }, formats, email, folder };
+    return { id, name, enabled: r?.enabled !== false, schedule, period: Object.keys(PERIODS).includes(r?.period) ? r.period : 'last24h', filter: cleanTileFilter(r?.filter), view: /^[A-Za-z0-9_-]{1,40}$/.test(r?.view || '') ? r.view : '', content: { polling: !!ct.polling, dashboard: /^[A-Za-z0-9_-]{1,40}$/.test(ct.dashboard || '') ? ct.dashboard : '', messages: ct.messages !== false, maxRows: clampInt(ct.maxRows, 1, 100000, 5000), traps: !!ct.traps, maxTrapRows: clampInt(ct.maxTrapRows, 1, 100000, 2000), alarmsActive: !!ct.alarmsActive, alarmHistory: !!ct.alarmHistory, maxAlarmRows: clampInt(ct.maxAlarmRows, 1, 20000, 2000) }, formats, email, folder };
   });
 }
 function sanitizeMaintenance(list) {
@@ -1532,6 +1542,8 @@ async function sanitize(body, current) {
   if ('rules' in out) out.rules = sanitizeRules(out.rules);
   if ('reports' in out) out.reports = sanitizeReports(out.reports, current.reports || []);
   if ('ntp' in out) out.ntp = sanitizeNtp(out.ntp);
+  if ('branding' in out) out.branding = require('./brand').clean(out.branding, bad);
+  if ('format' in out) { const f = out.format && typeof out.format === 'object' ? out.format : {}; out.format = { date: ['ymd', 'dmy', 'mdy'].includes(f.date) ? f.date : 'ymd', clock: f.clock === '12' ? '12' : '24' }; }
   if ('snmp' in out) out.snmp = sanitizeSnmp(out.snmp, current.snmp || {});
   if ('maintenance' in out) out.maintenance = sanitizeMaintenance(out.maintenance);
   if ('backup' in out) out.backup = sanitizeBackup(out.backup, current.backup || {});

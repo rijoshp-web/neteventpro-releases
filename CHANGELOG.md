@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.0
+- **Reports follow your own set-up.** A report can use one of your saved Logs views (its columns, order and filter); without one it uses the columns you set on the Logs, Traps and Alarms pages. The same columns are used in the CSV, Excel and PDF files and in the JSON log export.
+- **Polled devices in reports.** Tick "Polled devices" in a report to add availability, CPU, memory, temperature, answer time and alarms per device (CSV, Excel sheet, PDF table). A column that none of your devices reports is left out.
+- **Dashboard figures in reports.** Pick one of your dashboards and the report adds its numbers and rankings for the report's period. Charts over time and live tiles are not part of a report.
+- **Excel export on the SNMP polling page** for the summary and for the readings of one device.
+- **Your name on reports.** Settings → Reports: company name, footer text and logo appear on the PDF, in the Excel summary and in report e-mails.
+- **Your time zone and date format** (Settings → Appearance, time zone) are used in every report, export and report schedule. Report schedules and "yesterday / last week" periods are computed in that time zone.
+- **SQL Server copy unchanged on purpose:** it keeps its fixed full table layout, because other programs read it and changing its columns would break them.
+
 ## 1.96.0
 - **Settings are shorter.** The start page now has nine groups: Receiving, Alerts, Notifications, Reports, Users and security, Storage and backup, Appearance, Updates and licence, Advanced. Related sections share one page: Storage, time, system messages and the data folder; forwarding of syslog and traps; Service and the test message. Trap column views are now called Columns and sit under Appearance.
 - **Show advanced settings** switch (top of Settings). Off by default for new installs, it hides Text replacement, SQL Server copy and the expert numbers: UDP receive buffer, secure syslog port, listen address, live view memory, plain-text log files, polling parallel requests and pause. Hidden values keep their current setting. An install that already uses text replacement or the SQL copy starts with the switch on.

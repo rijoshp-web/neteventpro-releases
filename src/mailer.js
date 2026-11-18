@@ -129,7 +129,15 @@ async function sendMail(smtp, mail) {
     const rnd = () => '=_sp_' + crypto.randomBytes(12).toString('hex');
     // the readable part: plain text, or text plus HTML (the mail program shows the HTML and keeps the text as a fallback)
     let bodyCt, bodyData;
-    if (mail.html) { const ba = rnd(); bodyCt = `multipart/alternative; boundary="${ba}"`; bodyData = `--${ba}\r\n${textPart('text/plain', mail.text)}--${ba}\r\n${textPart('text/html', mail.html)}--${ba}--\r\n`; }
+    if (mail.html) {
+      const ba = rnd(); bodyCt = `multipart/alternative; boundary="${ba}"`; bodyData = `--${ba}\r\n${textPart('text/plain', mail.text)}--${ba}\r\n${textPart('text/html', mail.html)}--${ba}--\r\n`;
+      const inl = (mail.inline || []).slice(0, 2);       // pictures shown inside the HTML (the company logo): multipart/related around the text and HTML
+      if (inl.length) {
+        const br = rnd();
+        bodyData = `--${br}\r\nContent-Type: ${bodyCt}\r\n\r\n${bodyData}` + inl.map((im) => `--${br}\r\nContent-Type: ${String(im.contentType || 'image/jpeg').replace(/[^\w./+-]/g, '')}\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <${String(im.cid).replace(/[^\w.@-]/g, '')}>\r\nContent-Disposition: inline; filename="logo.jpg"\r\n\r\n${wrap(im.data)}`).join('') + `--${br}--\r\n`;
+        bodyCt = `multipart/related; type="multipart/alternative"; boundary="${br}"`;
+      }
+    }
     else { bodyCt = 'text/plain; charset=utf-8'; bodyData = wrap(Buffer.from(String(mail.text ?? ''), 'utf8')); }
     let typeHeaders, content;
     if (!files.length) { typeHeaders = [`Content-Type: ${bodyCt}`, ...(mail.html ? [] : ['Content-Transfer-Encoding: base64'])]; content = bodyData; }
@@ -214,7 +222,7 @@ class AlertMailer {
   enqueueEscalation(info, o) {
     if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
-    const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms');
+    const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms'); { const b = require('./brand').brand(cfg); o.brand = { name: b.name, footer: b.footer }; }
     this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] ESCALATION: ${o.severityName.toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'escalation' }, report: !!info.report, meta: info.meta });
     this.pump();
   }
@@ -222,7 +230,7 @@ class AlertMailer {
   enqueueRecovery(info, o) {
     if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
-    const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms');
+    const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms'); { const b = require('./brand').brand(cfg); o.brand = { name: b.name, footer: b.footer }; }
     this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] CLEARED: ${o.severityName.toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'recovery' }, report: false, meta: info.meta });
     this.pump();
   }

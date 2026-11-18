@@ -29,16 +29,22 @@ class Pdf {
     if (max) { while (s.length > 1 && widthOf(s, size, font) > max) s = s.slice(0, -1); if (s.length < String(str ?? '').length) s = s.slice(0, -1) + '…'; }
     this.cur.push(`BT /${font} ${size} Tf ${hex(color)} rg ${x.toFixed(2)} ${(H - y - size * 0.8).toFixed(2)} Td (${fix(s.replace('…', '...'))}) Tj ET`);
   }
+  /** draws the JPEG logo (one picture per document) with its top-left corner at x, y and the given width; returns its height */
+  image(x, y, w, img) {
+    this.img = img; const h = w * img.h / img.w;
+    this.cur.push(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${(H - y - h).toFixed(2)} cm /Im1 Do Q`); return h;
+  }
   textRight(xr, y, str, o = {}) { this.text(xr - widthOf(String(str), o.size || 10, o.font || 'F1'), y, str, o); }
   build() {
     const objs = []; const add = (body) => { objs.push(body); return objs.length; };
     const catalog = add(null), pagesObj = add(null);
     const fonts = ['Helvetica', 'Helvetica-Bold', 'Courier'].map((f) => add(`<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`));
+    const imgObj = this.img ? add({ stream: this.img.buf, dict: `/Type /XObject /Subtype /Image /Width ${this.img.w} /Height ${this.img.h} /ColorSpace /${this.img.comps === 1 ? 'DeviceGray' : 'DeviceRGB'} /BitsPerComponent 8 /Filter /DCTDecode` }) : 0;
     const kids = [];
     this.pages.forEach((ops, i) => {
       const body = zlib.deflateSync(Buffer.from(ops.join('\n'), 'latin1'));
       const cs = add({ stream: body, dict: '/Filter /FlateDecode' });
-      kids.push(add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R >> >> /Contents ${cs} 0 R >>`));
+      kids.push(add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R >> ${imgObj ? `/XObject << /Im1 ${imgObj} 0 R >> ` : ''}>> /Contents ${cs} 0 R >>`));
     });
     objs[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
     objs[pagesObj - 1] = `<< /Type /Pages /Kids [${kids.map((k) => k + ' 0 R').join(' ')}] /Count ${kids.length} >>`;

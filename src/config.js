@@ -83,6 +83,8 @@ const DEFAULTS = {
   systemMessages: { all: true, health: true, silent: true, audit: true },   // NetEventPro's own messages in the log (health checks, silent devices, who changed what)
   vendorParsers: { cisco: true, dell: true, hp: true, apc: true },   // add tags such as "link-down" to messages these vendors send
   healthAlerts: true,             // write a NetEventPro message when a self-check changes state (disk, listeners, delays ...)
+  branding: { company: '', footer: '', logo: '' },   // shown on PDF and e-mail reports; logo is a small JPEG as a data address
+  format: { date: 'ymd', clock: '24' },   // how dates and times are written in exports, reports and e-mails: date ymd | dmy | mdy, clock 24 | 12
   ntp: { enabled: false, server: '', port: 123, intervalMin: 15, zone: '' },   // dashboard clock: time from your NTP server (display only; this PC's clock is not changed)
   maintenance: [],                // maintenance windows (see maintenance.js)
   snmp: { enabled: true, port: 162, bind: '0.0.0.0', communities: [], informAck: true, defaultSeverity: 5, severityRules: [], valueSeverity: [] },   // SNMP trap receiver (see traps.js); communities empty = accept any

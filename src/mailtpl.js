@@ -6,15 +6,14 @@ const SEV_COLORS = ['#b71c1c', '#c62828', '#d84315', '#e65100', '#f9a825', '#156
 const SEV_NAMES = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug', 'Minor', 'Cleared'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const one = (s) => String(s ?? '').replace(/[\r\n\u0000]+/g, ' ').trim();
+const FMT = require('./fmt');
+const bname = (o) => (o.brand && o.brand.name) || 'NetEventPro';
+const bfoot = (o) => (o.brand && o.brand.footer) || `Sent by ${bname(o)}`;
+const blogo = (o) => (o.brand && o.brand.logoCid ? `<img src="cid:${o.brand.logoCid}" alt="${esc(bname(o))}" style="display:block;max-height:44px;max-width:180px;border:0;margin:0 0 12px">` : '');
 const N = (v) => Number(v || 0).toLocaleString('en-US');
 
 /** "2026-11-01 11:16:07" in the given time zone (an IANA name), or the server's own zone */
-function stamp(ts, zone) {
-  if (!ts) return '';
-  const d = new Date(ts); const p = (n) => String(n).padStart(2, '0');
-  if (zone) { try { const f = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(d); const g = (t) => f.find((x) => x.type === t).value; return `${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')}:${g('second')}`; } catch { /* unknown zone: use the server's */ } }
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
+function stamp(ts, zone) { return ts ? FMT.dateTime(ts, FMT.okZone(zone) ? zone : undefined) : ''; }
 function span(ms) {
   const m = Math.max(0, Math.round(ms / 60000));
   if (m < 1) return 'under a minute'; if (m < 90) return `${m} min`; if (m < 2880) return `${Math.round(m / 60 * 10) / 10} h`; return `${Math.round(m / 144) / 10} days`;
@@ -53,7 +52,7 @@ function renderHtml(o) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf2"><tr><td align="center" style="padding:24px 10px">
 <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #d9dfe7">
  <tr><td style="background:${col};padding:22px 28px;color:#ffffff">
-   <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.85">NetEventPro · ${esc24 ? 'Escalation' : rec ? 'Recovery' : 'Alert'}</div>
+   <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.85">${esc(bname(o))} · ${esc24 ? 'Escalation' : rec ? 'Recovery' : 'Alert'}</div>
    <div style="font-size:23px;font-weight:700;margin-top:6px;line-height:1.25">${esc(o.title)}</div>
    ${o.subtitle ? `<div style="font-size:14px;margin-top:6px;opacity:.95">${esc(o.subtitle)}</div>` : ''}
  </td></tr>
@@ -67,7 +66,7 @@ function renderHtml(o) {
    ${o.attachNote ? `<div style="margin-top:12px;font-size:12px;color:#8a5a00">${esc(o.attachNote)}</div>` : ''}
    ${esc24 ? '<div style="margin-top:16px;font-size:12px;color:#6b7785">Acknowledge or clear the alarm in NetEventPro to stop further escalation. You get one escalation e-mail per alarm.</div>' : ''}
  </td></tr>
- <tr><td style="background:#f4f6f9;padding:12px 28px;font-size:11px;color:#8a95a3">Sent by NetEventPro${o.zone ? ` · times in ${esc(o.zone)}` : ''}</td></tr>
+ <tr><td style="background:#f4f6f9;padding:12px 28px;font-size:11px;color:#8a95a3">${esc(bfoot(o))}${o.zone ? ` · times in ${esc(o.zone)}` : ''}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -100,7 +99,7 @@ function renderReportHtml(o) {
 <body style="margin:0;padding:0;background:#0a0f16;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0f16"><tr><td align="center" style="padding:16px 8px">
 <table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#0e141c;border-radius:14px;overflow:hidden;border:1px solid ${C.line}">
- <tr><td class="px" style="padding:30px 34px 6px;color:${C.txt}"><div style="font-size:12px;color:${C.dim};letter-spacing:.14em;text-transform:uppercase">NetEventPro</div><div class="ttl" style="font-size:28px;font-weight:300;margin-top:8px;line-height:1.2;word-break:break-word">${esc(o.title)}</div><div style="font-size:13px;color:${C.mut};margin-top:6px;line-height:1.5">${esc(stamp(o.from, z))}<br>to ${esc(stamp(o.to, z))}</div></td></tr>
+ <tr><td class="px" style="padding:30px 34px 6px;color:${C.txt}"><div style="font-size:12px;color:${C.dim};letter-spacing:.14em;text-transform:uppercase">${blogo(o)}${esc(bname(o))}</div><div class="ttl" style="font-size:28px;font-weight:300;margin-top:8px;line-height:1.2;word-break:break-word">${esc(o.title)}</div><div style="font-size:13px;color:${C.mut};margin-top:6px;line-height:1.5">${esc(stamp(o.from, z))}<br>to ${esc(stamp(o.to, z))}</div></td></tr>
  ${o.intro ? `<tr><td class="px" style="padding:12px 34px 0;font-size:14px;line-height:1.5;color:${C.txt};white-space:pre-wrap">${esc(o.intro)}</td></tr>` : ''}
  <tr><td class="px" style="padding:18px 34px 6px">${trio([[N(al ? al.open + al.ack : 0), 'Active alarms', (al && al.open + al.ack) ? C.red : C.grn], [N(o.total), 'Syslog', C.blu], [N(o.trapTotal), 'SNMP traps', C.pur]])}${rule}
    ${trio([[N(o.raised), 'Alarms raised', C.blu], [N(o.cleared), 'Cleared', C.grn], [avg, 'Average to clear', C.amb]])}${rule}
@@ -108,7 +107,7 @@ function renderReportHtml(o) {
  ${alarms}${listOf('Busiest devices', o.hosts)}${listOf('Busiest processes', o.apps)}
  ${o.attached ? `<tr><td class="px" style="padding:20px 34px 0"><div style="padding:11px 14px;background:#1b2735;border-radius:6px;font-size:13px;color:${C.mut};word-break:break-word">📎 Attached: <b>${esc(o.attached)}</b></div></td></tr>` : ''}
  <tr><td style="height:24px;line-height:24px;font-size:1px">&nbsp;</td></tr>
- <tr><td class="px" style="background:#151d28;padding:12px 34px;font-size:11px;color:${C.dim}">Sent by NetEventPro${z ? ` · times in ${esc(z)}` : ''}</td></tr>
+ <tr><td class="px" style="background:#151d28;padding:12px 34px;font-size:11px;color:${C.dim}">${esc(bfoot(o))}${z ? ` · times in ${esc(z)}` : ''}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -119,7 +118,7 @@ function renderReportText(o) {
     `ALARMS   active ${al ? al.open : 0}, acknowledged ${al ? al.ack : 0}, raised ${o.raised}, cleared ${o.cleared}`,
     `SYSLOG   ${o.total} messages, ${err(o.sevN)} errors and worse, ${o.sevN[4]} warnings, ${o.devices} devices`,
     `TRAPS    ${o.trapTotal} traps, ${err(o.trapSev)} errors and worse, ${o.trapSev[4]} warnings, ${o.trapDevices} devices`,
-    '', o.attached ? `Attached: ${o.attached}` : 'The report is attached.', '', '--', 'Sent by NetEventPro'].join('\r\n');
+    '', o.attached ? `Attached: ${o.attached}` : 'The report is attached.', '', '--', bfoot(o)].join('\r\n');
 }
 
 /** the plain-text version (for mail apps that do not show HTML) */
@@ -138,7 +137,7 @@ function renderText(o) {
   if (o.attached) L.push('', `Attached: ${o.attached} (everything that happened in the last 24 hours).`);
   if (o.attachNote) L.push(o.attachNote);
   if (o.link) L.push('', o.link);
-  L.push('', '--', 'Sent by NetEventPro');
+  L.push('', '--', bfoot(o));
   return L.join('\r\n');
 }
 

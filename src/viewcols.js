@@ -8,8 +8,9 @@ const { FACILITIES } = require('./parser');
 const TC = require('./trapcols');
 
 const pad = (n, w = 2) => String(n).padStart(w, '0');
-const dateOf = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const timeOf = (ts, ms = true) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` + (ms ? '.' + pad(d.getMilliseconds(), 3) : ''); };
+const FMT = require('./fmt');
+const dateOf = (ts) => FMT.date(ts);
+const timeOf = (ts, ms = true) => FMT.time(ts, ms);
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const sevName = (n) => cap(SEVX.NAMES[n] || '');
 const dur = (ms) => { const m = Math.round(ms / 60000); return m < 90 ? `${m} min` : m < 2880 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} days`; };

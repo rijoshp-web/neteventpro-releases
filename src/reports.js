@@ -11,42 +11,45 @@ const { renderReportHtml, renderReportText } = require('./mailtpl');
 const { SEVERITIES, FACILITIES } = require('./parser');
 const SEVX = require('./sev');
 const VC = require('./viewcols');
+const FMT = require('./fmt');
+const BRAND = require('./brand');
 
 const SEV_COLORS = ['#b71c1c', '#d32f2f', '#e64a19', '#f57c00', '#fbc02d', '#1976d2', '#388e3c', '#757575', '#ffa726', '#26a69a'];
 const PERIODS = { last24h: 'Last 24 hours', last7d: 'Last 7 days', last30d: 'Last 30 days', prevday: 'Yesterday', prevweek: 'Previous 7 full days', prevmonth: 'Previous calendar month' };
 const MAX_ROWS_FILE = 100000, MAX_ROWS_PDF = 1500, MAX_MAIL_BYTES = 20 * 1024 * 1024;
 const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const pad = (n) => String(n).padStart(2, '0');
-const stamp = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
-const local = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const stamp = (d) => FMT.fileStamp(+d);
+const local = (ts) => FMT.dateTime(ts);
 const slug = (s) => String(s || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'report';
 
-/** { from, to } in ms for a period name, relative to `now` (server local time for the calendar ones) */
+/** { from, to } in ms for a period name, relative to `now`; "yesterday", "last month" and so on follow the time zone chosen in Settings */
 function periodRange(period, now = Date.now()) {
-  const d = new Date(now); const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const d = FMT.wall(now); const Y = d.getUTCFullYear(), M = d.getUTCMonth(), D = d.getUTCDate();
+  const midnight = FMT.fromWall(Date.UTC(Y, M, D));
   switch (period) {
     case 'last7d': return { from: now - 7 * 86400000, to: now };
     case 'last30d': return { from: now - 30 * 86400000, to: now };
-    case 'prevday': return { from: midnight - 86400000, to: midnight - 1 };
-    case 'prevweek': return { from: midnight - 7 * 86400000, to: midnight - 1 };
-    case 'prevmonth': return { from: new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime(), to: new Date(d.getFullYear(), d.getMonth(), 1).getTime() - 1 };
+    case 'prevday': return { from: FMT.fromWall(Date.UTC(Y, M, D - 1)), to: midnight - 1 };
+    case 'prevweek': return { from: FMT.fromWall(Date.UTC(Y, M, D - 7)), to: midnight - 1 };
+    case 'prevmonth': return { from: FMT.fromWall(Date.UTC(Y, M - 1, 1)), to: FMT.fromWall(Date.UTC(Y, M, 1)) - 1 };
     default: return { from: now - 86400000, to: now };
   }
 }
 
-/** the most recent moment (<= now) the schedule says the report should have run */
+/** the most recent moment (<= now) the schedule says the report should have run (clock times are in the chosen time zone) */
 function latestSlot(s, now = Date.now()) {
-  const d = new Date(now); const [hh, mm] = String(s.time || '08:00').split(':').map(Number);
-  if (s.type === 'hourly') { const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), mm || 0).getTime(); return t <= now ? t : t - 3600000; }
+  const d = FMT.wall(now); const [hh, mm] = String(s.time || '08:00').split(':').map(Number);
+  const Y = d.getUTCFullYear(), M = d.getUTCMonth(), D = d.getUTCDate(), at = (y, m, dd, h, mi) => FMT.fromWall(Date.UTC(y, m, dd, h, mi));
+  if (s.type === 'hourly') { const t = at(Y, M, D, d.getUTCHours(), mm || 0); return t <= now ? t : t - 3600000; }
   if (s.type === 'weekly') {
-    let t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm).getTime(); t -= ((d.getDay() - (s.dow ?? 1) + 7) % 7) * 86400000;
-    const dt = new Date(t); t = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), hh, mm).getTime(); return t <= now ? t : t - 7 * 86400000;
+    const t = at(Y, M, D - ((d.getUTCDay() - (s.dow ?? 1) + 7) % 7), hh, mm); return t <= now ? t : at(Y, M, D - ((d.getUTCDay() - (s.dow ?? 1) + 7) % 7) - 7, hh, mm);
   }
   if (s.type === 'monthly') {
-    const dom = Math.min(28, Math.max(1, s.dom || 1)); let t = new Date(d.getFullYear(), d.getMonth(), dom, hh, mm).getTime();
-    return t <= now ? t : new Date(d.getFullYear(), d.getMonth() - 1, dom, hh, mm).getTime();
+    const dom = Math.min(28, Math.max(1, s.dom || 1)); const t = at(Y, M, dom, hh, mm);
+    return t <= now ? t : at(Y, M - 1, dom, hh, mm);
   }
-  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm).getTime(); return t <= now ? t : new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, hh, mm).getTime();
+  const t = at(Y, M, D, hh, mm); return t <= now ? t : at(Y, M, D - 1, hh, mm);
 }
 
 class Reports {
@@ -99,7 +102,7 @@ class Reports {
     const now = Date.now(); if (this.quickCache && now - this.quickCache.at < 120000) return this.quickCache.files;
     if (this.quickBusy) return this.quickBusy;
     this.quickBusy = (async () => {
-      const def = { id: '_last24h', name: 'NetEventPro last 24 hours', period: 'last24h', filter: {}, formats: ['pdf'], content: { messages: true, maxRows: 400, traps: true, maxTrapRows: 300, alarmsActive: true, alarmHistory: true, maxAlarmRows: 500 } };
+      const def = { id: '_last24h', name: `${BRAND.brand(this.config.get()).name} last 24 hours`, period: 'last24h', filter: {}, formats: ['pdf'], content: { messages: true, maxRows: 400, traps: true, maxTrapRows: 300, alarmsActive: true, alarmHistory: true, maxAlarmRows: 500 } };
       const data = await this.collect(def); const files = await this.render(def, data); this.quickCache = { at: Date.now(), files }; return files;
     })();
     try { return await this.quickBusy; } finally { this.quickBusy = null; }
@@ -107,6 +110,8 @@ class Reports {
 
   async collect(def) {
     const { from, to } = periodRange(def.period); const f = { ...(def.filter || {}) };
+    const sv = def.view ? ((this.config.get().uiPrefs || {}).views || []).find((x) => x.id === def.view) : null;
+    if (sv && sv.filter) { for (const k of ['host', 'app', 'text']) if (sv.filter[k]) f[k] = sv.filter[k]; if (sv.filter.sevs) f.sevs = sv.filter.sevs; }       // a saved view's filter replaces the matching fields of the report's own filter
     const filter = { ...f }; if (filter.tag) { filter.text = `tag:${filter.tag} ${filter.text || ''}`.trim(); delete filter.tag; }
     filter.source = 'syslog';
     const tiles = [
@@ -132,8 +137,21 @@ class Reports {
     }
     if (c.alarmsActive && this.alarms) alarmsActive = this.alarms.list({ state: 'active', limit: Math.min(500, +c.maxAlarmRows || 2000) }).alarms;
     if (c.alarmHistory && this.alarms) alarmHistory = this.alarms.between(from, to, +c.maxAlarmRows || 2000);
+    let polling = null;
+    if (c.polling && this.polling) { try { const hrs = Math.max(1, Math.min(8760, Math.ceil((to - from) / 3600000))); polling = this.pollTable(this.polling.summary(hrs, to).rows); } catch { polling = null; } }
+    let dashSum = null;
+    if (c.dashboard && this.dashFn) { try { dashSum = await require('./dashtiles').run((this.config.get().uiPrefs || {}), c.dashboard === 'main' ? '' : c.dashboard, from, to, this.dashFn); } catch { dashSum = null; } }
     const alarmSum = this.alarms ? { counts: this.alarms.counts(), sum: this.alarms.summary(from) } : null;
-    return { trapSum, alarmSum, def, from: d.from, to: d.to, bucketMs: d.bucketMs, firstBucket: d.firstBucket, total: d.tiles.total.n, devices: d.tiles.devices.n, sevN, hosts: d.tiles.hosts.rows || [], apps: d.tiles.apps.rows || [], series: d.tiles.trend.series || [], rows, truncated, generated: Date.now(), traps, alarmsActive, alarmHistory };
+    return { trapSum, alarmSum, def, from: d.from, to: d.to, bucketMs: d.bucketMs, firstBucket: d.firstBucket, total: d.tiles.total.n, devices: d.tiles.devices.n, sevN, hosts: d.tiles.hosts.rows || [], apps: d.tiles.apps.rows || [], series: d.tiles.trend.series || [], rows, truncated, generated: Date.now(), traps, alarmsActive, alarmHistory, polling, dashSum };
+  }
+
+  /** polled devices as a table; a column is left out when no device has a value for it, so the report only shows what the person's devices really report */
+  pollTable(list) {
+    const f = (v, d = 1) => (v === null || v === undefined ? null : Math.round(v * 10 ** d) / 10 ** d);
+    const all = [['Device', (r) => r.name], ['Address', (r) => r.host], ['Site', (r) => r.site], ['Polls', (r) => r.polls], ['Availability %', (r) => f(r.availability)], ['CPU avg %', (r) => f(r.cpuAvg)], ['CPU max %', (r) => f(r.cpuMax)], ['Memory avg %', (r) => f(r.memAvg)], ['Memory max %', (r) => f(r.memMax)], ['Temp avg C', (r) => f(r.tempAvg)], ['Temp max C', (r) => f(r.tempMax)], ['Answer time avg ms', (r) => f(r.rttAvg)], ['Alarms', (r) => r.alarms]];
+    const cols = all.filter(([, g], i) => i < 4 || list.some((r) => g(r) !== null && g(r) !== undefined && g(r) !== '' && (i !== 12 || true)));
+    const keep = cols.filter(([h, g]) => !['Site'].includes(h) || list.some((r) => g(r)));
+    return { head: keep.map((k) => k[0]), rows: list.map((r) => keep.map(([, g]) => g(r))) };
   }
 
   async render(def, data) {
@@ -141,9 +159,11 @@ class Reports {
     for (const fmt of def.formats || []) {
       if (fmt === 'csv') {
         if (c.messages !== false || (!data.traps && !data.alarmsActive && !data.alarmHistory)) out.push({ name: base + '.csv', type: 'text/csv', data: this.csv(data) });
+        if (data.polling) out.push({ name: base + '-devices.csv', type: 'text/csv', data: this.csvOf(data.polling.head.map((h, k) => ({ label: h, get: (r) => r[k] })), data.polling.rows) });
+        if (data.dashSum && data.dashSum.rows.length) out.push({ name: base + '-dashboard.csv', type: 'text/csv', data: this.csvOf([{ label: 'Tile', get: (r) => r[0] }, { label: 'Item', get: (r) => r[1] }, { label: 'Value', get: (r) => r[2] }], data.dashSum.rows) });
         if (data.traps) out.push({ name: base + '-traps.csv', type: 'text/csv', data: this.csvTraps(data) });
-        if (data.alarmsActive) out.push({ name: base + '-active-alarms.csv', type: 'text/csv', data: this.csvAlarms(data.alarmsActive) });
-        if (data.alarmHistory) out.push({ name: base + '-alarm-history.csv', type: 'text/csv', data: this.csvAlarms(data.alarmHistory.rows, true) });
+        if (data.alarmsActive) out.push({ name: base + '-active-alarms.csv', type: 'text/csv', data: this.csvAlarms(data.alarmsActive, false, data.def) });
+        if (data.alarmHistory) out.push({ name: base + '-alarm-history.csv', type: 'text/csv', data: this.csvAlarms(data.alarmHistory.rows, true, data.def) });
       }
       if (fmt === 'xlsx') out.push({ name: base + '.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', data: this.xlsx(data, c) });
       if (fmt === 'pdf') out.push({ name: base + '.pdf', type: 'application/pdf', data: this.pdf(data, c) });
@@ -152,7 +172,12 @@ class Reports {
   }
 
   head(data) { return [`Report: ${data.def.name}`, `Period: ${local(data.from)} to ${local(data.to)}`, `Messages: ${data.total}`]; }
-  prefs() { return this.config.get().uiPrefs || {}; }
+  /** the screen layout the exports use; a report that names a saved Logs view uses that view's columns for its syslog list */
+  prefs(def) {
+    const p = this.config.get().uiPrefs || {}; const v = def && def.view ? (p.views || []).find((x) => x.id === def.view) : null;
+    if (!v || !Array.isArray(v.cols) || !v.cols.length) return p;
+    return { ...p, columns: { ...(p.columns || {}), logs: v.cols.map((id) => ({ id, visible: true })), live: undefined, search: undefined } };
+  }
   // CSV, Excel and PDF use the columns of the application windows (Settings of the Logs / Traps / Alarms column chooser), same headings, same order
   table(cols, rows, max = 32000) { return [cols.map((c) => c.label), ...rows.map((r) => cols.map((c) => String(c.get(r) ?? '').slice(0, max)))]; }
   csvOf(cols, rows) {
@@ -160,12 +185,12 @@ class Reports {
     for (const r of rows) s += cols.map((c) => csvCell(c.get(r))).join(',') + '\r\n';
     return Buffer.from(s, 'utf8');
   }
-  csv(data) { return this.csvOf(VC.logColumns(this.prefs(), 'logs'), data.rows); }
-  csvTraps(data) { return this.csvOf(VC.logColumns(this.prefs(), 'traps'), data.traps.rows); }
-  csvAlarms(list, history = false) { return this.csvOf(VC.alarmColumns(this.prefs(), history), list); }
+  csv(data) { return this.csvOf(VC.logColumns(this.prefs(data.def), 'logs'), data.rows); }
+  csvTraps(data) { return this.csvOf(VC.logColumns(this.prefs(data.def), 'traps'), data.traps.rows); }
+  csvAlarms(list, history = false, def) { return this.csvOf(VC.alarmColumns(this.prefs(def), history), list); }
   xlsx(data, c) {
     const b = (v) => ({ v, bold: true });
-    const sum = [[ 'Report', data.def.name ], ['Period', `${local(data.from)} to ${local(data.to)}`], ['Generated', local(data.generated)], ['Matching syslog messages', data.total], ['Devices that sent syslog', data.devices],
+    const sum = [...(BRAND.brand(this.config.get()).custom ? [['Company', BRAND.brand(this.config.get()).name]] : []), [ 'Report', data.def.name ], ['Period', `${local(data.from)} to ${local(data.to)}`], ['Generated', local(data.generated)], ['Matching syslog messages', data.total], ['Devices that sent syslog', data.devices],
       ...(data.traps ? [['SNMP traps', data.traps.total], ['Devices that sent traps', data.traps.devices]] : []),
       ...(data.alarmsActive ? [['Active alarms now', data.alarmsActive.length]] : []),
       ...(data.alarmHistory ? [['Alarms raised in the period', data.alarmHistory.raised], ['Alarms cleared in the period', data.alarmHistory.cleared], ['Average time to clear (min)', Math.round(data.alarmHistory.avgClearMs / 60000)]] : []), [], [b('Syslog severity'), b('Messages')]];
@@ -174,22 +199,24 @@ class Reports {
     for (const r of data.apps) sum.push([r.key, r.n, SEVERITIES[r.worst]]);
     const sheets = [{ name: 'Summary', rows: sum, header: false, widths: [34, 44, 14] }];
     if (c.messages !== false) {
-      const lc = VC.logColumns(this.prefs(), 'logs');
+      const lc = VC.logColumns(this.prefs(data.def), 'logs');
       sheets.push({ name: 'Syslog', rows: this.table(lc, data.rows), widths: lc.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 100)) });
     }
     if (data.traps) {
-      const t = data.traps, tcols = VC.logColumns(this.prefs(), 'traps');
+      const t = data.traps, tcols = VC.logColumns(this.prefs(data.def), 'traps');
       sheets.push({ name: 'SNMP traps', rows: this.table(tcols, t.rows), widths: tcols.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 100)) });
       const top = [[b('Top traps'), b('Count'), b('Most serious')], ...t.names.map((x) => [x.key, x.n, SEVERITIES[x.worst]]), [], [b('Top trap senders'), b('Count'), b('Most serious')], ...t.hosts.map((x) => [x.key, x.n, SEVERITIES[x.worst]])];
       sheets.push({ name: 'Trap summary', rows: top, header: false, widths: [40, 12, 14] });
     }
-    const acols = VC.alarmColumns(this.prefs(), false), hcols = VC.alarmColumns(this.prefs(), true), aw = (cols) => cols.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 80));
+    const acols = VC.alarmColumns(this.prefs(data.def), false), hcols = VC.alarmColumns(this.prefs(data.def), true), aw = (cols) => cols.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 80));
     if (data.alarmsActive) sheets.push({ name: 'Active alarms', rows: this.table(acols, data.alarmsActive), widths: aw(acols) });
     if (data.alarmHistory) sheets.push({ name: 'Alarm history', rows: this.table(hcols, data.alarmHistory.rows), widths: aw(hcols) });
+    if (data.dashSum && data.dashSum.rows.length) sheets.push({ name: 'Dashboard', rows: [['Tile', 'Item', 'Value'], ...data.dashSum.rows], widths: [34, 30, 14] });
+    if (data.polling) sheets.push({ name: 'Polled devices', rows: [data.polling.head, ...data.polling.rows], widths: data.polling.head.map((h, k) => (k < 3 ? 22 : 14)) });
     return buildXlsx(sheets);
   }
   pdf(data, c) {
-    const p = new Pdf(), M = 36; let y = M;
+    const p = new Pdf(), M = 36; let y = M; const br = BRAND.brand(this.config.get());
     // dark only: every page gets the dashboard background and the light-theme colours are swapped for their dark counterparts
     const MAP = { '#111111': '#e6edf5', '#555555': '#9fb0c3', '#888888': '#7d8da1', '#e8edf3': '#1b2735', '#f1f4f8': '#151d28', '#999999': '#3a4a5e', '#cccccc': '#2f4056', '#333333': '#c9d4e0', '#757575': '#9fb0c3' };
     const dk = (c2) => MAP[String(c2 || '').toLowerCase()] || c2;
@@ -243,7 +270,8 @@ class Reports {
       const dur = (ms) => { const m = Math.round(Math.max(0, ms) / 60000); return m < 1 ? '< 1 min' : m < 90 ? m + ' min' : m < 2880 ? (Math.round(m / 6) / 10) + ' h' : (Math.round(m / 144) / 10) + ' days'; };
       const act = this.alarms ? this.alarms.list({ state: 'active', limit: 6 }).alarms : [], nAct = al0 ? al0.counts.open + al0.counts.ack : act.length, nEsc = al0 ? al0.counts.escalated : 0;
       const CARD = '#111925', LINE = '#243142';
-      p.text(M, y, 'NETEVENTPRO', { size: 8, color: '#9ec9f5' }); y += 14;
+      if (br.logo) { const lw = Math.min(150, 38 * br.logo.w / br.logo.h); p.image(M, y - 4, lw, br.logo); y += lw * br.logo.h / br.logo.w + 6; }
+      p.text(M, y, br.name.toUpperCase(), { size: 8, color: '#9ec9f5', max: W - 2 * M }); y += 14;
       p.text(M, y, data.def.name, { size: 26, color: '#e6edf5' });
       if (nAct || nEsc) { const lbl = 'NEEDS ATTENTION', lw = widthOf(lbl, 8, 'F2') + 24; p.rrect(W - M - lw, y + 4, lw, 20, 10, null, '#ffb74d'); p.text(W - M - lw + 12, y + 10, lbl, { size: 8, font: 'F2', color: '#ffb74d' }); }
       y += 34; p.text(M, y, `${local(data.from)} to ${local(data.to)} · generated ${local(data.generated)}`, { size: 9, color: '#9fb0c3' }); y += 22;
@@ -282,7 +310,7 @@ class Reports {
       const ws = VC.pdfWidths(cols, W - 2 * M); let x = M; const pos = cols.map((c, k) => { const at = x; x += ws[k] + 4; return [at, c.label]; });
       grid(title, pos, items.map((r) => cols.map((c) => fit(String(c.get(r) ?? ''), c.w ? 60 : 400))), (i) => items[i].severity, note);
     };
-    const pf = this.prefs();
+    const pf = this.prefs(data.def);
     if (data.alarmsActive) gridOf('All alarms: active (open and acknowledged)', VC.alarmColumns(pf, false), data.alarmsActive, `${data.alarmsActive.length} alarm(s) at the time the report was made.`);
     if (data.alarmHistory) { const h = data.alarmHistory;
       gridOf('All alarms: history', VC.alarmColumns(pf, true), h.rows, `Raised in the period: ${N(h.raised)} · cleared: ${N(h.cleared)}${h.cleared ? ` · average time to clear ${Math.round(h.avgClearMs / 60000)} min, longest ${Math.round(h.maxClearMs / 60000)} min` : ''}.`); }
@@ -290,8 +318,14 @@ class Reports {
       const n = Math.min(MAX_ROWS_PDF, data.rows.length);
       gridOf('Syslog messages', VC.logColumns(pf, 'logs'), data.rows.slice(0, n), n < data.total ? `Showing the newest ${N(n)} of ${N(data.total)} matching messages. The CSV and Excel versions can hold more.` : '');
     }
+    if (data.dashSum && data.dashSum.rows.length) grid(data.dashSum.name, [[M, 'Tile'], [M + 230, 'Item'], [W - M - 90, 'Value']], data.dashSum.rows.map((r) => r.map((v) => String(v))), null, 'Figures of the dashboard for the period of this report.');
+    if (data.polling) {
+      const hd = data.polling.head, ws = hd.map((h, k) => (k < 3 ? 2.2 : 1)), tot = ws.reduce((a, b) => a + b, 0), span = W - 2 * M; let x = M;
+      const pos = hd.map((h, k) => { const at = x; x += (ws[k] / tot) * span; return [at, h]; });
+      grid('Polled devices', pos, data.polling.rows.map((r) => r.map((v) => (v === null || v === undefined ? '-' : String(v)))), null, `${data.polling.rows.length} device(s) polled in the period.`);
+    }
     if (data.traps && data.traps.rows.length) gridOf('SNMP trap list', VC.logColumns(pf, 'traps'), data.traps.rows, data.traps.truncated ? 'Showing the newest traps only. The CSV and Excel versions hold more.' : '');
-    const total = p.pages.length; p.pages.forEach((_, i) => { p.cur = p.pages[i]; p.text(M, H - 22, 'NetEventPro report', { size: 7, color: '#888888' }); p.textRight(W - M, H - 22, `Page ${i + 1} of ${total}`, { size: 7, color: '#888888' }); });
+    const total = p.pages.length; p.pages.forEach((_, i) => { p.cur = p.pages[i]; p.text(M, H - 22, `${br.name} report${br.footer ? ' · ' + br.footer : ''}`, { size: 7, color: '#888888', max: W - 2 * M - 80 }); p.textRight(W - M, H - 22, `Page ${i + 1} of ${total}`, { size: 7, color: '#888888' }); });
     return p.build();
   }
 
@@ -300,13 +334,14 @@ class Reports {
     const smtp = this.config.get().smtp || {}; const to = def.email.to || smtp.to; if (!smtp.host || !smtp.from) throw new Error('E-mail is not set up yet (Notifications → E-mail server).'); parseRecipients(to);
     const fill = (t) => String(t).replace(/\{(name|date|period|count)\}/g, (_, k) => ({ name: def.name, date: local(data.to).slice(0, 10), period: `${local(data.from).slice(0, 10)} to ${local(data.to).slice(0, 10)}`, count: String(data.sevN.reduce((a, x) => a + x, 0)) })[k]).replace(/[\r\n]+/g, ' ').trim();
     const cc = [def.email.cc, smtp.cc].filter(Boolean).join(', ');
-    await sendMail(smtp, { to, cc, subject: def.email.subject ? fill(def.email.subject).slice(0, 200) : `[NetEventPro] ${def.name} — ${local(data.from).slice(0, 10)} to ${local(data.to).slice(0, 10)}`,
+    await sendMail(smtp, { to, cc, subject: def.email.subject ? fill(def.email.subject).slice(0, 200) : `[${BRAND.brand(this.config.get()).name}] ${def.name} — ${local(data.from).slice(0, 10)} to ${local(data.to).slice(0, 10)}`,
       ...(() => {
         const al = data.alarmSum, intro = def.email.body ? fill(def.email.body).replace(/\s*\|\s*/g, '\n') : '';
         const cfgBody = def.email.body ? String(def.email.body).replace(/\{(name|date|period|count)\}/g, (_, k) => ({ name: def.name, date: local(data.to).slice(0, 10), period: `${local(data.from).slice(0, 10)} to ${local(data.to).slice(0, 10)}`, count: String(data.sevN.reduce((x, y) => x + y, 0)) })[k]) : '';
         const o = { title: def.name, intro: cfgBody || intro, from: data.from, to: data.to, zone: this.config.get().ntp?.zone || '', alarms: al ? al.counts : null, raised: al ? al.sum.raised : 0, cleared: al ? al.sum.cleared : 0, avgClearMs: al ? al.sum.avgClearMs : 0, ...(() => { const cols = VC.alarmColumns(this.prefs(), false), r = this.alarms ? this.alarms.list({ state: 'active', limit: 8 }) : { alarms: [], total: 0 }; return { activeRows: r.alarms.map((a) => ({ severity: a.severity, cells: cols.map((c) => [c.label, String(c.get(a) ?? '')]) })), activeMore: Math.max(0, (r.total || 0) - r.alarms.length) }; })(),
           total: data.total, devices: data.devices, sevN: data.sevN, trapTotal: data.trapSum.total, trapDevices: data.trapSum.devices, trapSev: data.trapSum.sevN, hosts: data.hosts, apps: data.apps, attached: files.map((f) => f.name).join(', ') };
-        return { html: renderReportHtml(o), text: renderReportText(o) };
+        const bd = BRAND.brand(this.config.get()); o.brand = { name: bd.name, footer: bd.footer, logoCid: bd.logo ? 'nep-logo@report' : '' };
+        return { html: renderReportHtml(o), text: renderReportText(o), inline: bd.logo ? [{ cid: 'nep-logo@report', contentType: 'image/jpeg', data: bd.logo.buf }] : [] };
       })(),
       attachments: files.map((f) => ({ filename: f.name, contentType: f.type, data: f.data })) });
   }

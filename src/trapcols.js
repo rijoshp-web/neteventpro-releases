@@ -5,8 +5,9 @@ const { rulesFor, fieldView, colText } = require('./trapreplace');
 const { SEVERITIES } = require('./parser');
 
 const pad = (n, w = 2) => String(n).padStart(w, '0');
-const dateOf = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const timeOf = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const FMT = require('./fmt');
+const dateOf = (ts) => FMT.date(ts);
+const timeOf = (ts) => FMT.time(ts, false);
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

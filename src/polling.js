@@ -1,4 +1,5 @@
 'use strict';
+const FMT = require('./fmt');
 // SNMP polling (1.46): the main server asks devices for CPU, memory, temperature, uptime and interface traffic every minute or so,
 // keeps the readings (raw for a week, 5-minute averages for a year), and raises normal alarms when a reading stays past a limit.
 // A device that stops answering SNMP raises "No SNMP answer". Probes do not poll yet (planned).
@@ -444,8 +445,8 @@ class Polling {
 
   // ---------- reports (1.47) ----------
   /** per device over the last `hours`: availability (share of polls that were answered), average and highest CPU / memory / temperature, answer time, polling alarms */
-  summary(hours) {
-    hours = num(hours, 24, 1, 8760); const to = Date.now(), from = to - hours * 3600000, m = this.db.prepare("SELECT v FROM poll_meta WHERE k = 'rolledTo'").get(), rolled = m ? +m.v : 0;
+  summary(hours, toTs) {
+    hours = num(hours, 24, 1, 8760); const to = toTs || Date.now(), from = to - hours * 3600000, m = this.db.prepare("SELECT v FROM poll_meta WHERE k = 'rolledTo'").get(), rolled = m ? +m.v : 0;
     const acc = new Map(); const add = (dev, k, sum, n, mx) => { const key = dev + '|' + k, a = acc.get(key) || { sum: 0, n: 0, max: -Infinity }; a.sum += sum; a.n += n; a.max = Math.max(a.max, mx); acc.set(key, a); };
     const keys = "('poll.ok','cpu','memory','temperature','rtt')";
     for (const r of this.db.prepare(`SELECT dev, k, SUM(v) AS s, COUNT(*) AS n, MAX(v) AS mx FROM poll_readings WHERE ts >= ? AND ts <= ? AND inst = '' AND k IN ${keys} GROUP BY dev, k`).all(Math.max(from, rolled), to)) add(r.dev, r.k, r.s, r.n, r.mx);
@@ -466,10 +467,22 @@ class Polling {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; hours = num(hours, 24, 1, 8760); const to = Date.now(), from = to - hours * 3600000;
     const items = new Map(); for (const r of this.db.prepare('SELECT DISTINCT k, inst FROM poll_readings WHERE dev = ? AND ts >= ?').all(id, Math.max(0, from))) items.set(r.k + '|' + r.inst, r);
     for (const r of this.db.prepare('SELECT DISTINCT k, inst FROM poll_avg WHERE dev = ? AND t >= ?').all(id, from)) items.set(r.k + '|' + r.inst, r);
-    const lines = [['Time (UTC)', 'Reading', 'Item', 'Unit', 'Average', 'Min', 'Max'].map(safe).join(',')];
+    const lines = [[`Time (${FMT.settings().zone || 'server time'})`, 'Reading', 'Item', 'Unit', 'Average', 'Min', 'Max'].map(safe).join(',')];
     for (const it of [...items.values()].sort((a, b) => (a.k + a.inst).localeCompare(b.k + b.inst))) { const info = this.metricInfo(it.k);
-      for (const p of this.series(id, it.k, it.inst, from, to, 500)) lines.push([new Date(p.t).toISOString().replace('T', ' ').slice(0, 19), info.label, it.inst, info.unit, f(p.v, 3), f(p.min, 3), f(p.max, 3)].map(safe).join(',')); }
+      for (const p of this.series(id, it.k, it.inst, from, to, 500)) lines.push([FMT.dateTime(p.t), info.label, it.inst, info.unit, f(p.v, 3), f(p.min, 3), f(p.max, 3)].map(safe).join(',')); }
     return '﻿' + lines.join('\r\n') + '\r\n';
+  }
+
+  /** the same data as csv(), as rows of cells (for Excel files) */
+  table(hours, id) {
+    const text = this.csv(hours, id); if (text === null) return null; const rows = []; let row = [], cell = '', q = false;
+    for (let i = text.charCodeAt(0) === 0xfeff ? 1 : 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true; else if (ch === ',') { row.push(cell); cell = ''; } else if (ch === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; } else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell.replace(/\r$/, '')); rows.push(row); }
+    return rows.map((r) => r.map((v) => (/^-?\d+(\.\d+)?$/.test(v) && v.length < 15 && !/^0\d/.test(v) ? Number(v) : v.replace(/^'(?=[=+\-@\t\r])/, ''))));
   }
 
   // ---------- views for the pages ----------
