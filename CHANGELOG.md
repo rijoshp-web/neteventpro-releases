@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.1
+- **Fix:** choosing a logo in Settings → Reports did nothing, because the page's security rules blocked the way the picture was read. The logo now loads and shows at once; click "Save name and logo" to keep it.
+
 ## 1.97.0
 - **Reports follow your own set-up.** A report can use one of your saved Logs views (its columns, order and filter); without one it uses the columns you set on the Logs, Traps and Alarms pages. The same columns are used in the CSV, Excel and PDF files and in the JSON log export.
 - **Polled devices in reports.** Tick "Polled devices" in a report to add availability, CPU, memory, temperature, answer time and alarms per device (CSV, Excel sheet, PDF table). A column that none of your devices reports is left out.

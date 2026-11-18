@@ -153,10 +153,10 @@ views.reports = (el) => {
   const setPath = (r, path, v) => { const [a, b] = path.split('.'); if (b) (r[a] ||= {})[b] = v; else r[a] = v; if (path.startsWith('filter.') && v === '') delete r.filter[b]; dirty = true; };
   el.addEventListener('input', (e) => { const k = e.target.dataset.k; if (!k) return; const r = reports[+e.target.closest('.rule').dataset.i]; setPath(r, k, e.target.type === 'checkbox' ? e.target.checked : e.target.type === 'number' ? (e.target.value === '' ? '' : +e.target.value) : e.target.value); });
   el.addEventListener('change', (e) => {
-    if (e.target.id === 'brLogo') { const f = e.target.files[0]; if (!f) return; const img = new Image(), u = URL.createObjectURL(f);
-      img.onload = () => { URL.revokeObjectURL(u); const sc = Math.min(1, 400 / img.width), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(img.width * sc)); cv.height = Math.max(1, Math.round(img.height * sc)); const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+    if (e.target.id === 'brLogo') { const f = e.target.files[0]; if (!f) return; const img = new Image(), rd = new FileReader();
+      img.onload = () => { const sc = Math.min(1, 400 / img.width), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(img.width * sc)); cv.height = Math.max(1, Math.round(img.height * sc)); const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
         let q = 0.9, d = cv.toDataURL('image/jpeg', q); while (d.length > 190000 && q > 0.3) { q -= 0.1; d = cv.toDataURL('image/jpeg', q); } if (d.length > 190000) return toast('That logo is too large. Use a smaller picture.', true); brand.logo = d; if ($('#brCompany')) { brand.company = $('#brCompany').value; brand.footer = $('#brFooter').value; } draw(); };
-      img.onerror = () => toast('That file is not a picture the browser can read.', true); img.src = u; return; }
+      img.onerror = () => toast('That file is not a picture the browser can read.', true); rd.onload = () => { img.src = rd.result; }; rd.onerror = img.onerror; rd.readAsDataURL(f); return; }
     if (e.target.dataset.en !== undefined) { reports[+e.target.dataset.en].enabled = e.target.checked; dirty = true; e.target.closest('tr').classList.toggle('off', !e.target.checked); return; }
     const rule = e.target.closest('.rule'); if (!rule) return; const r = reports[+rule.dataset.i];
     if (e.target.dataset.fmt) { r.formats = r.formats.filter((f) => f !== e.target.dataset.fmt); if (e.target.checked) r.formats.push(e.target.dataset.fmt); dirty = true; }
