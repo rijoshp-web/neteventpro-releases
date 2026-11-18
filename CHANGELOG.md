@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.96.0
+- **Settings are shorter.** The start page now has nine groups: Receiving, Alerts, Notifications, Reports, Users and security, Storage and backup, Appearance, Updates and licence, Advanced. Related sections share one page: Storage, time, system messages and the data folder; forwarding of syslog and traps; Service and the test message. Trap column views are now called Columns and sit under Appearance.
+- **Show advanced settings** switch (top of Settings). Off by default for new installs, it hides Text replacement, SQL Server copy and the expert numbers: UDP receive buffer, secure syslog port, listen address, live view memory, plain-text log files, polling parallel requests and pause. Hidden values keep their current setting. An install that already uses text replacement or the SQL copy starts with the switch on.
+
 ## 1.95.0
 - **No names from one site.** Removed the built-in templates written for one make of transmission gear (three syslog rules and one trap view) and for one make of power plant (two rules), the Eltek, Spectracom and Eventide vendor tags, and examples that named a city. New neutral starter rules: device restarted, disk/memory/CPU running out, configuration changed.
 - **Vendor tags are automatic** for Cisco, Dell, HP and APC. The Vendor recognition section in Settings is gone; saved rules that match these tags keep working.

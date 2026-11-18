@@ -1765,3 +1765,6 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 
 /* 1.94 — dark glass: brighter secondary text so labels stay readable over dark pictures */
 :root[data-glass]:not([data-tone="light"]) { --muted: #b7c0d0; --faint: #8f99ab; }
+
+/* 1.96 — expert settings are listed only while "Show advanced settings" is on */
+:root:not([data-adv]) .field.adv { display: none; }
