@@ -180,7 +180,11 @@ module.exports = (Polling) => {
   const cleanPollSpec = function (c) {
     c = c && typeof c === 'object' ? c : {}; const o = {};
     o.src = ['readings', 'status', 'alarms'].includes(c.src) ? c.src : 'readings';
-    o.view = ['table', 'tiles', 'bars', 'big', 'gauge', 'line'].includes(c.view) ? c.view : (o.src === 'readings' ? 'table' : 'tiles');
+    o.view = ['table', 'tiles', 'bars', 'big', 'gauge', 'line', 'gauges', 'spark', 'summary', 'donut'].includes(c.view) ? c.view : (o.src === 'readings' ? 'table' : 'tiles');
+    if (['name', 'high', 'low', 'worst'].includes(c.sort)) o.sort = c.sort;
+    if (Number.isFinite(+c.limit) && +c.limit >= 1) o.limit = Math.min(200, Math.round(+c.limit));
+    if (c.dec !== undefined && c.dec !== '' && c.dec !== null && Number.isFinite(+c.dec)) o.dec = Math.max(0, Math.min(4, Math.round(+c.dec)));
+    if (c.fill === true) o.fill = true; if (c.compact === true) o.compact = true; if (c.legend === false) o.legend = false;
     if (['square', 'round', 'circle', 'hex', 'hexo'].includes(c.shape)) o.shape = c.shape;
     if (['first', 'avg', 'min', 'max', 'sum'].includes(c.agg)) o.agg = c.agg;
     const g = txt(c.group, 40); if (g) o.group = g;
@@ -236,7 +240,7 @@ module.exports = (Polling) => {
       }
     }
     out.entries = entries.slice(0, 200);
-    if (s.view === 'line') { const to = Date.now(), from = to - s.hours * 3600000; out.series = out.entries.slice(0, 8).map((e) => ({ name: e.devName + (e.row ? ' · ' + e.row : '') + (picks.every((p) => p.label === picks[0].label) ? '' : ' · ' + e.label), unit: e.unit, pts: this.series(e.dev, e.k, e.row || '', from, to, 60).map((x) => [x.t, x.v]) })); out.from = from; out.to = to; }
+    if (s.view === 'line' || s.view === 'spark') { const to = Date.now(), from = to - s.hours * 3600000, many = s.view === 'spark'; out.series = out.entries.slice(0, many ? 24 : 8).map((e) => ({ name: e.devName + (e.row ? ' · ' + e.row : '') + (picks.every((p) => p.label === picks[0].label) ? '' : ' · ' + e.label), unit: e.unit, key: e.dev + '|' + e.k + '|' + (e.row || ''), pts: this.series(e.dev, e.k, e.row || '', from, to, 60).map((x) => [x.t, x.v]) })); out.from = from; out.to = to; }
     return out;
   };
 

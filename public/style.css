@@ -1954,3 +1954,58 @@ tr.rpopt td { border-top: 0 !important; padding-top: 0 !important; background: c
 .rpoptrow select { width: auto !important; }
 .rpcols { display: inline-flex; align-items: center; gap: 6px; }
 details.rphelp { margin: 0 0 12px; } details.rphelp > summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+
+/* 1.97.5 faster customising: the frosted blur behind tiles is the most expensive thing to draw; it is paused while tiles are being edited
+   (edit mode, the tile editor, dragging) and comes back when you finish. The tint stays, so the look barely changes. */
+.dgrid.editing > .widget.panel:not(#_):not(#__), body:has(> .modal-back) .dgrid > .widget.panel:not(#_):not(#__), .dgrid > .widget.panel.dragging:not(#_):not(#__) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+body:has(> .modal-back) :is(.rail, .main, .status, .stickyhead, fieldset, .panel):not(.modal):not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.modal-back:not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.dgrid > .widget.dragging { transition: none !important; z-index: 20; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+
+/* 1.97.5 every colour theme has its own chart colours ("Follow the theme"): accent first, tuned to read on the theme's tiles */
+:root[data-theme="dark"] { --c0: #45c2a5; --c1: #4aa3ff; --c2: #f5a524; --c3: #b07cf2; --c4: #f2703d; --c5: #8fd14f; --c6: #e86a9a; --c7: #2fc4d6; --c8: #c9b458; --c9: #8fa0b5; }
+:root[data-theme="black"] { --c0: #3ddc97; --c1: #38bdf8; --c2: #fbbf24; --c3: #a78bfa; --c4: #fb7185; --c5: #a3e635; --c6: #f472b6; --c7: #22d3ee; --c8: #fdba74; --c9: #a1a1aa; }
+:root[data-theme="pine-gold"] { --c0: #c9a46a; --c1: #5fb08c; --c2: #6fa6c4; --c3: #d9735f; --c4: #a9c97c; --c5: #b78ad6; --c6: #c48a96; --c7: #4fc0b0; --c8: #f0dfb8; --c9: #93a596; }
+:root[data-theme="twilight"] { --c0: #f4a62a; --c1: #8f82f8; --c2: #5fd0c8; --c3: #ef6f9f; --c4: #62a8ff; --c5: #c9e07a; --c6: #5fd0c8; --c7: #ef6f9f; --c8: #ffe1a0; --c9: #a3a8cf; }
+:root[data-theme="lagoon"] { --c0: #e07a35; --c1: #30bfae; --c2: #58a9d6; --c3: #e9c96c; --c4: #d97aa6; --c5: #9ad07a; --c6: #d9705a; --c7: #a8d3ea; --c8: #f6cca3; --c9: #7fa9b0; }
+:root[data-theme="crimson"] { --c0: #ef2b2d; --c1: #ff9466; --c2: #f6b847; --c3: #c58cff; --c4: #4fd6c4; --c5: #5aa9ff; --c6: #ff7aa8; --c7: #d7dae3; --c8: #9ca3af; --c9: #ffc3a0; }
+:root[data-theme="light"] { --c0: #0f8f75; --c1: #2563eb; --c2: #d97706; --c3: #7c3aed; --c4: #dc4c1e; --c5: #16a34a; --c6: #db2777; --c7: #0891b2; --c8: #a16207; --c9: #64748b; }
+:root[data-theme="cream"] { --c0: #22764a; --c1: #b5532a; --c2: #2f5f8f; --c3: #a8781a; --c4: #7a4b8f; --c5: #4f7a2a; --c6: #b23a5b; --c7: #2c7f86; --c8: #8a6a4a; --c9: #6b6258; }
+:root[data-theme="devias"] { --c0: #6366f1; --c1: #10b981; --c2: #f59e0b; --c3: #ec4899; --c4: #0891b2; --c5: #ef4444; --c6: #a855f7; --c7: #65a30d; --c8: #f97316; --c9: #64748b; }
+:root[data-theme="minimal"] { --c0: #00a76f; --c1: #8e33ff; --c2: #e08c00; --c3: #00b8d9; --c4: #ff5630; --c5: #22c55e; --c6: #ff6c9f; --c7: #3366ff; --c8: #b76e00; --c9: #637381; }
+:root[data-theme="neumorphism"] { --c0: #4f6bed; --c1: #14a37f; --c2: #e08a1e; --c3: #a252d9; --c4: #e0525e; --c5: #2aa6c7; --c6: #c7559c; --c7: #7a9a1f; --c8: #d4652d; --c9: #64748b; }
+:root[data-theme="skeuomorphic"] { --c0: #2f6fdb; --c1: #2e8b57; --c2: #c9772b; --c3: #8e4fb3; --c4: #c4453c; --c5: #2a8f9c; --c6: #b04a7a; --c7: #6f8a2a; --c8: #a8742a; --c9: #6b6560; }
+
+/* ===== 1.97.5 SNMP polling tile: more looks ===== */
+.psums { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; }
+.psum { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px; text-decoration: none; color: var(--muted); background: color-mix(in srgb, var(--c) 10%, transparent); border: 1px solid color-mix(in srgb, var(--c) 28%, transparent); }
+.psum b { font-size: clamp(22px, 3.2vw, 34px); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.psum span { font-size: 12px; }
+.psum:hover { border-color: var(--c); }
+.pdonut { display: flex; align-items: center; gap: 14px; height: 100%; min-height: 0; flex-wrap: wrap; justify-content: center; }
+.pdonut svg { height: 100%; max-height: 180px; min-height: 90px; aspect-ratio: 1; }
+.pdonut .pdv { font-size: 18px; font-weight: 700; fill: var(--text); }
+.pdonut .pdl { font-size: 8px; fill: var(--muted); }
+.pleg { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.pleg span { display: flex; align-items: center; gap: 7px; } .pleg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; } .pleg b { margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+.pchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; text-decoration: none; color: var(--text); background: color-mix(in srgb, var(--s3) 12%, transparent); border: 1px solid color-mix(in srgb, var(--s3) 35%, transparent); }
+.pchip b { color: var(--s3); }
+.pgauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px 10px; }
+.pg { display: flex; flex-direction: column; align-items: center; min-width: 0; position: relative; }
+.pg svg { width: 100%; max-width: 140px; }
+.pg .pgv { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pg .pgn { font-size: 11.5px; color: var(--muted); max-width: 100%; text-align: center; margin-top: -2px; }
+.pg .pgu { font-size: 10px; color: var(--faint, var(--muted)); }
+.psparks { display: flex; flex-direction: column; gap: 4px; }
+.psr { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(60px, 1fr) auto; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 12.5px; }
+.psr:last-child { border-bottom: 0; }
+.psr svg { width: 100%; height: 24px; }
+.psr b { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* tile text on coloured device tiles: dark or white for that colour, never the theme's link colour */
+.ptiles a.pa:not(#_):not(#__), .ptiles a.pa:not(#_):not(#__):visited { color: inherit; text-decoration: none; }
+.ptiles .pcell:not(#_):not(#__), .ptiles .pcell:not(#_):not(#__) :is(b, .pn, .tw) { color: var(--ink, inherit); }
+.pdonut { flex-wrap: nowrap; }
+.pdonut svg { flex: 0 0 auto; height: min(100%, 170px); width: auto; }
+.pdonut .pleg { flex: 0 1 auto; min-width: 0; }
+@container (max-width: 260px) { .pdonut { flex-wrap: wrap; } }

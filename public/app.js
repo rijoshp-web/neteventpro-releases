@@ -1568,7 +1568,14 @@ views.settings = (el) => {
     if (id === 'addFw') { c.forwardTargets.push({ name: '', host: '', port: 514, protocol: 'udp', enabled: true, minSeverity: '' }); draw(); }
     if (e.target.dataset.del !== undefined) { const body = e.target.closest('tbody').id; const i = +e.target.dataset.del; (body === 'tfRows' ? c.trapForwardTargets : c.forwardTargets).splice(i, 1); draw(); }
     if (id === 'updGo') {
-      if (!S.upAvail) { e.target.disabled = true; e.target.textContent = 'Checking…'; try { upShow(await api('/api/update/check', { method: 'POST', body: {} })); } catch (er) { upShow({ error: er.message }); } e.target.disabled = false; return; }
+      if (!S.upAvail) { e.target.disabled = true; e.target.textContent = 'Checking…'; let u = null;
+        try { u = await api('/api/update/check', { method: 'POST', body: {} }); upShow(u); } catch (er) { u = { error: er.message }; upShow(u); }
+        e.target.disabled = false; if (!S.upAvail) e.target.textContent = 'Check for updates';
+        // 1.97.5 a clear answer after every manual check
+        if (u?.latest && !u.available) toast(`NetEventPro ${S.info.version} is up to date. There is no newer version.`);
+        else if (u?.latest && u.available) toast(`Version ${u.latest} is available. Click "Update to ${u.latest}" to install it.`);
+        else if (u?.error) msgWindow(u.offline ? 'The update server cannot be reached from this PC (no internet connection?). You can install a new version with the installer instead.' : `Could not check for updates: ${u.error}`, 'Check for updates');
+        return; }
       if (!await askConfirm('Update now? The service restarts for a few seconds and messages sent during that moment may be lost. Your settings and data are kept. If the new version fails to start, the old one is put back automatically.', 'Update')) return;
       e.target.disabled = true; e.target.textContent = 'Updating…';
       try { const r = await api('/api/update/install', { method: 'POST', body: { confirm: 'INSTALL' } }); $('#upBox').innerHTML = `Version ${esc(r.version)} installed. Restarting…`; for (let i = 0; i < 45; i++) { await new Promise((ok) => setTimeout(ok, 2000)); try { const x = await fetch('/api/update/status', { cache: 'no-store' }); if (x.status < 500 && i > 1) break; } catch {} } location.reload(); }

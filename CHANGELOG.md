@@ -2,6 +2,14 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.5
+- **Check for updates says so.** After a manual check you get a clear message: "NetEventPro x.y.z is up to date", "Version x.y.z is available", or a message window when the update server cannot be reached.
+- **Faster dashboard editing.** The frosted-glass blur behind tiles is paused while you customise (edit mode, the tile editor, dragging), dragging moves the tile on the graphics card and is limited to one update per screen frame. In tests dragging, resizing and typing in the tile editor became about twice as smooth with glass on.
+- **Every theme has its own chart colours.** "Follow the theme" now really follows it: each of the 12 themes has a 10-colour chart palette that starts with its accent and is tuned to read on its tiles (before, all themes shared one default palette). Severity colours stay the same everywhere.
+- **More SNMP polling visuals.** The gallery has an SNMP polling section with 9 cards: status summary (big counts), status donut, device board, readings with trend line, reading gauges (one per reading), reading graph, reading bars, polling alarms (count and devices) and the readings table.
+- **More polling tile settings:** order (by name, highest / lowest value, problems first, slowest / fastest answer), show at most N, decimals, short names, shaded area under lines, donut legend. Graph and trend lines use the theme colours.
+- **Fix:** names on coloured device tiles could be unreadable in themes that recolour links.
+
 ## 1.97.4
 - **Health-check alarms clear by themselves.** When a health check recovers, the alarms raised by its "Health check failed" messages are cleared, whatever rule raised them; after a restart, alarms for checks that are fine again are cleared at the first check. "Device sending again" clears the "No messages from …" alarm the same way. Only the application's own messages can do this.
 - **Messages in a window.** Errors open a message window that stays until OK; confirmations ("Settings saved") show as a small card at the top right and close by themselves. Nothing appears at the bottom of the browser any more.
