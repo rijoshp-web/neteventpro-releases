@@ -78,7 +78,7 @@ const GUIDE = [
     <p>A rule has <b>conditions</b> (all must match) and <b>actions</b>. Conditions: severities (tick any combination), device, process, tag, and message text (plain words, or a <code>/regular expression/i</code>). Actions: highlight colour, add a tag, play a sound, desktop notification, webhook (Slack, Teams, n8n … any URL), e-mail, or <b>discard</b> the message before it is stored. Rules run in order.</p>
     <ul><li><b>Cooldown</b> limits repeated webhook/e-mail alerts for one rule (default 60 s, 5 minutes for e-mail). Suppressed alerts are counted in the next one.</li>
     <li>Start from a <b>template</b> (interface down, failed logins, UPS on battery, mains failure …) and adjust.</li>
-    <li><b>Vendor tags</b> (see Settings) make rules simple and robust: “Has tag <code>link-down</code>” instead of a regular expression.</li>
+    <li><b>Vendor tags</b> (added automatically) make rules simple and robust: “Has tag <code>link-down</code>” instead of a regular expression.</li>
     <li><b>Export</b> saves all rules as a file; <b>Import</b> adds the rules of such a file to this list (to move them to another PC). Press Save rules afterwards.</li>
     <li><b>Flap detection</b> (Alarm section of a rule): when the same device and port changes several times within a few minutes you get <b>one “(flapping)” alarm</b> and one note when it settles, not an alarm per change. Works for syslog and SNMP trap rules.</li>
     <li>Notifications use <a href="#notify">profiles</a>: pick them from the dropdowns instead of typing addresses in every rule.</li>
@@ -185,7 +185,7 @@ const GUIDE = [
     <li><code>node tools/fake-device.js --addresses 200</code> answers as 200 SNMP devices on 127.0.1.1 upwards, to try polling at size on one computer.</li></ul>
   ` },
   { id: 'whatsnew', title: 'What\'s new', html: `
-    <ul><li><b>1.94.0</b> — New <b>Crimson glass</b> theme (dark frosted glass, glowing red active pill, Night room picture) and brighter secondary text on dark glass.</li><li><b>1.93.0</b> — Automatic updates (Settings → Updates), new glass background pictures, fewer look-alike themes, and seven new template-style themes (Devias Kit, Berry, Mantis, Minimal, Paperbase, StrikingDash, Skeuomorphic).</li>
+    <ul><li><b>1.95.0</b> — Cleaner for every site: the built-in templates no longer mention one maker or one site, and there are new neutral starter rules (device restarted, resources running out, configuration changed). Vendor tags are automatic for Cisco, Dell, HP and APC (the Vendor recognition section is gone). Twelve themes instead of nineteen, nine new smooth glass backgrounds, and a smaller set of standard MIB files for new installs (add others in SNMP &amp; MIBs).</li><li><b>1.94.0</b> — New <b>Crimson glass</b> theme (dark frosted glass, glowing red active pill, Night room picture) and brighter secondary text on dark glass.</li><li><b>1.93.0</b> — Automatic updates (Settings → Updates), new glass background pictures, fewer look-alike themes, and seven new template-style themes (Devias Kit, Berry, Mantis, Minimal, Paperbase, StrikingDash, Skeuomorphic).</li>
     <li><b>1.92.1</b> — Cleaner gauge needle, alarm cards fit narrow screens, darker secondary text in the light theme, Columns / Appearance / Export at the top right of Logs, Traps and Alarms.</li>
     <li><b>1.92.0</b> — Editions: an activation key can switch SNMP polling, traps, reports, alert delivery, probes and export on or off and cap polled devices; About shows what is included.</li>
     <li><b>1.91.0</b> — Activation key (entered once, never asked again on updates), Settings → About, messages always above windows, window buttons stay in view.</li>
@@ -284,7 +284,7 @@ const GUIDE = [
     <ul><li><b>Syslog inputs</b>: UDP/TCP ports, listen address and “Accept syslog only from” (a list of addresses/networks).</li>
     <li><b>Dashboard access</b>: port, who can open it (this computer or the network), the admin password and optional HTTPS certificate.</li>
     <li><b>Storage</b>: keep messages for N days and/or up to N MB (oldest are removed first), optional plain-text daily log files.</li>
-    <li><b>Log appearance</b>, <b>Text replacement</b> (show names instead of IP addresses — the original packet stays in the details), <b>Vendor recognition</b> (adds tags such as <code>link-down</code>, <code>on-battery</code>, <code>mains-failure</code> for Cisco, Dell, HP, APC and Eltek messages — best-effort, so check them against your devices), <b>Sound and desktop alerts</b>.</li>
+    <li><b>Log appearance</b>, <b>Text replacement</b> (show names instead of IP addresses — the original packet stays in the details), <b>Vendor tags</b> (added automatically, such as <code>link-down</code>, <code>on-battery</code>, <code>mains-failure</code> for Cisco, Dell, HP, APC and Eltek messages — best-effort, so check them against your devices), <b>Sound and desktop alerts</b>.</li>
     <li><b>Forward to another collector</b> (e-mail, SMS and webhooks are on the <b>Notifications</b> page), <b>Where your data is stored</b> and <b>Tools</b> (send a test message, download a database copy, restart).</li></ul>` },
   { id: 'snmpver', title: 'SNMP version column', html: `
     <p>Every trap is received as SNMP v1, v2c or v3. The version is shown in its own column, <b>SNMP</b>, which is available but hidden by default.</p>

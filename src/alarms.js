@@ -20,7 +20,7 @@ function instanceOf(msg, spec) {
     let m = /ifDescr\.\d+\s*=\s*([^,\[\]]+?)\s*(?:,|\[|\]|$)/i.exec(text); if (m) return normPort(m[1]);
     m = /\b((?:ten|twenty|forty|hundred)?(?:gigabit|gige|fast)?ethernet\s?\d+(?:\/\d+)*(?:\.\d+)?|(?:twe|hu|fo|te|gi|fa|eth|et|po|vl|vlan|tu|lo)\s?\d+(?:\/\d+)*(?:\.\d+)?|port-?channel\s?\d+|port\s+\d+(?:\/\d+)*)\b/i.exec(text); if (m) return normPort(m[1]);
     m = /ifIndex\.(\d+)/i.exec(text); if (m) return 'ifindex' + m[1];
-    // transmission and multiplexer gear (DNWP Connection Master and similar) name the port "card/port" followed by its type: "5/8 E1:", "13/1 SDH LP[1-1-1-1]:", "5/1 SDH LP[1-1-1-1] - Reason".
+    // transmission and multiplexer gear name the port "card/port" followed by its type: "5/8 E1:", "13/1 SDH LP[1-1-1-1]:", "5/1 SDH LP[1-1-1-1] - Reason".
     // Card/port plus the type words are the key, so an LP, an SFP and an E1 of the same card number are different alarms and a clear message names the same one.
     m = /(?:^|[\s:])(\d{1,3}\/\d{1,3}(?:\/\d{1,3})?(?:\s+[^\s:]+){0,3}?)(?=\s*(?::|\s-\s|$))/.exec(text); if (m) return normPort(m[1]);
     m = /\bslot\s+(\d{1,3})\b/i.exec(text); if (m) return 'slot' + m[1];                   // "Unit Missing", "removed from unit slot 3"

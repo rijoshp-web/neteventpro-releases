@@ -1349,7 +1349,7 @@ function sanitizeNtp(n) {
   if (enabled && !ntpmod.validHost(server)) bad('Enter the NTP server as a name or IP address, for example 10.0.0.5 or ntp.corp.local.');
   if (server && !ntpmod.validHost(server)) bad('The NTP server name is not valid.');
   let zone = String(n.zone || '').trim();
-  if (zone) { try { new Intl.DateTimeFormat('en', { timeZone: zone }); } catch { bad(`"${zone}" is not a time zone name (for example Asia/Dubai).`); } }
+  if (zone) { try { new Intl.DateTimeFormat('en', { timeZone: zone }); } catch { bad(`"${zone}" is not a time zone name (for example Europe/London).`); } }
   return { enabled, server, port: clampInt(n.port, 1, 65535, 123), intervalMin: clampInt(n.intervalMin, 1, 1440, 15), zone };
 }
 function sanitizeBackup(b, cur) {

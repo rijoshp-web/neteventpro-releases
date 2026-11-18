@@ -2,6 +2,14 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.95.0
+- **No names from one site.** Removed the built-in templates written for one make of transmission gear (three syslog rules and one trap view) and for one make of power plant (two rules), the Eltek, Spectracom and Eventide vendor tags, and examples that named a city. New neutral starter rules: device restarted, disk/memory/CPU running out, configuration changed.
+- **Vendor tags are automatic** for Cisco, Dell, HP and APC. The Vendor recognition section in Settings is gone; saved rules that match these tags keep working.
+- **Twelve themes** (was nineteen): Dark, Black, Pine and gold, Twilight amber, Lagoon copper, Crimson glass, Light, Cream, Devias Kit, Minimal Free, Neumorphism and Skeuomorphic. A saved choice moves to the closest remaining theme.
+- **New backgrounds** for the glass look: Night room, Crimson silk, Emerald silk, Indigo flow, Violet dusk, Graphite amber, Teal depth, Glass orbs and Pearl (light), at 2560 px. The old pictures are removed; a saved picture moves to the closest new one.
+- **Smaller standard MIB set for new installs:** 56 files (the common ones and everything they need) instead of 207. Installs that already have the others keep them; further MIBs can be added in Settings → SNMP & MIBs.
+- **Cleaner update package:** only `src`, `public`, `assets` and `starter-mibs` are packed (no tests or developer scripts). A new test checks that no data file, key, equipment name or site name can ship.
+
 ## 1.94.0
 - **New theme: Crimson glass.** A dark frosted-glass look made for a dark room picture: floating rounded side bar and main pane, tiles a little lighter than the pane with a thin bright edge, a glowing red pill on the active menu item and red pill buttons. Choose it in Settings → Appearance (Dark themes); it turns the glass effect on with the new **Night room** background picture. It is an original design in the style of dark glass dashboards, not a copy of any product.
 - **Dark glass is easier to read.** Secondary text (labels, hints, units) is brighter on every dark theme when the glass effect is on.

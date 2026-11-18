@@ -16,7 +16,7 @@ if (cmd === 'keygen') {
   const ver = require('../package.json').version, out = path.join(root, 'release'), name = `NetEventPro-${ver}.zip`; fs.mkdirSync(out, { recursive: true });
   fs.rmSync(path.join(out, name), { force: true });
   // only the program files go into the package (the same list the updater is allowed to replace); anything else in the folder, such as the installer build output with node.exe, is left out
-  const files = []; const keepDirs = ['src', 'public', 'scripts', 'assets', 'test', 'starter-mibs'], keepFiles = ['package.json', 'README.md', 'CHANGELOG.md', 'SECURITY.md'];
+  const files = []; const keepDirs = ['src', 'public', 'assets', 'starter-mibs'], keepFiles = ['package.json', 'README.md', 'CHANGELOG.md', 'SECURITY.md'];
   (function walk(d, rel) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name), r = rel ? rel + '/' + e.name : e.name; if (e.isDirectory()) { if (rel || keepDirs.includes(e.name)) walk(f, r); } else if (e.isFile() && (rel || keepFiles.includes(e.name))) files.push({ name: 'neteventpro/' + r, data: fs.readFileSync(f) }); } })(root, '');
   fs.writeFileSync(path.join(out, name), require('../src/xlsx').zip(files));
   const zip = fs.readFileSync(path.join(out, name)), key = crypto.createPrivateKey(process.env.NEP_RELEASE_KEY ? process.env.NEP_RELEASE_KEY.replace(/\\n/g, '\n') : fs.readFileSync(keyFile));

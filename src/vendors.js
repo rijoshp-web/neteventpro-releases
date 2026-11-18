@@ -11,8 +11,7 @@ const FAMILIES = {
   cisco: 'Cisco IOS / IOS-XE / NX-OS',
   dell: 'Dell switches and iDRAC',
   hp: 'HP / HPE / Aruba switches',
-  apc: 'APC UPS, PDU and NetBotz',
-  eltek: 'Eltek power systems'
+  apc: 'APC UPS, PDU and NetBotz'
 };
 
 const clean = (s) => String(s).replace(/[,\s]+/g, '').slice(0, 40);
@@ -94,24 +93,6 @@ const RULES = [
     ];
     const tags = ['apc']; for (const [re, name] of rules) if (re.test(t)) { tags.push(name); break; }
     return tags;
-  }],
-  ['eltek', (t, msg) => {
-    const vendor = /eltek|smartpack|flatpack|powerpack|netpack|valere|minipack/i.test(`${msg.app || ''} ${msg.host} ${t}`);
-    // [pattern, tag, usable without the maker's name]. Only wording that is specific to DC power plants is tagged without a vendor name,
-    // so ordinary messages ("battery", "voltage") on other equipment are not mistaken for it.
-    const rules = [
-      [/mains?\s*(fail|failure|lost|alarm|out)\b/i, 'mains-failure', true],
-      [/mains?\s*(ok|restored|returned|normal)\b/i, 'mains-restored', true],
-      [/rectifier\s*\d*\s*(fail|failure|alarm|lost|missing|comm)/i, 'rectifier-fail', true],
-      [/(load|battery|distribution)\s*(fuse|breaker|mcb)\s*(alarm|fail|blown|open|trip)/i, 'fuse-alarm', true],
-      [/battery.*(low|disconnect|fail|alarm|test.*fail)|low battery/i, 'battery-alarm', false],
-      [/(high|low|over|under)[\s-]*(dc\s*)?voltage|voltage.*(high|low)/i, 'voltage-alarm', false],
-      [/(high|over)[\s-]*temp|temperature.*(high|alarm|over)/i, 'temperature-high', false],
-      [/(communication|comm)\s*(lost|fail|error)|lost communication/i, 'comm-lost', false],
-      [/alarm.*(cleared|ended|reset)/i, 'alarm-cleared', false]
-    ];
-    for (const [re, name, generic] of rules) if (re.test(t) && (vendor || generic)) return vendor ? ['eltek', name] : [name];
-    return vendor ? ['eltek'] : null;
   }]
 ];
 

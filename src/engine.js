@@ -12,7 +12,7 @@ const { tagMessage } = require('./vendors');
 const { parseSevs } = require('./query');
 const { ENTERPRISES: ENTERPRISE_NAMES } = require('./traps');
 const { nameOf: entName } = require('./enterprises');
-const VENDOR_TAGS = { cisco: 'Cisco', apc: 'APC', dell: 'Dell', hp: 'HP / HPE', hpe: 'HP / HPE', eltek: 'Eltek', spectracom: 'Spectracom', eventide: 'Eventide', dnwp: 'DNWP', juniper: 'Juniper', fortinet: 'Fortinet', aruba: 'Aruba', mikrotik: 'MikroTik' };
+const VENDOR_TAGS = { cisco: 'Cisco', apc: 'APC', dell: 'Dell', hp: 'HP / HPE', hpe: 'HP / HPE', juniper: 'Juniper', fortinet: 'Fortinet', aruba: 'Aruba', mikrotik: 'MikroTik' };
 
 const RATE_WINDOW = 120; // seconds of per-second history kept in memory
 const MAX_MESSAGE_BYTES = 16384;

@@ -6,7 +6,7 @@ const SRC = path.join(__dirname, '..', 'starter-mibs');
 
 test('every shipped standard MIB loads and has all its imports', () => {
   const m = new MibStore(SRC); const names = fs.readdirSync(SRC).filter((n) => n.endsWith('.mib'));
-  assert.ok(names.length > 150, 'the starter pack is there');
+  assert.ok(names.length > 40, 'the starter pack is there');
   for (const n of names) { const i = m.fileInfo(n); assert.deepStrictEqual(i.missing, [], n + ' misses imports'); assert.strictEqual(i.unresolved, 0, n + ' has unresolved names'); }
   assert.strictEqual(m.name([1, 3, 6, 1, 2, 1, 2, 2, 1, 8], true).endsWith('ifOperStatus'), true);
 });

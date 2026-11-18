@@ -17,17 +17,17 @@ test('vendor recognisers: Cisco link, config and login messages', () => {
   assert.ok(tags('Login failed [user: admin]', '%SEC_LOGIN-4-LOGIN_FAILED').includes('login-failed'));
   assert.ok(tags('Process 1, Nbr 10.0.0.2 on Gi0/1 from FULL to DOWN, Neighbor Down', '%OSPF-5-ADJCHG').includes('routing-neighbor-down'));
 });
-test('vendor recognisers: Dell, HP, APC and Eltek', () => {
+test('vendor recognisers: Dell, HP and APC', () => {
   assert.deepEqual(tags('The power supply 2 is not working. iDRAC', 'PSU0003'), ['dell', 'power-supply', 'code:PSU0003']);
   assert.deepEqual(tags('port 12 is now off-line', ''), ['hp', 'link-down', 'if:12']);
   assert.deepEqual(tags('On battery power in response to utility power failure.', 'UPS'), ['apc', 'on-battery']);
   assert.deepEqual(tags('Returned from battery power.', 'UPS'), ['apc', 'power-restored']);
-  assert.deepEqual(tags('Mains failure', 'Smartpack'), ['eltek', 'mains-failure']);
 });
-test('vendor recognisers: ordinary messages get no tags, and an APC message is not mistaken for Eltek', () => {
+test('vendor recognisers: ordinary messages get no tags, and a power-plant message gets no vendor tag', () => {
   assert.deepEqual(tags('User admin logged in from 10.1.1.5', 'sshd'), []);
   assert.deepEqual(tags('On battery power in response to utility power failure.', 'UPS', 'h', { apc: false }), []);
   assert.deepEqual(tags('Battery low', 'laptop'), []);
+  assert.deepEqual(tags('Mains failure', 'Smartpack'), []);
 });
 test('vendor recognisers: a family can be switched off and at most 4 tags are added', () => {
   assert.deepEqual(tags('Interface Gi1/0/1, changed state to down', '%LINK-3-UPDOWN', 'h', { cisco: false }), []);

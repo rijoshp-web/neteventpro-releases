@@ -74,14 +74,14 @@ const DEFAULTS = {
   sqlCopy: { enabled: false, server: '', database: 'NetEventPro', auth: 'windows', user: '', password: '', encrypt: true, trustCert: false, createDb: false, copyLogs: true, copyTraps: true, copyAlarms: true, copyDevices: true, copyPoll: true, backfill: false, batch: 2000, intervalSec: 5 },   // copy to SQL Server (1.38)
   smpp: { host: '', port: 2775, tls: false, allowSelfSigned: false, systemId: '', password: '', systemType: '', bind: 'transceiver', sourceAddr: 'NetEventPro', sourceTon: '', sourceNpi: '', destTon: '', destNpi: '', maxPerHour: 30 },   // SMS gateway (SMSC)
   webhooks: [],                   // [{ name, url, enabled }] used by rule action "webhook"
-  deviceInfo: {},                 // { "10.0.0.1": { group: "Dubai DC", note: "...", expectMin: 30 } }  group, note and "must report at least every N minutes"
+  deviceInfo: {},                 // { "10.0.0.1": { group: "Data centre A", note: "...", expectMin: 30 } }  group, note and "must report at least every N minutes"
   deviceAliases: {},              // { "10.0.0.1": "Core-SW1" }
   mutedDevices: [],
   mode: 'central',                // 'central' = the normal NetEventPro; 'probe' = only receive here and send everything to a central NetEventPro
   probe: { server: '', token: '', name: '', allowSelfSigned: false, requireHttps: false, pinSha256: '', rateLimit: 0, pwHash: '', webBind: '127.0.0.1', webAllow: [], tlsCertFile: '', tlsKeyFile: '' },   // token is stored encrypted (enc1:); pwHash = this page's own sign-in
   probes: [],                     // central side: [{ id, name, tokenHash, enabled, created }] the probes that may send to this server
   systemMessages: { all: true, health: true, silent: true, audit: true },   // NetEventPro's own messages in the log (health checks, silent devices, who changed what)
-  vendorParsers: { cisco: true, dell: true, hp: true, apc: true, eltek: true },   // add tags such as "link-down" to messages these vendors send
+  vendorParsers: { cisco: true, dell: true, hp: true, apc: true },   // add tags such as "link-down" to messages these vendors send
   healthAlerts: true,             // write a NetEventPro message when a self-check changes state (disk, listeners, delays ...)
   ntp: { enabled: false, server: '', port: 123, intervalMin: 15, zone: '' },   // dashboard clock: time from your NTP server (display only; this PC's clock is not changed)
   maintenance: [],                // maintenance windows (see maintenance.js)
