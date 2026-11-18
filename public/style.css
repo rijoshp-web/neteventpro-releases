@@ -1734,3 +1734,34 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 :root[data-look="skeu"] button.primary { background: linear-gradient(180deg, #5b93ef, #2f6fdb 55%, #2358b5); color: #fff; border-color: #1d4a9c; text-shadow: 0 -1px 0 rgba(0,0,0,.35); box-shadow: 0 1px 0 rgba(255,255,255,.45) inset, 0 2px 4px rgba(20,50,120,.4); }
 :root[data-look="skeu"] input, :root[data-look="skeu"] select, :root[data-look="skeu"] textarea { background: linear-gradient(180deg, #e2dccf, #f4f0e7); border: 1px solid #a39a89; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.16) inset; }
 :root[data-look="skeu"] table.log, :root[data-look="skeu"] table.data { border-radius: 10px; }
+
+/* ===== 1.94 Crimson glass: dark frosted glass over a night-room picture, red accent. Tuned for dark pictures: the page pane and the side panel are dark
+   frosted glass, the tiles are a little lighter than the pane with a thin bright edge, the active menu item is a glowing red pill. ===== */
+:root[data-theme="crimson"] { --bg: #0a0b10; --panel: #15161c; --panel2: #1c1d25; --line: #2a2b35; --line2: #3b3c49; --text: #f5f5f7; --muted: #b9bbc7; --faint: #9194a3; --accent: #ef2b2d; --accent-ink: #fff; --link: #ff7a7c; --radius: 16px; --ok: #4ade9b; color-scheme: dark; }
+:root[data-theme="crimson"][data-glass] {
+  --g-a: rgba(255,255,255,.075); --g-b: rgba(255,255,255,.022); --g-line: rgba(255,255,255,.12); --g-hi: rgba(255,255,255,.20);
+  --g-inner: rgba(255,255,255,.055); --g-inner-line: rgba(255,255,255,.11); --g-pop: rgba(17,18,24,.90); --g-th: rgba(14,15,20,.80);
+  --g-shadow: 0 20px 50px rgba(0,0,0,.46); --g-veil: rgba(0,0,0,var(--bgdim,.34)); --g-pane: rgba(10,11,16,.20); --g-tint: rgba(10,11,16,.22);
+  --bgfx: radial-gradient(900px 600px at 100% 100%, rgba(239,43,45,.16), transparent 60%), radial-gradient(700px 500px at 0% 0%, rgba(80,120,150,.14), transparent 60%);
+}
+:root[data-theme="crimson"][data-glass] .rail:not(#_), :root[data-theme="crimson"][data-glass] .main:not(#_) { border-radius: 28px; }
+:root[data-theme="crimson"][data-glass] .widget.panel:not(#_), :root[data-theme="crimson"][data-glass] .panel:not(#_), :root[data-theme="crimson"][data-glass] fieldset:not(#_) { border-radius: 20px; border-color: rgba(255,255,255,.10); }
+:root[data-theme="crimson"][data-glass] .status:not(#_) { border-radius: 18px; }
+:root[data-theme="crimson"][data-glass] .rail a:not(#_) { border-radius: 12px; color: var(--muted); }
+:root[data-theme="crimson"][data-glass] .rail a:hover:not(.on):not(#_) { color: #fff; }
+:root[data-theme="crimson"][data-glass] .rail a.active:not(#_), :root[data-theme="crimson"][data-glass] .rail a.on:not(#_), :root[data-theme="crimson"][data-glass] button.primary:not(#_), :root[data-theme="crimson"][data-glass] .btn.primary:not(#_) {
+  background: linear-gradient(180deg, #ff4d4f, #e0252a); color: #fff; border: 1px solid rgba(255,130,130,.55);
+  box-shadow: 0 8px 24px rgba(239,43,45,.42), inset 0 1px 0 rgba(255,255,255,.35); text-shadow: 0 1px 0 rgba(0,0,0,.2);
+}
+:root[data-theme="crimson"][data-glass] button.primary:not(#_) { border-radius: 999px; }
+:root[data-theme="crimson"][data-glass] :is(button, .btn):not(.primary):not(.ghost):not(.danger):not(#_) { border-radius: 999px; }
+:root[data-theme="crimson"][data-glass] .seg button.on:not(#_) { background: linear-gradient(180deg, #ff4d4f, #e0252a); color: #fff; }
+:root[data-theme="crimson"][data-glass] .widget.panel h3:not(#_) { font-weight: 600; color: var(--text); }
+:root[data-theme="crimson"][data-glass] .badge:not(#_) { background: rgba(239,43,45,.9); color: #fff; border-color: transparent; }
+:root[data-theme="crimson"][data-glass] input:focus-visible, :root[data-theme="crimson"][data-glass] select:focus-visible { outline: 2px solid rgba(255,100,102,.8); outline-offset: 1px; }
+:root[data-theme="crimson"][data-glass] a:not(#_) { color: var(--link); }
+:root[data-theme="crimson"][data-glass] .status a:not(#_), :root[data-theme="crimson"][data-glass] .rail a:not(.active):not(#_) { color: var(--muted); }
+:root[data-theme="crimson"][data-glass] .rail a.active .ico, :root[data-theme="crimson"][data-glass] .rail a.active:not(#_) { color: #fff; }
+
+/* 1.94 — dark glass: brighter secondary text so labels stay readable over dark pictures */
+:root[data-glass]:not([data-tone="light"]) { --muted: #b7c0d0; --faint: #8f99ab; }

@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.94.0
+- **New theme: Crimson glass.** A dark frosted-glass look made for a dark room picture: floating rounded side bar and main pane, tiles a little lighter than the pane with a thin bright edge, a glowing red pill on the active menu item and red pill buttons. Choose it in Settings → Appearance (Dark themes); it turns the glass effect on with the new **Night room** background picture. It is an original design in the style of dark glass dashboards, not a copy of any product.
+- **Dark glass is easier to read.** Secondary text (labels, hints, units) is brighter on every dark theme when the glass effect is on.
+- Chart bars and gauges still use their severity colours, so they stay red/amber/blue/green rather than all red.
+
 ## 1.93.0
 - **Automatic updates (Settings → Updates).** New switches: look for new versions automatically (every 6 hours) and install new versions automatically at a chosen hour of the day (server time). Off by default. Only packages signed by the release key are installed, the old files are kept and put back if the new version does not start, and every automatic install or failure is written to the audit log. A given version is tried once a day, so a failing update cannot loop.
 - **New background pictures for the glass look:** Aurora, Nebula, Deep sea, Sunset, Forest and Graphite (dark) and Sky, Peach and Pearl (light): soft colour-mesh pictures made to show off frosted glass. A picture chosen before moves to its closest new one (Smoke and Mist → Graphite, Ember → Sunset, Ocean → Deep sea, Sand → Peach). The pictures live in `public/bg`.
