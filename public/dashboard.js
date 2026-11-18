@@ -113,7 +113,27 @@ const PAL_NAMES = [['theme', 'Follow the theme'], ['classic', 'Classic'], ['powe
 const glassy = () => ['glass', 'ios'].includes(document.documentElement.dataset.look);
 const glossRect = (g, x, y, w, h, color) => { if (h <= 0) return; const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, hexA(color, 95)); gr.addColorStop(1, hexA(color, 55)); g.fillStyle = typeof gr === 'object' && /^#/.test(color) ? gr : color; g.fillRect(x, y, w, h); if (h > 3 && w > 2) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x, y, w, 1); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, Math.min(w, Math.max(1, w * 0.35)), h); } };
 const hexA = (hex, a) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(100, a ?? 100)) / 100})`; };
-const inkOf = (col) => { const m = /^#([0-9a-f]{6})$/i.exec(String(col || '').trim()); if (!m) return '#fff'; const n = parseInt(m[1], 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 165 ? '#111827' : '#ffffff'; };
+/** any CSS colour (#hex, rgb(), color(srgb …)) as [r, g, b] 0-255, or null; named colours and var() are resolved by the browser */
+const rgbOf = (col) => {
+  col = String(col || '').trim(); let m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(col);
+  if (m) { let h = m[1]; if (h.length === 3) h = h.replace(/./g, '$&$&'); const n = parseInt(h, 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  m = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/i.exec(col); if (m) return [+m[1], +m[2], +m[3]];
+  m = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i.exec(col); if (m) return [m[1] * 255, m[2] * 255, m[3] * 255];
+  if (!col || typeof document === 'undefined') return null;
+  const probe = rgbOf.el || (rgbOf.el = document.createElement('i')); probe.style.color = ''; probe.style.color = col; if (!probe.style.color) return null;
+  if (!probe.isConnected) { probe.hidden = true; document.body.appendChild(probe); } const r = getComputedStyle(probe).color; return /^#|^rgb|^color/.test(r) && r !== col ? rgbOf(r) : null;
+};
+const lumOf = (rgb) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]); };
+const contrastOf = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+/** dark or white text, whichever reads better on this fill (WCAG contrast) */
+const inkOf = (col) => { const c = rgbOf(col); if (!c) return '#fff'; return contrastOf(c, [17, 24, 39]) >= contrastOf(c, [255, 255, 255]) ? '#111827' : '#ffffff'; };
+/** a colour used for text or thin marks straight on the tile: kept as it is when it reads well, otherwise darkened (light themes) or lightened (dark themes) until it does */
+const readable = (col, bg, min = 3.2) => {
+  const c = rgbOf(col), b = rgbOf(bg || (typeof css === 'function' ? css('--panel') : '') || '#ffffff'); if (!c || !b) return col;
+  if (contrastOf(c, b) >= min) return col; const toward = lumOf(b) > 0.4 ? [0, 0, 0] : [255, 255, 255];
+  for (let k = 0.1; k <= 0.9; k += 0.1) { const m = c.map((v, i) => Math.round(v + (toward[i] - v) * k)); if (contrastOf(m, b) >= min) return `rgb(${m.join(',')})`; }
+  return toward[0] ? '#ffffff' : '#111827';
+};
 /** colour steps (Grafana "thresholds"): the colour of the highest step whose value is reached; old warn/crit levels still work */
 const thSteps = (c) => (c?.th?.steps?.length ? [...c.th.steps].sort((a, b) => a.v - b.v) : (c?.warn > 0 || c?.crit > 0) ? [{ v: 0, c: 'var(--ok)' }, ...(c.warn > 0 ? [{ v: c.warn, c: 'var(--s4)' }] : []), ...(c.crit > 0 ? [{ v: c.crit, c: 'var(--bad)' }] : [])] : null);
 const thColor = (c, v) => { const st = thSteps(c); if (!st || v === null || v === undefined || Number.isNaN(+v)) return ''; let col = st[0].c; for (const x of st) if (v >= x.v) col = x.c; return col; };
@@ -148,10 +168,10 @@ function lookOf(t) {
   if (L.shadow === 'none') st.push('box-shadow:none'); else if (L.shadow === 'soft') st.push('box-shadow:0 2px 10px rgba(0,0,0,.28)'); else if (L.shadow === 'strong') st.push('box-shadow:0 12px 30px rgba(0,0,0,.5)'); else if (L.shadow === 'glow') st.push(`box-shadow:0 0 22px color-mix(in srgb,${glow} 60%,transparent)`);
   if (L.pad !== undefined) st.push(`--px:${L.pad}px`, `--py:${L.pad}px`);
   const tcc = L.tc || ((L.bgMode === 'solid' || L.bgMode === 'gradient') && L.bg && a >= 60 ? inkOf(L.bg) : '');     // readable text on a dark or light custom background
-  if (tcc) st.push(`color:${tcc}`, `--text:${tcc}`, `--muted:color-mix(in srgb,${tcc} 68%,transparent)`, `--faint:color-mix(in srgb,${tcc} 52%,transparent)`);
+  if (tcc) cls.push('custombg'); if (tcc) st.push(`color:${tcc}`, `--text:${tcc}`, `--muted:color-mix(in srgb,${tcc} 68%,transparent)`, `--faint:color-mix(in srgb,${tcc} 52%,transparent)`);
   if (L.tAlign) tl.push(`text-align:${L.tAlign}`); if (L.tSize) tl.push(`font-size:${L.tSize}px`); if (L.tColor || c.color) tl.push(`color:${L.tColor || c.color}`);
   if (L.tUpper) tl.push('text-transform:uppercase', 'letter-spacing:.06em'); if (L.tAlign === 'center' || L.tAlign === 'right') tl.push('flex:1');
-  if (L.tBar && L.tBar !== 'none' && L.tBarC) { cls.push('tbar'); hd.push(L.tBar === 'gradient' ? `background:linear-gradient(90deg,${L.tBarC},${L.tBarC2 || L.tBarC})` : `background:${L.tBarC}`); if (!L.tColor) tl.push(`color:${inkOf(L.tBarC)}`); }
+  if (L.tBar && L.tBar !== 'none') { const b1 = L.tBarC || 'var(--accent)', b2 = L.tBarC2 || (L.tBarC ? L.tBarC : 'color-mix(in srgb, var(--accent) 45%, #000)'); cls.push('tbar'); hd.push(L.tBar === 'gradient' ? `background:linear-gradient(90deg,${b1},${b2})` : `background:${b1}`, `color:${L.tColor || inkOf(b1)}`); if (!L.tColor) tl.push(`color:${inkOf(b1)}`); }
   return { style: st.join(';'), cls: cls.join(' '), title: tl.join(';'), head: hd.join(';'), hideTitle: L.tShow === false };
 }
 function lookOfSec(t) {
@@ -534,7 +554,7 @@ views.dashboard = (el) => {
   const valCol = (t) => { const c = t.cfg || {}, m = thMode(c), al = isAl(t) || ['dvSilent', 'dvOverdue'].includes(c.metric); if (al && c.look?.bgMode && (m === 'none' || m === 'value') && !thSteps(c)) return 'inherit'; if (m === 'bg' || m === 'grad') return 'inherit'; if (m === 'value') return thColor(c, tileValue(t)) || (al ? alarmCol(t) : ''); return al ? alarmCol(t) : ''; };
   const numFmt = (c, v) => { const o = c.val || {}; if (typeof v !== 'number') return esc(String(v)); let x; if (o.dec !== undefined) x = v.toLocaleString(undefined, { minimumFractionDigits: o.dec, maximumFractionDigits: o.dec }); else x = fmtN(v); if (o.compact && Math.abs(v) >= 1000) x = Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : (v / 1000).toFixed(1).replace(/\.0$/, '') + 'k'; return x; };
   const decorate = (c, html) => { const o = c.val || {}; return (o.prefix ? `<span class="unit">${esc(o.prefix)}</span>` : '') + html + (o.suffix ? `<small class="unit">${esc(o.suffix)}</small>` : ''); };
-  const valStyle = (t, col) => { const o = t.cfg?.val || {}, st = []; if (col) st.push(`color:${col}`); if (o.size && o.size !== 'auto') st.push(`font-size:${VSIZE[o.size]}px`); return st.join(';'); };
+  const valStyle = (t, col) => { const o = t.cfg?.val || {}, st = []; if (col) st.push(`color:${readable(col)}`); if (o.size && o.size !== 'auto') st.push(`font-size:${VSIZE[o.size]}px`); return st.join(';'); };
   const alignStyle = (t) => { const a = t.cfg?.val?.align; return a ? `text-align:${a};align-items:${a === 'center' ? 'center' : a === 'right' ? 'flex-end' : 'flex-start'}` : ''; };
   function sparkSvg(v, col, mode) {
     const n = v.length, max = Math.max(1, ...v), pts = v.map((y, i) => `${(n < 2 ? 50 : i / (n - 1) * 100).toFixed(1)},${(34 - y / max * 30).toFixed(1)}`).join(' ');
@@ -595,12 +615,15 @@ views.dashboard = (el) => {
     const col = tintOf(t); node.classList.toggle('tinted', !!col);
     if (col) { const m = thMode(c), a2 = m === 'grad' ? `linear-gradient(135deg,${col},color-mix(in srgb,${col} 55%,#000))` : col; node.style.setProperty('--tint', a2); node.style.setProperty('--tintink', inkOf(/^#/.test(col) ? col : '#888888')); } else { node.style.removeProperty('--tint'); node.style.removeProperty('--tintink'); }
   }
+  /** 1.97.3 a chart is drawn again only when something it shows changed (data, options, size, theme): a refresh with the same numbers costs nothing */
+  const drawnKey = new Map();
+  const chartDue = (t, fresh) => { const wb = wbOf(t.id), k = JSON.stringify([data?.tiles?.[t.id], data?.tiles?.[t.id + '_b'], t.cfg, wb?.clientWidth, wb?.clientHeight, document.documentElement.dataset.theme, document.documentElement.dataset.look, curPalName]); if (!fresh && drawnKey.get(t.id) === k) return false; drawnKey.set(t.id, k); return true; };
   function paintTile(t) {
     const st = S.stats;
     {
       const wb = wbOf(t.id); if (!wb) return; const d = data?.tiles?.[t.id]; curPal = PALETTES[t.cfg?.pal] || null; curPalName = t.cfg?.pal || '';
       if (t.type === 'kpi') setHtml(t.id, kpiHtml(t));
-      else if (t.type === 'trend') { if (setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>') || true) drawTrend(t); }
+      else if (t.type === 'trend') { if (chartDue(t, setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>'))) drawTrend(t); }
       else if (t.type === 'rate') { if (setHtml(t.id, '<div class="cwrap"><canvas></canvas></div>') || true) drawRate(t); }
       else if (t.type === 'sevbars') {
         if (!d) setHtml(t.id, '<div class="muted">Loading…</div>');
@@ -613,8 +636,8 @@ views.dashboard = (el) => {
             by === 'host' ? (r) => `<a href="#" class="hostlink2 trunc" data-host="${esc(r.key)}">${esc(r.key)}</a>` : null) : `<div class="muted">${noData(t)}</div>`);
         }
       } else if (t.type === 'latest') setHtml(t.id, latestHtml(t));
-      else if (t.type === 'pie') { setHtml(t.id, pieHtml(t)); drawPie(t); }
-      else if (t.type === 'line') { setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>'); drawLine(t); }
+      else if (t.type === 'pie') { if (chartDue(t, setHtml(t.id, pieHtml(t)))) drawPie(t); }
+      else if (t.type === 'line') { if (chartDue(t, setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>'))) drawLine(t); }
       else if (t.type === 'heat') setHtml(t.id, heatHtml(t));
       else if (t.type === 'gauge') setHtml(t.id, gaugeHtml(t));
       else if (t.type === 'bar') setHtml(t.id, barHtml(t));
@@ -782,18 +805,22 @@ views.dashboard = (el) => {
     if (style === 'lcd' || style === 'bar') {
       const N = 24, on = Math.round(f * N);
       const seg = style === 'lcd' ? Array.from({ length: N }, (_, i) => `<i style="${i < on ? `background:${grad || steps ? colAt((i + 0.5) / N) : `color-mix(in srgb,var(--ok) ${100 - i / N * 100}%,var(--bad))`}` : ''}"></i>`).join('') : `<b style="width:${f * 100}%;background:${grad && steps ? `linear-gradient(90deg,${steps.map((x) => `${x.c} ${Math.min(100, x.v / max * 100)}%`).join(',')})` : col}"></b>`;
-      return `<div class="gauge2"><div class="gv2" style="color:${col};${vs}">${txt}</div><div class="${style === 'lcd' ? 'lcd' : 'gbar'}">${seg}</div><div class="gscale"><span>0</span><span>${fmtN(max)}</span></div>${sub}</div>`;
+      return `<div class="gauge2"><div class="gv2" style="color:${readable(col)};${vs}">${txt}</div><div class="${style === 'lcd' ? 'lcd' : 'gbar'}">${seg}</div><div class="gscale"><span>0</span><span>${fmtN(max)}</span></div>${sub}</div>`;
     }
     const needle = style === 'needle', full = style === 'ring', R = full ? 62 : 80, wd = full ? 11 : 14, cx = 100, cy = full ? 80 : 100;
     const P = (fr) => { const ang = full ? -Math.PI / 2 + Math.PI * 2 * fr : Math.PI * (1 - fr); return [cx + R * Math.cos(ang), cy - (full ? -R * Math.sin(ang) : R * Math.sin(ang))]; };
     const arc = (f0, f1, color, w2) => { if (full && f0 <= 0 && f1 >= 0.999) return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${color}" stroke-width="${w2}"/>`; f1 = Math.min(f1, 0.9999); if (f1 <= f0) return ''; const [x0, y0] = P(f0), [x1, y1] = P(f1); const large = (f1 - f0) * (full ? 2 : 1) > 1 ? 1 : 0; return `<path d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" fill="none" stroke="${color}" stroke-width="${w2}" stroke-linecap="butt"/>`; };
+    // 1.97.3 the arc, ring and needle styles use the same number options as every other tile (decimals, compact, prefix, suffix, size)
+    const plain = String(numFmt(c, Math.round(v * 1000) / 1000)).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'), pre = c.val?.prefix || '', suf = c.val?.suffix || '';
+    const gsz = { s: 18, m: 24, l: 30, xl: 38 }[c.val?.size] || 0, gfs = (base) => `font-size:${gsz || base}px`;
+    const gtext = (x, y, base) => `<text x="${x}" y="${y}" text-anchor="middle" class="gv" style="fill:${steps ? readable(col) : 'var(--text)'};${gfs(base)}">${pre ? `<tspan class="gu">${esc(pre)}</tspan>` : ''}${esc(plain)}${suf ? `<tspan class="gu" dx="2">${esc(suf.trim())}</tspan>` : ''}</text>`;
     let bands = ''; if (steps) steps.forEach((x, i) => { const f0 = Math.min(1, x.v / max), f1 = i + 1 < steps.length ? Math.min(1, steps[i + 1].v / max) : 1; bands += arc(f0, f1, hexA(/^#/.test(x.c) ? x.c : '#888888', 38), wd); });
     if (needle && !steps) bands = arc(0, 0.6, hexA('#2fa36b', 70), wd) + arc(0.6, 0.85, hexA('#f5a524', 70), wd) + arc(0.85, 1, hexA('#e5484d', 70), wd);
     if (needle) { const ang = Math.PI * (1 - f), [nx, ny] = [cx + (R - 12) * Math.cos(ang), cy - (R - 12) * Math.sin(ang)]; const nd = `<line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="${col}" stroke-width="3.5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="6" fill="${col}"/>`;
-      return `<div class="gauge"><svg viewBox="0 0 200 146" role="img" aria-label="${esc(label)}: ${fmtN(v)}">${arc(0, 0.9999, css('--line'), wd)}${bands.replace(/opacity="[^"]*"/g, '')}${nd}<text x="100" y="138" text-anchor="middle" class="gv" fill="${col}" style="font-size:24px">${fmtN(Math.round(v * 10) / 10)}</text><text x="20" y="116" text-anchor="middle" class="gs">0</text><text x="180" y="116" text-anchor="middle" class="gs">${fmtN(max)}</text></svg>${sub}</div>`; }
+      return `<div class="gauge"><svg viewBox="0 0 200 146" role="img" aria-label="${esc(label)}: ${fmtN(v)}">${arc(0, 0.9999, css('--line'), wd)}${bands.replace(/opacity="[^"]*"/g, '')}${nd}${gtext(100, 138, 24)}<text x="20" y="116" text-anchor="middle" class="gs">0</text><text x="180" y="116" text-anchor="middle" class="gs">${fmtN(max)}</text></svg>${sub}</div>`; }
     let val = ''; if (f > 0) { if (grad && steps) { const K = 40; for (let i = 0; i < K; i++) { const s0 = i / K * f, s1 = (i + 1) / K * f; val += arc(s0, s1 + 0.002, colAt(s0 + (s1 - s0) / 2), wd); } } else val = arc(0, f, col, wd); }
     const vb = full ? '0 0 200 160' : '0 0 200 120';
-    return `<div class="gauge"><svg viewBox="${vb}" role="img" aria-label="${esc(label)}: ${fmtN(v)}">${arc(0, 0.9999, css('--line'), wd)}${bands}${val}${full ? `<text x="100" y="${cy + 10}" text-anchor="middle" class="gv" fill="${col}">${fmtN(Math.round(v * 10) / 10)}</text>` : `<text x="100" y="92" text-anchor="middle" class="gv" fill="${col}">${fmtN(Math.round(v * 10) / 10)}</text><text x="20" y="116" text-anchor="middle" class="gs">0</text><text x="180" y="116" text-anchor="middle" class="gs">${fmtN(max)}</text>`}</svg>${sub}</div>`;
+    return `<div class="gauge"><svg viewBox="${vb}" role="img" aria-label="${esc(label)}: ${fmtN(v)}">${arc(0, 0.9999, css('--line'), wd)}${bands}${val}${full ? gtext(100, cy + 10, 30) : `${gtext(100, 92, 30)}<text x="20" y="116" text-anchor="middle" class="gs">0</text><text x="180" y="116" text-anchor="middle" class="gs">${fmtN(max)}</text>`}</svg>${sub}</div>`;
   }
 
   // ----- 1.34 more visuals: bar chart, treemap, table, bar gauge, number with trend line, text note -----
@@ -819,24 +846,24 @@ views.dashboard = (el) => {
     k = Math.max(1, k); const a = items.slice(0, k), b = items.slice(k), fa = a.reduce((s, i) => s + i.n, 0) / total;
     if (w >= h) { treemapCells(a, x, y, w * fa, h, out); treemapCells(b, x + w * fa, y, w * (1 - fa), h, out); } else { treemapCells(a, x, y, w, h * fa, out); treemapCells(b, x, y + h * fa, w, h * (1 - fa), out); }
   }
-  const inkOn = (col) => { const m = /^#([0-9a-f]{6})$/i.exec(String(col).trim()); if (!m) return ''; const n = parseInt(m[1], 16), L = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); return L > 160 ? 'color:#111;text-shadow:none' : ''; };
+  const inkOn = (col) => (inkOf(col) === '#111827' ? 'color:#111827;text-shadow:none' : 'color:#fff');
   function treemapHtml(t) {
     const x = topRows(t); if (x.msg) return `<div class="muted">${x.msg}</div>`; const out = []; treemapCells(x.rows.filter((r) => r.n > 0), 0, 0, 100, 100, out);
     return `<div class="tmap">${out.map((c) => `<div class="tc" ${dk(t, c).replace(' style="cursor:pointer"', '')} style="left:${c.x}%;top:${c.y}%;width:${c.w}%;height:${c.h}%" title="${esc(c.name)}: ${fmtN(c.n)} (${Math.round(c.n / x.total * 100)}%)"><div style="background:${c.color};${inkOn(c.color)}"><b class="trunc">${esc(c.name)}</b><span>${fmtN(c.n)}${c.w * c.h > 600 ? ` · ${Math.round(c.n / x.total * 100)}%` : ''}</span></div></div>`).join('')}</div>`;
   }
   function tableHtml(t) {
     const x = topRows(t); if (x.msg) return `<div class="muted">${x.msg}</div>`;
-    return `<table class="data"><thead><tr><th>#</th><th>${esc({ host: 'Device', app: 'Process', severity: 'Severity', facility: 'Facility', msgid: 'Trap', rule: 'Alarm rule', state: 'State', source: 'Source', vendor: 'Vendor', status: 'Status', group: 'Group', kind: 'Sends' }[x.by] || 'Name')}</th><th style="text-align:right">Count</th><th style="width:34%">Share</th></tr></thead><tbody>${x.rows.map((r, i) => `<tr ${dk(t, r)}><td class="muted">${i + 1}</td><td class="trunc" style="max-width:0;width:50%"><span class="dot" style="background:${r.color};margin-right:7px"></span>${esc(r.name)}</td><td style="text-align:right">${fmtN(r.n)}</td><td><div class="bar"><i style="width:${Math.max(1, r.n / x.total * 100)}%;background:${r.color}"></i></div></td></tr>`).join('')}</tbody></table>`;
+    return `<table class="data"><thead><tr><th>#</th><th>${esc({ host: 'Device', app: 'Process', severity: 'Severity', facility: 'Facility', msgid: 'Trap', rule: 'Alarm rule', state: 'State', source: 'Source', vendor: 'Vendor', status: 'Status', group: 'Group', kind: 'Sends' }[x.by] || 'Name')}</th><th style="text-align:right">Count</th><th style="width:34%">Share</th></tr></thead><tbody>${x.rows.map((r, i) => `<tr ${dk(t, r)}><td class="muted">${i + 1}</td><td class="trunc" style="max-width:0;width:50%"><span class="dot" style="background:${r.color};margin-right:7px"></span>${esc(r.name)}</td><td style="text-align:right${(thMode(t.cfg) !== 'none' && thColor(t.cfg, r.n)) ? `;color:${readable((thMode(t.cfg) !== 'none' && thColor(t.cfg, r.n)))};font-weight:600` : ''}">${decorate(t.cfg || {}, numFmt(t.cfg || {}, r.n))}</td><td><div class="bar"><i style="width:${Math.max(1, r.n / x.total * 100)}%;background:${(thMode(t.cfg) !== 'none' && thColor(t.cfg, r.n)) || r.color}"></i></div></td></tr>`).join('')}</tbody></table>`;
   }
   function bargaugeHtml(t) {
-    const x = topRows(t); if (x.msg) return `<div class="muted">${x.msg}</div>`; const c = t.cfg || {}, bs = c.bstyle || 'gradient', steps = thSteps(c);
+    const x = topRows(t); if (x.msg) return `<div class="muted">${x.msg}</div>`; const c = t.cfg || {}, bs = c.bstyle || 'gradient', steps = thMode(c) !== 'none' ? thSteps(c) : null;
     return `<div class="hbars bg ${bs}">${x.rows.map((r) => {
       const pct = Math.max(1, r.n / x.max * 100), lvl = pct >= 80 ? 2 : pct >= 50 ? 1 : 0, col = (steps && thColor(c, r.n)) || ['var(--ok)', 'var(--s4)', 'var(--bad)'][lvl];
       let track;
       if (bs === 'lcd') { const N = 20, on = Math.max(1, Math.round(pct / 100 * N)); track = `<div class="htrack lcd">${Array.from({ length: N }, (_, i) => `<i style="${i < on ? `background:${steps ? (thColor(c, i / N * x.max) || col) : `color-mix(in srgb,var(--ok) ${100 - i / N * 100}%,var(--bad))`}` : ''}"></i>`).join('')}</div>`; }
       else if (bs === 'solid') track = `<div class="htrack"><i style="width:${pct}%;background:${col}"></i></div>`;
       else track = `<div class="htrack"><i style="width:${pct}%;background:linear-gradient(90deg,var(--ok),${lvl ? 'var(--s4)' : 'var(--ok)'} 60%,${col});background-size:${(100 / pct * 100).toFixed(0)}% 100%"></i></div>`;
-      return `<div class="hb" ${dk(t, r)} title="${esc(r.name)}: ${fmtN(r.n)}"><span class="hn trunc">${esc(r.name)}</span>${track}<span class="hv" style="color:${col}">${decorate(c, fmtN(r.n))}</span></div>`;
+      return `<div class="hb" ${dk(t, r)} title="${esc(r.name)}: ${fmtN(r.n)}"><span class="hn trunc">${esc(r.name)}</span>${track}<span class="hv" style="color:${readable(col)}">${decorate(c, fmtN(r.n))}</span></div>`;
     }).join('')}</div>`;
   }
   /** the big number of a "number with trend line": the sum of the line, or (for devices / per minute) the server's own figure */
@@ -875,10 +902,10 @@ views.dashboard = (el) => {
     }
     if (ty === 'cloud') {
       const shuffled = [...rows].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      return `<div class="cloud">${shuffled.map((r) => `<span ${dk(t, r).replace(' style="cursor:pointer"', '')} title="${esc(r.name)}: ${fmtN(r.n)}" style="font-size:${(10 + 15 * Math.sqrt(r.n / max)).toFixed(1)}px;color:${r.color};font-weight:${r.n / max > 0.5 ? 700 : 500}">${esc(r.name)}</span>`).join('')}</div>`;
+      return `<div class="cloud">${shuffled.map((r) => `<span ${dk(t, r).replace(' style="cursor:pointer"', '')} title="${esc(r.name)}: ${fmtN(r.n)}" style="font-size:${(10 + 15 * Math.sqrt(r.n / max)).toFixed(1)}px;color:${readable(r.color)};font-weight:${r.n / max > 0.5 ? 700 : 500}">${esc(r.name)}</span>`).join('')}</div>`;
     }
     if (ty === 'bubble') {
-      return `<div class="bubbles">${rows.map((r) => { const d = Math.round((28 + 44 * Math.sqrt(r.n / max)) * (rows.length > 8 ? 0.78 : 1)); return `<div class="bub" ${dk(t, r).replace(' style="cursor:pointer"', '')} title="${esc(r.name)}: ${fmtN(r.n)}" style="width:${d}px;height:${d}px;background:color-mix(in srgb,${r.color} 78%,transparent);border-color:${r.color}"><b>${fmtN(r.n)}</b>${d >= 62 ? `<span class="trunc">${esc(r.name)}</span>` : ''}</div>`; }).join('')}</div>`;
+      return `<div class="bubbles">${rows.map((r) => { const d = Math.round((28 + 44 * Math.sqrt(r.n / max)) * (rows.length > 8 ? 0.78 : 1)); return `<div class="bub" ${dk(t, r).replace(' style="cursor:pointer"', '')} title="${esc(r.name)}: ${fmtN(r.n)}" style="width:${d}px;height:${d}px;background:color-mix(in srgb,${r.color} 78%,transparent);border-color:${r.color};color:${inkOf(r.color)}"><b>${fmtN(r.n)}</b>${d >= 62 ? `<span class="trunc">${esc(r.name)}</span>` : ''}</div>`; }).join('')}</div>`;
     }
     if (ty === 'funnel') {
       return `<div class="funnel">${rows.map((r) => `<div class="fn-row" ${dk(t, r)} title="${esc(r.name)}: ${fmtN(r.n)}"><div class="fn-bar" style="width:${Math.max(14, r.n / max * 100)}%;background:${r.color};color:${inkOf(r.color)};text-shadow:none"><span class="trunc">${esc(r.name)}</span><b>${fmtN(r.n)}</b></div></div>`).join('')}</div>`;
@@ -994,14 +1021,14 @@ views.dashboard = (el) => {
       txt: (label, path, o = {}) => fld(label, `<input type="text" data-p="${path}" maxlength="${o.max || 60}" value="${esc(val(path) ?? '')}" placeholder="${esc(o.ph || '')}" ${o.w ? `class="${o.w}"` : ''}>`, o.hint),
       sel: (label, path, opts, o = {}) => fld(label, `<select data-p="${path}">${opts.map(([v, l]) => `<option value="${v}" ${String(val(path) ?? o.def ?? '') === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`, o.hint),
       chk: (label, path, def = false) => fld('', `<label class="chk"><input type="checkbox" data-p="${path}" ${(val(path) ?? def) ? 'checked' : ''}> ${label}</label>`),
-      col: (label, path, def = '#3b82f6', o = {}) => fld(label, `<span class="colw ${val(path) ? '' : 'unset'}"><input type="color" data-p="${path}" value="${val(path) || def}"><button type="button" class="x" data-clr="${path}" title="Back to the default colour">×</button></span>`, o.hint)
+      col: (label, path, def = '#3b82f6', o = {}) => fld(label, `<span class="colw ${val(path) ? '' : 'unset'}"><input type="color" data-p="${path}" data-cx-none="Theme default" ${val(path) ? '' : 'data-unset="1"'} value="${val(path) || def}" aria-label="${esc(String(label).replace(/<[^>]+>/g, ''))}"><button type="button" class="x" data-clr="${path}" title="Back to the default colour">×</button></span>`, o.hint)
     };
   }
   function tileDialog(existing, type, ds0) {
     const dflt = { kpi: { metric: 'errors' }, gauge: { metric: 'errors' }, top: { by: 'host', n: 8 }, pie: { by: 'severity', n: 6, style: 'donut' }, line: { mode: 'severity' }, heat: { mode: 'hostTime', n: 10 }, latest: { n: 8 }, alarm: { card: 'open' }, statspark: {}, trend: {}, sevbars: {}, bar: { by: 'host', n: 8 }, treemap: { by: 'host', n: 10 }, table: { by: 'host', n: 10 }, bargauge: { by: 'host', n: 8 } };
     const t = existing ? structuredClone(existing) : { id: 'u' + Date.now().toString(36), type, title: '', x: 0, y: 0, w: TYPES[type].w, h: TYPES[type].h, cfg: structuredClone(dflt[type] || {}) };
     const c = t.cfg ||= {}; let fl, ty, hasVal, hasTh, hasChart, hasPal, isRank;
-    const setFlags = () => { fl = FILTER_TYPES.includes(t.type); ty = TYPES[t.type]; hasVal = ['kpi', 'statspark', 'gauge', 'alarm'].includes(t.type); hasTh = hasVal || ['bargauge', 'bar', 'treemap', 'table'].includes(t.type); hasChart = ['line', 'trend'].includes(t.type); hasPal = ['pie', 'bar', 'treemap', 'table', 'bargauge', ...NEWRANK].includes(t.type); isRank = !!TOPLIKE[t.type] || t.type === 'top' || t.type === 'pie'; };
+    const setFlags = () => { fl = FILTER_TYPES.includes(t.type); ty = TYPES[t.type]; hasVal = ['kpi', 'statspark', 'gauge', 'alarm'].includes(t.type); hasTh = hasVal || ['bargauge', 'bar', 'treemap', 'table'].includes(t.type); hasChart = ['line', 'trend'].includes(t.type); hasPal = ['pie', 'bar', 'treemap', 'table', ...NEWRANK].includes(t.type); isRank = !!TOPLIKE[t.type] || t.type === 'top' || t.type === 'pie'; };
     setFlags();
     if (c.bg && !c.look?.bgMode) c.look = { ...(c.look || {}), bgMode: 'solid', bg: c.bg }; delete c.bg;                       // an old custom background becomes a panel option
     if (!c.th?.steps?.length && (c.warn > 0 || c.crit > 0)) { c.th = { ...(c.th || {}), mode: c.th?.mode || 'value', steps: [{ v: 0, c: '#30a46c' }, ...(c.warn > 0 ? [{ v: c.warn, c: '#f5a524' }] : []), ...(c.crit > 0 ? [{ v: c.crit, c: '#e5484d' }] : [])] }; } delete c.warn; delete c.crit;
@@ -1075,21 +1102,21 @@ views.dashboard = (el) => {
           ${['pct', 'ratio', 'diff', 'sum'].includes(op) ? K.fld('B is', `<select data-p="cfg.calc.bm">${calcMetricOpts()}</select>`) : ''}
           ${K.num('Multiply by', 'cfg.calc.mul', { step: 'any', ph: '1' })}${K.num('Then add', 'cfg.calc.add', { step: 'any', ph: '0' })}${op === 'delta' || op === 'deltaPct' ? '<p class="muted">Only for numbers counted over the time range (messages, alarms raised or cleared).</p>' : ''}`;
       })() : t.type === 'line' || t.type === 'trend' ? `<p class="muted" style="margin:0 0 6px">Change how the series is drawn. The trend chart then draws lines.</p>${K.sel('Calculation', 'cfg.sc.op', [['none', 'None (counts per time step)'], ['cum', 'Running total'], ['ma', 'Moving average'], ['diff', 'Rise since the step before (never negative)'], ['rate', 'Per minute']], { def: 'none' })}${c.sc?.op === 'ma' ? K.num('Average over', 'cfg.sc.n', { min: 2, max: 30, unit: 'steps', ph: '5' }) : ''}` : '';
-      const val = hasVal || t.type === 'bargauge' || t.type === 'table' ? `${hasVal ? `${K.sel('Size', 'cfg.val.size', [['auto', 'Automatic (follows the tile)'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Extra large']], { def: 'auto' })}${K.sel('Alignment', 'cfg.val.align', [['', 'Default'], ['left', 'Left'], ['center', 'Centre'], ['right', 'Right']])}${K.num('Decimals', 'cfg.val.dec', { min: 0, max: 4, ph: 'auto' })}${K.chk('Short form (1.2k, 3.4M)', 'cfg.val.compact')}${K.chk('Show the small text under the number', 'cfg.val.sub', true)}` : ''}
+      const val = hasVal || t.type === 'bargauge' || t.type === 'table' ? `${hasVal ? `${K.sel('Size', 'cfg.val.size', [['auto', 'Automatic (follows the tile)'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Extra large']], { def: 'auto' })}${t.type === 'gauge' ? '' : K.sel('Alignment', 'cfg.val.align', [['', 'Default'], ['left', 'Left'], ['center', 'Centre'], ['right', 'Right']])}${K.num('Decimals', 'cfg.val.dec', { min: 0, max: 4, ph: 'auto' })}${K.chk('Short form (1.2k, 3.4M)', 'cfg.val.compact')}${K.chk('Show the small text under the number', 'cfg.val.sub', true)}` : ''}
         ${K.txt('Unit before', 'cfg.val.prefix', { max: 12, w: 'w-sm', ph: '' })}${K.txt('Unit after', 'cfg.val.suffix', { max: 12, w: 'w-sm', ph: 'for example ms or %' })}
         ${t.type === 'kpi' ? K.sel('Trend line', 'cfg.graph', [['none', 'None'], ['area', 'Filled area behind the number'], ['line', 'Line behind the number']], { def: 'none' }) : t.type === 'statspark' ? K.sel('Trend line', 'cfg.graph', [['area', 'Filled area'], ['line', 'Line']], { def: 'area' }) : ''}
         ${t.type === 'devwall' ? K.sel('Cell shape', 'cfg.shape', [['square', 'Square'], ['round', 'Round'], ['hex', 'Hexagon']], { def: 'square' }) : ''}
         ${t.type === 'gauge' ? K.sel('Gauge style', 'cfg.gstyle', [['arc', 'Half dial'], ['needle', 'Speedometer (needle)'], ['ring', 'Full ring'], ['lcd', 'Segmented bar (LCD)'], ['bar', 'Flat bar']], { def: 'arc' }) : ''}
         ${t.type === 'bargauge' ? K.sel('Bar style', 'cfg.bstyle', [['gradient', 'Gradient'], ['lcd', 'Segmented (LCD)'], ['solid', 'Solid']], { def: 'gradient' }) : ''}` : '';
-      const thr = hasTh ? `${K.sel('Colour by steps', 'cfg.th.mode', [['none', 'Off'], ['value', t.type === 'gauge' ? 'Colour the dial' : hasVal ? 'Colour the number' : 'Colour the bars / cells'], ['bg', 'Fill the whole tile'], ['grad', 'Fill the tile with a gradient']], { def: thSteps(c) ? 'value' : 'none' })}<p class="muted" style="margin:2px 0 6px">The colour of the highest step the value reaches is used. The first step is the base colour.</p>${stepsHtml()}` : '';
+      const thr = hasTh ? `${K.sel('Colour by steps', 'cfg.th.mode', [['none', 'Off'], ['value', t.type === 'gauge' ? 'Colour the dial' : hasVal ? 'Colour the number' : 'Colour the bars / cells'], ...(hasVal ? [['bg', 'Fill the whole tile'], ['grad', 'Fill the tile with a gradient']] : [])], { def: thSteps(c) ? 'value' : 'none' })}<p class="muted" style="margin:2px 0 6px">The colour of the highest step the value reaches is used. The first step is the base colour.</p>${stepsHtml()}` : '';
       const chart = hasChart ? `${t.type === 'trend' ? K.sel('Draw as', 'cfg.ch.bars', [['bars', 'Stacked bars'], ['area', 'Stacked areas'], ['line', 'Lines']], { def: 'bars' }) : ''}
-        ${K.num('Line width', 'cfg.ch.lw', { min: 0.5, max: 6, step: 0.5, ph: '1.8' })}${K.num('Fill under line', 'cfg.ch.fillA', { min: 0, max: 100, unit: '%', ph: t.type === 'line' ? '0' : '60' })}${K.chk('Gradient fill', 'cfg.ch.grad', true)}${K.chk('Smooth lines', 'cfg.ch.smooth')}${K.chk('Show points', 'cfg.ch.pts')}${t.type === 'line' ? K.chk('Stack the lines', 'cfg.ch.stack') : ''}
+        ${t.type === 'line' || ['area', 'line'].includes(c.ch?.bars) ? `${K.num('Line width', 'cfg.ch.lw', { min: 0.5, max: 6, step: 0.5, ph: '1.8' })}${K.num('Fill under line', 'cfg.ch.fillA', { min: 0, max: 100, unit: '%', ph: t.type === 'line' ? '0' : '60' })}${(c.ch?.fillA ?? (t.type === 'line' ? 0 : 60)) > 0 ? K.chk('Gradient fill', 'cfg.ch.grad', true) : ''}${K.chk('Smooth lines', 'cfg.ch.smooth')}${K.chk('Show points', 'cfg.ch.pts')}` : ''}${t.type === 'line' ? K.chk('Stack the lines', 'cfg.ch.stack') : ''}
         ${K.chk('Show grid lines', 'cfg.ch.grid', true)}${K.chk('Show axis numbers and times', 'cfg.ch.axis', true)}${K.sel('Legend', 'cfg.ch.legend', [['bottom', 'Below'], ['right', 'At the right'], ['hide', 'Hidden']], { def: 'bottom' })}` : '';
       const pal = hasPal ? K.sel('Colours', 'cfg.pal', PAL_NAMES.map(([v, l]) => [v, l]), { def: 'theme' }) : '';
       const look = `<div class="presets">${LOOK_PRESETS.map(([n, l], i) => `<button type="button" data-preset="${i}" class="pre" style="${l?.bgMode === 'gradient' ? `background:linear-gradient(135deg,${l.bg},${l.bg2});color:#fff` : l?.bg ? `background:${l.bg};color:${l.tc || 'inherit'}` : ''}">${esc(n)}</button>`).join('')}</div>
         ${K.sel('Background', 'cfg.look.bgMode', [['', 'Theme default'], ['none', 'Transparent'], ['solid', 'Solid colour'], ['gradient', 'Gradient']])}${K.col('Colour', 'cfg.look.bg', '#1f2937')}${K.col('Second colour', 'cfg.look.bg2', '#3b82f6')}${K.num('Gradient angle', 'cfg.look.angle', { min: 0, max: 360, unit: '°', ph: '135' })}${K.num('Opacity', 'cfg.look.bgAlpha', { min: 0, max: 100, unit: '%', ph: '100' })}
         ${K.num('Border width', 'cfg.look.bw', { min: 0, max: 8, unit: 'px' })}${K.col('Border colour', 'cfg.look.bc', '#475569')}${K.col('Accent edge (top)', 'cfg.color', '#3b82f6', { hint: 'a 3 px coloured line on the top of the tile' })}${K.num('Corner radius', 'cfg.look.radius', { min: 0, max: 32, unit: 'px', ph: 'theme' })}
-        ${K.sel('Shadow', 'cfg.look.shadow', [['', 'Theme default'], ['none', 'None'], ['soft', 'Soft'], ['strong', 'Strong'], ['glow', 'Glow (border colour)']])}${K.chk('Show the data label (Syslog / SNMP traps / Alarms / Devices)', 'cfg.look.tSrc', true)}${K.num('Inner space', 'cfg.look.pad', { min: 0, max: 32, unit: 'px', ph: '12' })}${K.col('Text colour', 'cfg.look.tc', '#e5e7eb', { hint: 'for everything inside the tile' })}`;
+        ${K.sel('Shadow', 'cfg.look.shadow', [['', 'Theme default'], ['none', 'None'], ['soft', 'Soft'], ['strong', 'Strong'], ['glow', 'Glow (border colour)']])}${!hasDs(t) ? '' : K.chk('Show the data label (Syslog / SNMP traps / Alarms / Devices)', 'cfg.look.tSrc', true)}${K.num('Inner space', 'cfg.look.pad', { min: 0, max: 32, unit: 'px', ph: '12' })}${K.col('Text colour', 'cfg.look.tc', '#e5e7eb', { hint: 'for everything inside the tile' })}`;
       const ttl = `${K.chk('Show the title', 'cfg.look.tShow', true)}${K.sel('Alignment', 'cfg.look.tAlign', [['', 'Left'], ['center', 'Centre'], ['right', 'Right']])}${K.num('Size', 'cfg.look.tSize', { min: 10, max: 28, unit: 'px', ph: '13' })}${K.col('Colour', 'cfg.look.tColor', '#e5e7eb')}${K.chk('Capital letters', 'cfg.look.tUpper')}
         ${K.sel('Title bar', 'cfg.look.tBar', [['', 'None'], ['solid', 'Solid colour'], ['gradient', 'Gradient']])}${K.col('Bar colour', 'cfg.look.tBarC', '#4338ca')}${K.col('Bar second colour', 'cfg.look.tBarC2', '#1e1b4b')}`;
       return (data ? G('Data', data, true) : '') + G('General', gen + flt, true) + (calcs ? G('Calculations', calcs, false) : '') + (val ? G(hasVal ? 'Value' : 'Numbers', val, hasVal) : '') + (thr ? G('Colour steps (thresholds)', thr, hasVal) : '') + (chart ? G('Chart', chart, true) : '') + (pal ? G('Chart colours', pal) : '') + G('Tile look', look, false) + G('Title', ttl);
@@ -1100,7 +1127,7 @@ views.dashboard = (el) => {
     function pvPaint() {
       const node = q('pvW'); if (!node) return; const tt = pvTile(), k = lookOf(tt), ob = $('.whead', node);
       node.className = `widget panel pvw ${k.cls}`; node.style.cssText = k.style; node.classList.remove('tinted'); ob.className = `whead ${k.hideTitle ? 'nohead' : ''}`; ob.style.cssText = k.head;
-      ob.innerHTML = k.hideTitle ? '' : `<h2 class="wtitle" style="${k.title}">${esc(tt.title || TYPES[tt.type].label)}</h2>`;
+      ob.innerHTML = k.hideTitle ? '' : `<h2 class="wtitle" style="${k.title}">${esc(tt.title || TYPES[tt.type].label)}</h2>${hasDs(tt) && tt.cfg?.look?.tSrc !== false ? `<span class="srcchip" data-ds="${dsOf(tt)}">${esc(tt.w <= 2 ? DS[dsOf(tt)].short : DS[dsOf(tt)].chip)}</span>` : ''}`;
       const stage = q('peStage'), W = Math.min(stage.clientWidth || 460, Math.max(160, t.w * 84)), H = Math.max(110, Math.min(360, t.h * (GRID.row + GRID.gap) - GRID.gap)); node.style.width = W + 'px'; node.style.height = H + 'px';
       const saved = data; if (pvData) data = { ...pvData, tiles: pvData.tiles }; cache.delete('pv');
       try { paintTile(tt); } finally { data = saved; }
@@ -1119,7 +1146,11 @@ views.dashboard = (el) => {
       if (el2.id === 'peDs') { setDs(el2.value); renderOpts(); return changed(); }
       if (el2.id === 'peVis') { setType(el2.value); renderOpts(); return changed(); }
       if (pth === 'cfg.calc.op' || pth === 'cfg.sc.op') { const key = pth === 'cfg.calc.op' ? 'calc' : 'sc'; setP(t, pth, el2.value); if (el2.value === 'none') { delete c[key].op; if (!Object.keys(c[key]).length) delete c[key]; } else if (key === 'calc' && ['pct', 'ratio', 'diff', 'sum'].includes(el2.value) && !c.calc.bm) c.calc.bm = 'total'; renderOpts(); return changed(); }
-      if (pth) { let v; if (el2.type === 'checkbox') v = el2.checked; else if (el2.type === 'number') v = el2.value === '' ? undefined : +el2.value; else v = el2.value; setP(t, pth, v); if (el2.type === 'color') el2.closest('.colw')?.classList.remove('unset'); if (pth === 'cfg.card' && (!t.title || Object.values(AL_CARDS).includes(t.title))) { t.title = AL_CARDS[v]; const ti = $('[data-p=title]', back); if (ti) ti.value = t.title; } return changed(); }
+      if (pth === 'cfg.ch.bars' || pth === 'cfg.ch.fillA' || pth === 'cfg.look.tBar' || pth === 'cfg.look.bgMode') setTimeout(() => { renderOpts(); }, 0);
+      if (pth) { let v; if (el2.type === 'checkbox') v = el2.checked; else if (el2.type === 'number') v = el2.value === '' ? undefined : +el2.value; else v = el2.value; setP(t, pth, v);
+        { const L2 = c.look || {}, needs = { 'cfg.look.bg': ['bgMode', ['solid', 'gradient'], 'solid'], 'cfg.look.bgAlpha': ['bgMode', ['solid', 'gradient'], 'solid'], 'cfg.look.bg2': ['bgMode', ['gradient'], 'gradient'], 'cfg.look.angle': ['bgMode', ['gradient'], 'gradient'], 'cfg.look.tBarC': ['tBar', ['solid', 'gradient'], 'solid'], 'cfg.look.tBarC2': ['tBar', ['gradient'], 'gradient'] }[pth];
+          if (needs && !needs[1].includes(L2[needs[0]])) { setP(t, 'cfg.look.' + needs[0], needs[2]); if (needs[0] === 'bgMode' && !L2.bg) setP(t, 'cfg.look.bg', pth === 'cfg.look.bg' ? v : '#1f2937'); if (needs[0] === 'tBar' && !L2.tBarC) setP(t, 'cfg.look.tBarC', pth === 'cfg.look.tBarC' ? v : '#4338ca'); const sel2 = $(`[data-p="cfg.look.${needs[0]}"]`, back); if (sel2) sel2.value = needs[2]; } }
+         if (el2.type === 'color') el2.closest('.colw')?.classList.remove('unset'); if (pth === 'cfg.card' && (!t.title || Object.values(AL_CARDS).includes(t.title))) { t.title = AL_CARDS[v]; const ti = $('[data-p=title]', back); if (ti) ti.value = t.title; } return changed(); }
       if (el2.dataset?.si !== undefined) { const st = c.th.steps[+el2.dataset.si]; if (el2.dataset.sf === 'v') st.v = +el2.value || 0; else st.c = el2.value; return changed(); }
       if (el2.id === 'thPre' && el2.value !== '') { c.th = { ...(c.th || {}), mode: c.th?.mode && c.th.mode !== 'none' ? c.th.mode : 'value', steps: structuredClone(STEP_PRESETS[+el2.value][1]) }; renderOpts(); changed(); }
     };
@@ -1219,7 +1250,7 @@ views.dashboard = (el) => {
     if (d.src === 'status' || d.src === 'alarms') {
       const rows = d.devices || []; if (!rows.length) return '<div class="muted">No polled device' + (sp.group ? ' in this group' : '') + ' yet. <a href="#polling">Add a device in SNMP polling</a>.</div>';
       const sum = Object.entries(d.groups).sort((a, b) => a[0].localeCompare(b[0]));
-      const head = d.src === 'alarms' ? `<div class="bigv" style="color:${d.alarms ? 'var(--s3)' : 'var(--ok)'}">${d.alarms}</div><div class="muted" style="margin-bottom:6px">open polling alarm${d.alarms === 1 ? '' : 's'}</div>` : `<div class="muted" style="margin-bottom:6px">${rows.filter((r) => r.state === 'up').length} of ${rows.length} up${rows.some((r) => r.state === 'down') ? ` · <b style="color:var(--bad)">${rows.filter((r) => r.state === 'down').length} no answer</b>` : ''}${d.alarms ? ` · <b style="color:var(--s3)">${d.alarms} alarm${d.alarms === 1 ? '' : 's'}</b>` : ''}</div>`;
+      const head = d.src === 'alarms' ? `<div class="bigv" style="color:${readable(d.alarms ? 'var(--s3)' : 'var(--ok)')}">${d.alarms}</div><div class="muted" style="margin-bottom:6px">open polling alarm${d.alarms === 1 ? '' : 's'}</div>` : `<div class="muted" style="margin-bottom:6px">${rows.filter((r) => r.state === 'up').length} of ${rows.length} up${rows.some((r) => r.state === 'down') ? ` · <b style="color:var(--bad)">${rows.filter((r) => r.state === 'down').length} no answer</b>` : ''}${d.alarms ? ` · <b style="color:var(--s3)">${d.alarms} alarm${d.alarms === 1 ? '' : 's'}</b>` : ''}</div>`;
       const shown = d.src === 'alarms' ? rows.filter((r) => r.alarms) : rows;
       if (sp.view === 'table' || d.src === 'alarms') return head + (shown.length ? `<table class="data"><thead><tr><th>Device</th>${sum.length > 1 || sum[0]?.[0] ? '<th>Group</th>' : ''}<th>Status</th><th class="num-r">Answer</th><th class="num-r">Alarms</th></tr></thead><tbody>${shown.map((r) => `<tr><td><a href="#polling?d=${esc(r.id)}">${esc(r.name)}</a></td>${sum.length > 1 || sum[0]?.[0] ? `<td class="muted">${esc(r.group)}</td>` : ''}<td><span class="sdot" style="background:${PST[DEVST[r.state] || 'unk']}"></span> ${esc(r.state)}</td><td class="num-r">${r.rtt === null ? '–' : r.rtt + ' ms'}</td><td class="num-r">${r.alarms || ''}</td></tr>`).join('')}</tbody></table>` : '');
       const by = {}; rows.forEach((r) => (by[r.group] ||= []).push(r));
@@ -1230,7 +1261,7 @@ views.dashboard = (el) => {
     const nums = es.map((e) => e.v).filter(Number.isFinite), worst = es.reduce((w, e) => (WORSE.indexOf(e.state) > WORSE.indexOf(w) ? e.state : w), 'unk');
     const agg = () => { if (!nums.length) return null; const a = sp.agg || 'max'; return a === 'first' ? es.find((e) => Number.isFinite(e.v)).v : a === 'avg' ? nums.reduce((x, y) => x + y, 0) / nums.length : a === 'min' ? Math.min(...nums) : a === 'sum' ? nums.reduce((x, y) => x + y, 0) : Math.max(...nums); };
     const e0 = es[0];
-    if (sp.view === 'big') { const v = agg(); return `<div class="bigv" style="color:${worst === 'unk' ? 'inherit' : PST[worst]}">${pfmt(e0, v)}</div><div class="muted">${esc(same ? e0.label : 'readings')} · ${{ first: 'first', avg: 'average', min: 'lowest', max: 'highest', sum: 'total' }[sp.agg || 'max']} of ${es.length}</div>`; }
+    if (sp.view === 'big') { const v = agg(); return `<div class="bigv" style="color:${worst === 'unk' ? 'inherit' : readable(PST[worst])}">${pfmt(e0, v)}</div><div class="muted">${esc(same ? e0.label : 'readings')} · ${{ first: 'first', avg: 'average', min: 'lowest', max: 'highest', sum: 'total' }[sp.agg || 'max']} of ${es.length}</div>`; }
     if (sp.view === 'gauge') { const v = agg(), mx = sp.max || e0.max || Math.max(100, ...nums), f = Math.min(1, Math.max(0, (v || 0) / mx)), a = Math.PI * (1 - f), x = 60 + 48 * Math.cos(a), y = 62 - 48 * Math.sin(a); return `<svg viewBox="0 0 120 76" style="width:100%;max-height:100%"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="var(--line)" stroke-width="10" stroke-linecap="round"/><path d="M12 62 A48 48 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${worst === 'unk' ? 'var(--accent)' : PST[worst]}" stroke-width="10" stroke-linecap="round"/><text x="60" y="60" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">${pfmt(e0, v)}</text></svg><div class="muted" style="text-align:center">${esc(same ? e0.label : 'readings')} · ${es.length} value${es.length === 1 ? '' : 's'}</div>`; }
     if (sp.view === 'bars') { const mx = sp.max || Math.max(...es.map((e) => e.max || 0), ...nums, 1); return `<div class="hbars">${es.map((e) => `<div class="hb" title="${esc(nm(e))}"><span class="trunc">${esc(nm(e))}</span><span class="hbt"><i style="width:${Math.min(100, Math.max(0, (e.v || 0) / mx * 100))}%;background:${e.state === 'unk' ? 'var(--accent)' : col(e)}"></i></span><b>${pfmt(e)}</b></div>`).join('')}</div>`; }
     if (sp.view === 'tiles') return `<div class="ptiles">${es.map((e) => cell(nm(e), pfmt(e), esc(e.meaning || ''), e.state === 'unk' ? 'var(--accent)' : col(e), nm(e) + ' · ' + pfmt(e))).join('')}</div>`;

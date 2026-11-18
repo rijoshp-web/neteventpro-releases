@@ -523,17 +523,26 @@ const FONTS = {
   arialnarrow: ['Arial Narrow (more text per line)', '"Arial Narrow", Arial, sans-serif'], georgia: ['Georgia', 'Georgia, serif'], times: ['Times New Roman', '"Times New Roman", Times, serif'], system: ['System font', 'system-ui, sans-serif']
 };
 const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+/** is this font installed on the computer that shows the page? (text drawn in it must differ in width from the fallback font) */
+const fontInstalled = (() => { const memo = new Map(); let g;
+  return (stack) => { const first = String(stack).split(',')[0].trim().replace(/^"|"$/g, ''); if (/^var\(|^system-ui|^monospace|^sans-serif|^serif/.test(first)) return true; if (memo.has(first)) return memo.get(first);
+    g ||= document.createElement('canvas').getContext('2d'); const txt = 'mmmmmmmmmmlli 0O1Il|WwQq@#'; let ok = false;
+    for (const base of ['monospace', 'serif', 'sans-serif']) { g.font = `32px ${base}`; const w0 = g.measureText(txt).width; g.font = `32px "${first}", ${base}`; if (Math.abs(g.measureText(txt).width - w0) > 0.5) { ok = true; break; } }
+    memo.set(first, ok); return ok; }; })();
+const fontOptions = (cur) => { const all = Object.entries(FONTS), has = all.filter(([, [, st]]) => fontInstalled(st)), not = all.filter(([, [, st]]) => !fontInstalled(st)), o = ([k, [n]]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(n)}</option>`;
+  return `<optgroup label="Installed on this computer">${has.map(o).join('')}</optgroup>${not.length ? `<optgroup label="Not installed here (a similar font is used)">${not.map(o).join('')}</optgroup>` : ''}`; };
 const STRENGTH = { soft: 16, medium: 40, solid: 100 };
 const SUGGESTED = { 8: { bg: '#f59e42' }, 9: { bg: '#2fb5a3' }, 0: { bg: '#d6409f', bold: true }, 1: { bg: '#ee4d5b', bold: true }, 2: { bg: '#f2703d', bold: true }, 3: { bg: '#f5a524' }, 4: { bg: '#d9cf4a' }, 5: { bg: '#4da3ff' } };
 function applyLook() {
   let st = $('#logLook'); if (!st) { st = document.createElement('style'); st.id = 'logLook'; document.head.appendChild(st); }
   const L = S.prefs.look || {}, f = FONTS[L.font] || FONTS.mono, size = Math.min(28, Math.max(9, +L.size || 13)), pct = STRENGTH[L.strength] || 40;
-  let c = `table.log{font-family:${f[1]};font-size:${size}px}`;
+  let c = `:root table.log, :root table.log td:not(#_):not(#__){font-family:${f[1]};font-size:${size}px}`;
   for (let k = 0; k < 10; k++) {
-    const s = (L.sev || {})[k]; if (!s) continue; const sel = `table.log tr.sev-${k}`;
-    if (isHex(s.color)) c += `${sel} td{color:${s.color}}${sel} .sevname,${sel} a{color:inherit}`;
-    if (isHex(s.bg)) c += `${sel} td:not(.sev){background:${pct === 100 ? s.bg : `color-mix(in srgb, ${s.bg} ${pct}%, transparent)`}}`;
-    if (s.bold) c += `${sel} td{font-weight:700}`;
+    // the person's own choice wins over every theme (themes style table cells with high-priority rules, hence the :not(#_) parts)
+    const s = (L.sev || {})[k]; if (!s) continue; const sel = `:root table.log tbody tr.sev-${k}`, td = 'td:not(#_):not(#__)';
+    if (isHex(s.color)) c += `${sel} ${td}{color:${s.color}}${sel} ${td} .sevname,${sel} ${td} a{color:inherit}`;
+    if (isHex(s.bg)) { const bg = pct === 100 ? s.bg : `color-mix(in srgb, ${s.bg} ${pct}%, transparent)`; c += `${sel} ${td}:not(.sev),${sel}:nth-child(even) ${td}:not(.sev){background:${bg}}${sel}:hover ${td}:not(.sev){background:color-mix(in srgb, ${s.bg} ${Math.min(100, pct + 15)}%, var(--panel, transparent))}`; }
+    if (s.bold) c += `${sel} ${td}{font-weight:700}`;
   }
   st.textContent = c;
 }
@@ -543,13 +552,13 @@ function lookEditor(box) {
   const render = () => {
     const L = S.prefs.look || {}, size = Math.min(28, Math.max(9, +L.size || 13));
     box.innerHTML = `<div class="look-top">
-      <label>Font <select data-lk="font" title="A font only shows if it is installed on this computer; otherwise the next one in its list is used">${Object.entries(FONTS).map(([k, [n]]) => `<option value="${k}" ${(L.font || 'mono') === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+      <label>Font <select data-lk="font" title="Fonts installed on this computer are listed first">${fontOptions(L.font || 'mono')}</select></label>
       <label>Size <input type="number" data-lk="size" class="w-sm" min="9" max="28" value="${size}"> px</label>
       <label>Highlight <select data-lk="strength"><option value="soft" ${L.strength === 'soft' ? 'selected' : ''}>Light tint</option><option value="medium" ${!L.strength || L.strength === 'medium' ? 'selected' : ''}>Medium</option><option value="solid" ${L.strength === 'solid' ? 'selected' : ''}>Solid</option></select></label></div>
     <table class="data look-t"><thead><tr><th>Severity</th><th>Text colour</th><th>Highlight colour</th><th>Bold</th></tr></thead><tbody>${SEVORD.map((k) => { const n = SEV[k]; const s = (L.sev || {})[k] || {};
       return `<tr data-k="${k}"><td><span class="sevname sev-${k}">${n}</span></td>
-        <td><label class="chk"><input type="checkbox" data-f="useColor" ${isHex(s.color) ? 'checked' : ''} aria-label="Change text colour for ${n}"><input type="color" data-f="color" value="${isHex(s.color) ? s.color : '#ffffff'}" aria-label="Text colour for ${n}"></label></td>
-        <td><label class="chk"><input type="checkbox" data-f="useBg" ${isHex(s.bg) ? 'checked' : ''} aria-label="Highlight ${n} rows"><input type="color" data-f="bg" value="${isHex(s.bg) ? s.bg : '#f5a524'}" aria-label="Highlight colour for ${n}"></label></td>
+        <td><input type="color" data-f="color" data-cx-none="Theme default" ${isHex(s.color) ? '' : 'data-unset="1"'} value="${isHex(s.color) ? s.color : '#ffffff'}" aria-label="Text colour for ${n}"></td>
+        <td><input type="color" data-f="bg" data-cx-none="No highlight" ${isHex(s.bg) ? '' : 'data-unset="1"'} value="${isHex(s.bg) ? s.bg : '#f5a524'}" aria-label="Highlight colour for ${n}"></td>
         <td><input type="checkbox" data-f="bold" ${s.bold ? 'checked' : ''} aria-label="Bold ${n}"></td></tr>`; }).join('')}</tbody></table>
     <table class="log look-prev" aria-label="Preview"><tbody>${SEVORD.map((k) => { const n = SEV[k]; return `<tr class="sev-${k}"><td class="sev"><i></i></td><td class="muted">12:00:0${k % 10}</td><td><a href="#" onclick="return false">sw-core-1</a></td><td><span class="sevname">${n}</span></td><td class="msg">Sample ${n.toLowerCase()} message</td></tr>`; }).join('')}</tbody></table>
     <div class="toolbar" style="margin:0"><button data-lka="suggest">Use suggested colours</button><button data-lka="reset">Reset to default</button></div>`;
@@ -558,14 +567,17 @@ function lookEditor(box) {
   box.addEventListener('input', (e) => {
     const k = e.target.dataset.lk, tr = e.target.closest('tr[data-k]');
     if (k) { const v = e.target.value; if (k === 'size') { if (v === '' || +v < 9 || +v > 28) return; look().size = Math.round(+v); } else look()[k] = v; return changed(); }
-    if (!tr || !e.target.dataset.f) return;
+    if (!tr || !e.target.dataset.f) return; rowChanged(tr);
+  });
+  const rowChanged = (tr) => {
     const sev = (look().sev ||= {}), s = (sev[tr.dataset.k] ||= {}), q = (n) => $(`[data-f="${n}"]`, tr);
-    if (q('useColor').checked) s.color = q('color').value; else delete s.color;
-    if (q('useBg').checked) s.bg = q('bg').value; else delete s.bg;
+    if (q('color').dataset.unset !== '1') s.color = q('color').value; else delete s.color;
+    if (q('bg').dataset.unset !== '1') s.bg = q('bg').value; else delete s.bg;
     if (q('bold').checked) s.bold = true; else delete s.bold;
     if (!Object.keys(s).length) delete sev[tr.dataset.k];
     changed();
-  });
+  };
+  box.addEventListener('cx-none', (e) => { const tr = e.target.closest('tr[data-k]'); if (tr) rowChanged(tr); });
   box.addEventListener('click', (e) => {
     const a = e.target.dataset.lka; if (!a) return;
     if (a === 'reset') delete S.prefs.look; else look().sev = structuredClone(SUGGESTED), (look().strength = 'medium');
@@ -1099,7 +1111,7 @@ views.rules = (el) => {
       <span class="muted">between</span><input type="time" data-k="m.from" value="${esc(m.from || '')}" aria-label="From"><span class="muted">and</span><input type="time" data-k="m.to" value="${esc(m.to || '')}" aria-label="To"><span class="muted">(server time; may pass midnight; none ticked = every day)</span></div>
     <div class="rsec">2 · What happens to the message</div>
     <div class="row"><span class="k">Then</span>
-      <label class="chk"><input type="color" data-k="a.color" value="${esc(a.color || '#f5a524')}"> <input type="checkbox" data-k="a.useColor" ${a.color ? 'checked' : ''}> Highlight</label>
+      <span class="chk" title="Row colour on the Logs and Traps pages">Highlight <input type="color" data-k="a.color" data-cx-none="No highlight" ${a.color ? '' : 'data-unset="1"'} value="${esc(a.color || '#f5a524')}" aria-label="Highlight colour"></span>
       <input type="text" class="w-sm" data-k="a.tag" placeholder="Tag" value="${esc(a.tag || '')}">
       <select data-k="a.severity" title="Change the severity of the message before it is stored (and before the next rules look at it)"><option value="">Keep severity</option>${SEVORD.map((k) => `<option value="${k}" ${a.severity === k ? 'selected' : ''}>Set to ${sevOpt(k)}</option>`).join('')}</select>
       <label class="chk"><input type="checkbox" data-k="a.sound" ${a.sound ? 'checked' : ''}> Sound</label><label class="chk"><input type="checkbox" data-k="a.notify" ${a.notify ? 'checked' : ''}> Desktop notification</label>
@@ -1137,10 +1149,11 @@ views.rules = (el) => {
     else if (k === 'a.sevMap') { const l = String(v).split('\n').map((x) => { const i = x.lastIndexOf('=>'); return i > 0 ? { text: x.slice(0, i).trim(), severity: +x.slice(i + 2).trim() } : null; }).filter((x) => x && x.text && Number.isInteger(x.severity) && x.severity >= 0 && x.severity <= 7); if (l.length) r.actions.sevMap = l; else delete r.actions.sevMap; }
     else if (k.startsWith('m.')) { const kk = k.slice(2); if (v === '' || v === undefined) delete r.match[kk]; else r.match[kk] = kk.startsWith('severity') ? +v : v; }
     else if (k === 'a.useColor') { if (!v) delete r.actions.color; else r.actions.color = $('[data-k="a.color"]', el.closest('.rule')).value; }
-    else if (k === 'a.color') { if ($('[data-k="a.useColor"]', el.closest('.rule')).checked) r.actions.color = v; }
+    else if (k === 'a.color') { if (el.dataset.unset === '1') delete r.actions.color; else r.actions.color = v; }
     else if (k.startsWith('a.')) { const kk = k.slice(2); if (kk === 'alarmEscReport' || kk === 'alarmEscClear') { if (v) delete r.actions[kk]; else r.actions[kk] = false; } else if (v === '' || v === false) delete r.actions[kk]; else r.actions[kk] = (kk === 'cooldownSec' || kk === 'alarmEscMin' || kk === 'severity' || kk === 'alarmAutoClearMin') ? +v : v; }
   };
   el.addEventListener('input', (e) => { if (e.target.dataset.day !== undefined) { const r = rules[+e.target.closest('.rule').dataset.i]; r.match ||= {}; const set = new Set(r.match.days || []); if (e.target.checked) set.add(+e.target.dataset.day); else set.delete(+e.target.dataset.day); if (set.size && set.size < 7) r.match.days = [...set].sort(); else delete r.match.days; return; } const k = e.target.dataset.k; if (!k) return; const r = rules[+e.target.closest('.rule').dataset.i]; setKey(r, k, e.target.type === 'checkbox' ? e.target.checked : e.target.value, e.target); });
+  el.addEventListener('cx-none', (e) => { const ru = e.target.closest('.rule'); if (!ru || e.target.dataset.k !== 'a.color') return; const r = rules[+ru.dataset.i]; if (r?.actions) delete r.actions.color; ru.style.borderLeftColor = ''; if (typeof markDirty === 'function') markDirty(); });
   el.addEventListener('change', (e) => {
     if (e.target.dataset.k === 'a.alarmMode') { const r = rules[+e.target.closest('.rule').dataset.i]; r.actions ||= {}; const v = e.target.value; if (!v) delete r.actions.alarmBy; else r.actions.alarmBy = v === 'port' ? 'port' : '/port (\\S+)/i'; draw(); return; }
     if (e.target.dataset.prof !== undefined || e.target.dataset.eprof !== undefined) { const r = rules[+e.target.closest('.rule').dataset.i]; r.actions ||= {}; const key = e.target.dataset.prof !== undefined ? 'profiles' : 'alarmEscProfiles', id = e.target.dataset.prof ?? e.target.dataset.eprof; const set = new Set(r.actions[key] || []); if (e.target.checked) set.add(id); else set.delete(id); if (set.size) r.actions[key] = [...set]; else delete r.actions[key]; if (key === 'profiles') { const open = e.target.closest('.rule')?.dataset.i; draw(); const d = $(`.rule[data-i="${open}"] details.msel`); if (d) d.open = true; return; } const sm = e.target.closest('details.msel')?.querySelector('summary'); if (sm) { const ch = profs.filter((p) => set.has(p.id)); sm.textContent = !ch.length ? 'none' : ch.length <= 2 ? ch.map((p) => p.name).join(', ') : `${ch.length} profiles`; } return; }

@@ -1768,3 +1768,49 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 
 /* 1.96 — expert settings are listed only while "Show advanced settings" is on */
 :root:not([data-adv]) .field.adv { display: none; }
+
+/* 1.97.3 coloured status text stays readable on light themes (green / amber / red on white is too faint) */
+:root[data-tone="light"] .pill.ok { color: color-mix(in srgb, var(--ok) 58%, #000); }
+:root[data-tone="light"] .pill.bad { color: color-mix(in srgb, var(--bad) 72%, #000); }
+:root[data-tone="light"] .pill.warn { color: color-mix(in srgb, var(--s3) 62%, #000); }
+.devwall a.dw:not(#_):not(#__), .devwall a.dw:not(#_):not(#__):visited { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); }   /* device names stay white on the coloured squares in every theme */
+.dw-overdue { color: #1a1300 !important; text-shadow: none !important; }
+:root[data-tone="light"] .srcchip[data-ds=snmp] { color: #7c3aed; } :root[data-tone="light"] .srcchip[data-ds=events] { color: #a15c00; } :root[data-tone="light"] .srcchip[data-ds=devices] { color: #1d7a4f; } :root[data-tone="light"] .srcchip[data-ds=alarms] { color: #c2262c; }
+:root[data-tone="light"] .srcchip { color: color-mix(in srgb, var(--accent) 70%, #000); }
+
+/* ===== 1.97.3 colour chooser (public/colorpick.js) ===== */
+input.cx-native { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
+.cx-btn { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px 0 4px; border: 1px solid var(--line2, var(--line)); border-radius: 8px; background: var(--panel2, var(--panel)); color: var(--text); cursor: pointer; font: 12px/1 var(--mono, monospace); vertical-align: middle; transition: border-color .12s, box-shadow .12s; }
+.cx-btn:hover { border-color: var(--accent); }
+.cx-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+.cx-btn[aria-expanded="true"] { border-color: var(--accent); }
+.cx-btn:disabled { opacity: .5; cursor: default; }
+.cx-chip { width: 22px; height: 22px; border-radius: 6px; background: var(--cx); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18), inset 0 0 0 2px rgba(255,255,255,.12); flex: none; }
+.cx-btn.none .cx-chip, .cx-none-btn i, .cx-cur { background-image: linear-gradient(135deg, transparent 46%, var(--bad, #e5484d) 46%, var(--bad, #e5484d) 54%, transparent 54%); background-color: var(--cx, transparent); }
+.cx-cur { background-image: none; }
+.cx-btn.none .cx-hex { color: var(--muted); font-family: var(--ui, inherit); }
+.cx-hex { letter-spacing: .02em; min-width: 52px; text-align: left; }
+.colw .cx-btn { margin-right: 2px; }
+.cx-pop { position: fixed; z-index: 10050; width: 292px; padding: 10px 12px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--line2, var(--line)); border-radius: 12px; box-shadow: 0 18px 44px rgba(0,0,0,.35); font-size: 12px; animation: cxin .12s ease-out; }
+@keyframes cxin { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cx-pop { animation: none; } }
+.cx-h { margin: 8px 0 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.cx-h:first-child { margin-top: 0; }
+.cx-row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.cx-sw { aspect-ratio: 1; width: 100%; padding: 0; border: 0; border-radius: 5px; background: var(--cx); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.16); transition: transform .08s; }
+.cx-sw:hover { transform: scale(1.18); position: relative; z-index: 1; }
+.cx-sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cx-sw.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+.cx-none-btn { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 4px; padding: 6px 8px; border: 1px dashed var(--line2, var(--line)); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; font-size: 12px; text-align: left; }
+.cx-none-btn i { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--line2, var(--line)); background-color: var(--panel); }
+.cx-none-btn:hover, .cx-none-btn.on { border-color: var(--accent); }
+.cx-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.cx-cur { width: 28px; height: 28px; border-radius: 7px; background: var(--cx); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); flex: none; }
+.cx-in { flex: 1; min-width: 0; height: 28px; font: 12px var(--mono, monospace); text-transform: uppercase; }
+.cx-in.bad { border-color: var(--bad) !important; }
+.cx-custom { height: 28px; padding: 0 10px; white-space: nowrap; }
+.colw:has(.cx-btn) > .x { display: none; }
+.cx-btn.none .cx-chip, .cx-none-btn i { background: transparent; background-image: linear-gradient(135deg, transparent 47%, color-mix(in srgb, var(--muted) 70%, transparent) 47%, color-mix(in srgb, var(--muted) 70%, transparent) 53%, transparent 53%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted) 55%, transparent); border: 0; }
+.cx-btn.none { border-style: dashed; }
+.widget.tbar .whead .srcchip:not(#_) { color: inherit; background: color-mix(in srgb, currentColor 18%, transparent); }
+.widget.custombg .whead .srcchip:not(#_) { color: inherit; background: color-mix(in srgb, currentColor 18%, transparent); }

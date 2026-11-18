@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.3
+- **Log appearance works in every theme.** On the Logs and SNMP traps pages the text colour chosen per severity was ignored by the light themes; highlight colours also faded on hover and on every second row. Your choices now win over the theme.
+- **Font list shows what is installed.** Fonts installed on this computer are listed first; the others are grouped as "not installed here".
+- **New colour chooser** everywhere a colour is picked (log appearance, rule highlight, dashboard tiles): theme colours, a balanced palette, a hex box, "Custom…" and, where it makes sense, "Theme default" / "No highlight". It replaces the tick-box-plus-colour pairs.
+- **Dashboard tiles follow the theme.** Text on coloured fills (treemap, funnel, bubbles), coloured words (word cloud), values (bar gauge, numbers, gauges), status labels and data labels now pick a readable colour in all 12 themes. Device-wall names stay readable in Crimson glass.
+- **Tile settings fixed:** the gauge now uses decimals, compact numbers, prefix, suffix and size in every style (they only worked in the bar and LCD styles); the table uses prefix, suffix and colour steps; the bar gauge respects "colour steps off"; a title bar works without first choosing its colour; choosing a background or title-bar colour switches that style on; the data label shows in the preview.
+- **Tidier tile editor:** options that cannot apply are hidden (line options for stacked bars, gradient fill without a fill, whole-tile fill for rankings, palette for the bar gauge, alignment for the gauge, data label for tiles without data).
+- **Faster dashboard:** charts are only redrawn when their numbers, size or theme change, so refreshing a dashboard no longer causes short pauses.
+
 ## 1.97.2
 - **Security fix: probe protections kept.** Saving the main Settings page dropped the probe's own settings (HTTPS required, pinned certificate, rate limit, the probe page's sign-in, its address list and certificate files). They now stay as they were.
 - **Extra protection against other websites:** an API call that a browser marks as coming from another web address is refused, also in older browsers.
