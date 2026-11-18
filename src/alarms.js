@@ -89,6 +89,12 @@ class AlarmStore {
     for (const row of [...this.open.values()]) if (row.rule_id === targetRuleId && row.dev === dev && (!inst || row.inst === inst)) { if (this.flapOn.has(row.rule_id + '|' + row.dev + '|' + row.inst)) continue; this._clear(row, `auto: ${byRule || 'rule'}`, now); }   // every alarm line of that rule on the device (and port)   // no port named: every alarm of that rule on the device
   }
 
+  /** 1.97.4 the application's own problems (health checks, silent devices) clear by themselves when it reports them fixed: every open alarm on its own messages that starts with one of `prefixes` */
+  clearSystem(prefixes, by = 'auto: recovered') {
+    let n = 0; const now = Date.now();
+    for (const row of [...this.open.values()]) if (row.src_ip === 'neteventpro' && prefixes.some((p) => String(row.message || '').startsWith(p))) { this._clear(row, by, now); n++; }
+    return n;
+  }
   _clear(row, by, now = Date.now()) {
     row.state = 'cleared'; row.cleared_ts = now; row.cleared_by = String(by).slice(0, 80);
     this.open.delete(row.id); this.dirty.delete(row.id); this.save(row);

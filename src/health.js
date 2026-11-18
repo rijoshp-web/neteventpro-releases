@@ -166,6 +166,8 @@ class Health {
   /** runs every 30 s; a change that lasts for two looks in a row becomes a log message (so brief blips stay quiet) */
   async check() {
     const snap = await this.snapshot(true); this.summary = { status: snap.status, warn: snap.checks.filter((c) => c.status === 'warn').length, bad: snap.checks.filter((c) => c.status === 'bad').length };
+    if (!this.startCleared) { this.startCleared = true;    // 1.97.4 after a restart: alarms for checks that are fine now are cleared (their "recovered" message was never sent)
+      for (const c of snap.checks) if (c.status === 'ok' && this.engine.clearSystemAlarms) this.engine.clearSystemAlarms([`Health check failed: ${c.label}.`, `Health check improved to a warning: ${c.label}.`], 'auto: health check is fine'); }
     if (this.config.get().healthAlerts === false) return;
     for (const c of snap.checks) {
       if (c.alert === false) continue;

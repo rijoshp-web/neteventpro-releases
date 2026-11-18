@@ -1,4 +1,5 @@
 'use strict';
+const { packRaw } = require('./query');
 const path = require('node:path');
 const fs = require('node:fs');
 const { Worker } = require('node:worker_threads');
@@ -131,7 +132,7 @@ class Store {
       this.db.exec('BEGIN');
       for (const m of batch) {
         this.insertStmt.run(m.id, m.ts, m.devTs, m.srcIp, m.host, m.facility, m.severity,
-          m.app, m.pid, m.msgid, m.message, m.tags ? m.tags.join(',') : '', m.color || '', m.raw, m.source === 'snmp' ? 'snmp' : 'syslog', m.vb ? JSON.stringify(m.vb) : '', m.seq || 0);
+          m.app, m.pid, m.msgid, m.message, m.tags ? m.tags.join(',') : '', m.color || '', packRaw(m.raw, m.message), m.source === 'snmp' ? 'snmp' : 'syslog', m.vb ? JSON.stringify(m.vb) : '', m.seq || 0);
       }
       this.db.exec('COMMIT');
     } catch (e) {

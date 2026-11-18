@@ -2,6 +2,21 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.4
+- **Health-check alarms clear by themselves.** When a health check recovers, the alarms raised by its "Health check failed" messages are cleared, whatever rule raised them; after a restart, alarms for checks that are fine again are cleared at the first check. "Device sending again" clears the "No messages from …" alarm the same way. Only the application's own messages can do this.
+- **Messages in a window.** Errors open a message window that stays until OK; confirmations ("Settings saved") show as a small card at the top right and close by themselves. Nothing appears at the bottom of the browser any more.
+- **Reports page redesigned:** a logo tile with preview (click to upload or change), company and footer side by side, one compact line per saved report (switch, name, schedule and contents, file types, delivery, last run, run / edit / delete icons), "New report" and a template list in one toolbar.
+- **Appearance split into three sections** on one page: Colour theme (smaller cards), Glass and background picture (only for themes that support glass; the sliders show once glass is on), and Animations. Your uploaded background now shows as a thumbnail next to the built-in pictures, and the picture in use is marked.
+- **Settings menu:** "Columns" is now "SNMP trap columns".
+- **SNMP & MIBs:** Send test trap no longer makes the page jump; the trap catalogue scrolls inside its own box (with Clear results); the two severity boxes are folded into "Severity mapping (advanced)" with plain examples.
+- **Rules & alerts:** tabs and every button in one toolbar; compact icon buttons on each rule.
+- **Text replacement:** one compact row per entry; regular expression, match case, trap value and SNMP trap columns open on demand (⋯); long help folded away; filter box for long lists; nothing overlaps.
+- **Users:** the two password boxes are gone from this page. Change your own password (also the admin's) on My account; give another user a new password by editing that user.
+- **Certificate file names:** a certificate or key made by an older version (syslogpro.crt / .key) is copied to neteventpro.crt / .key and used from there; the old files are left untouched.
+- **Delete all stored messages** moved to a Danger zone (only with Show advanced settings) and asks twice.
+- **Smaller database:** the original packet of each message is stored as its header only when the rest equals the message text (it is put back together exactly when shown or exported). New messages take about 20% less disk; older ones stay as they are until they expire.
+- **Fix:** the colour chooser swatches showed as blank circles in the Neumorphism and glass themes.
+
 ## 1.97.3
 - **Log appearance works in every theme.** On the Logs and SNMP traps pages the text colour chosen per severity was ignored by the light themes; highlight colours also faded on hover and on every second row. Your choices now win over the theme.
 - **Font list shows what is installed.** Fonts installed on this computer are listed first; the others are grouped as "not installed here".

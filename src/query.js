@@ -60,6 +60,9 @@ function buildWhere(q = {}) {
   return { sql: where.length ? 'WHERE ' + where.join(' AND ') : '', args };
 }
 
-const rowOut = (r) => ({ ...r, tags: r.tags ? String(r.tags).split(',') : [] });
+/** 1.97.4 the original packet is stored as its header only when it ends with the message text (about 20% less disk); this puts it back together */
+const packRaw = (raw, message) => (typeof raw === 'string' && typeof message === 'string' && message.length >= 8 && raw.length > message.length && raw.charCodeAt(0) !== 1 && raw.endsWith(message) ? '\u0001' + raw.slice(0, raw.length - message.length) : raw);
+const rawText = (raw, message) => (typeof raw === 'string' && raw.charCodeAt(0) === 1 ? raw.slice(1) + (message ?? '') : raw);
+const rowOut = (r) => ({ ...r, tags: r.tags ? String(r.tags).split(',') : [], ...('raw' in r ? { raw: rawText(r.raw, r.message) } : {}) });
 
-module.exports = { COLS, buildWhere, rowOut, parseSevs };
+module.exports = { COLS, buildWhere, rowOut, parseSevs, packRaw, rawText };

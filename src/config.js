@@ -145,6 +145,9 @@ class Config {
     const merged = { ...structuredClone(DEFAULTS), ...user };
     // the setup program renamed ProgramData\SyslogPro to ProgramData\NetEventPro: certificate files kept in the old folder are found in the new one
     for (const k of ['tlsCertFile', 'tlsKeyFile']) if (merged[k] && /\\SyslogPro\\/i.test(merged[k]) && !fs.existsSync(merged[k])) { const m = merged[k].replace(/\\SyslogPro\\/i, '\\NetEventPro\\'); if (fs.existsSync(m)) merged[k] = m; }
+    // 1.97.4 a certificate or key made by an older version still carries the old name (syslogpro.crt / syslogpro.key): copy it to the new name and use that; the old file stays as it was
+    for (const k of ['tlsCertFile', 'tlsKeyFile']) { const f = merged[k]; if (!f || !/syslog-?pro/i.test(path.basename(f)) || !fs.existsSync(f)) continue;
+      const nf = path.join(path.dirname(f), path.basename(f).replace(/syslog-?pro/ig, 'neteventpro')); try { if (!fs.existsSync(nf)) fs.copyFileSync(f, nf); merged[k] = nf; this.renamedTls = true; if (k === 'tlsKeyFile') try { restrictToAdmins(nf); } catch { /* best effort */ } } catch { /* keep the old name if the folder is read-only */ } }
     for (const r of merged.rules || []) if (r?.match?.host === 'SyslogPro') r.match.host = 'NetEventPro';   // the application's own messages come from the host "NetEventPro" since 1.8.0
     merged.snmp = { ...DEFAULTS.snmp, ...(user.snmp && typeof user.snmp === 'object' ? user.snmp : {}) };
     merged.polling = { ...DEFAULTS.polling, ...(user.polling && typeof user.polling === 'object' ? user.polling : {}) };
@@ -163,7 +166,7 @@ class Config {
       if (merged.adminPassword && !merged.adminPasswordHash) merged.adminPasswordHash = hashPasswordSync(merged.adminPassword);
       delete merged.adminPassword; migrated = true;
     }
-    if (migrated || sealedNow) { this.data = merged; this.save(); }
+    if (migrated || sealedNow || this.renamedTls) { this.data = merged; this.save(); }
     // allow env override for dev/testing
     if (envv('UDP_PORT')) merged.udpPort = +envv('UDP_PORT');
     if (envv('TCP_PORT')) merged.tcpPort = +envv('TCP_PORT');

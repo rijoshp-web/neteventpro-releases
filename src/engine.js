@@ -253,8 +253,13 @@ class Engine extends EventEmitter {
   }
 
   /** NetEventPro's own messages (health checks, silent devices, who changed what). kind: 'health' | 'silent' | 'audit' | 'other'; each kind can be switched off in Settings → System messages */
+  /** 1.97.4 a "fixed" message of the application clears the alarms its "problem" message raised, whatever rule raised them */
+  clearSystemAlarms(prefixes, by) { try { return this.alarms?.clearSystem ? this.alarms.clearSystem(prefixes, by) : 0; } catch { return 0; } }
   internalMessage(severity, text, host = 'NetEventPro', kind = 'other', msgid = '') {
-    const sm = this.config.get().systemMessages || {}; if (sm.all === false || sm[kind] === false) return;
+    const sm = this.config.get().systemMessages || {};
+    if (kind === 'health') { const m = /^Health check recovered: (.+?)\. /.exec(text); if (m) setTimeout(() => this.clearSystemAlarms([`Health check failed: ${m[1]}.`, `Health check improved to a warning: ${m[1]}.`], 'auto: health check recovered'), 0); }
+    if (kind === 'silent') { const m = /^Device (.+) is sending again after being silent$/.exec(text); if (m) setTimeout(() => this.clearSystemAlarms([`No messages from ${m[1]} `], 'auto: device sending again'), 0); }
+    if (sm.all === false || sm[kind] === false) return;
     const now = new Date();
     this.process({
       ts: now.getTime(), devTs: now.getTime(), srcIp: 'neteventpro', host, facility: 5, severity,

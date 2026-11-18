@@ -758,6 +758,7 @@ async function main() {
     if (p.startsWith('/api/log/')) {
       const id = +p.split('/').pop(); store.flush();
       const row = store.db.prepare('SELECT id, ts, dev_ts AS devTs, src_ip AS srcIp, host, facility, severity, app, pid, msgid, message, tags, color, raw, source FROM logs WHERE id = ?').get(id);
+      if (row) row.raw = require('./query').rawText(row.raw, row.message);
       return row ? json(res, row) : json(res, { error: 'not found' }, 404);
     }
 
