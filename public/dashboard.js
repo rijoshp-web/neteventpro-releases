@@ -1206,6 +1206,7 @@ views.dashboard = (el) => {
   // ---------- 1.58: polled devices and readings ----------
   const pollData = new Map();
   async function loadPoll(list) {
+    if (!(S.info?.me?.perms || []).includes('polling')) { for (const x of list) if (x.type === 'poll') pollData.set(x.id, { error: 'Your account is not allowed to see SNMP polling.' }); return; }     // no request that can only be refused
     await Promise.all(list.filter((x) => x.type === 'poll').map(async (x) => { try { pollData.set(x.id, await api('/api/poll/tile', { method: 'POST', body: x.cfg?.poll || {} })); } catch (e) { pollData.set(x.id, { error: e.message || 'Cannot read the polling data.' }); } }));
   }
   const PST = { ok: 'var(--ok)', warn: 'var(--s4)', crit: 'var(--bad)', unk: 'var(--muted)' };

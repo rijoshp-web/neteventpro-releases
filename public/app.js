@@ -1580,6 +1580,8 @@ function route() {
   S.cleanup = views[view](el, main) || null; main.scrollTop = 0;
 }
 window.addEventListener('hashchange', route);
+// clicking Settings in the side panel while a settings section is open goes back to the list of settings (the address does not change, so no hashchange)
+document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail a[data-view="settings"]'); if (!a || location.hash !== '#settings') return; const back = document.querySelector('#setCrumb a[data-menu]'); if (back && !document.querySelector('#setCrumb').hidden) { e.preventDefault(); back.click(); } });
 
 (async function init() {
   const theme = store.get('sp.theme', matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
@@ -1608,6 +1610,8 @@ window.addEventListener('hashchange', route);
   const bgSet = (g) => { store.set('sp.bgset', JSON.stringify(g)); bgApply(); };
   const bgPick = (v) => { if (v === 'none') store.set('sp.bgimg', 'none'); else if (BGP[v]) store.set('sp.bgimg', 'preset:' + v); else { store.set('sp.bgimg', v); if (store.get('sp.bgimg', '') !== v) toast('The picture is too large to keep in this browser. It works until you reload; try a smaller picture.'); } bgApply(); };
   window.NEP = { THEMES, THEME_META, setTheme, DASHES, setDash, bgGet, bgSet, bgPick, bgPreset, bgApply }; setTheme(theme); setDash('classic'); bgApply();
+  // wait until every page script (dashboard.js … guide.js, loaded after this file) has run: on a slow link the first answer can arrive before the later files, and a page would then call code that is not there yet
+  if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
   try { S.info = await api('/api/state'); S.stats = await api('/api/stats'); } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Cannot reach the NetEventPro service</b>${esc(e.message)}. Check that the NetEventPro service is running.</div>`; return; }
   S.prefs = S.info.config.uiPrefs || {};
   { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: My account → Two-factor sign-in.'); } } catch { /* no storage */ } } }

@@ -298,6 +298,8 @@ async function main() {
       // build a full database copy or run a huge export without anyone asking. ("none" = typed in the address bar.)
       const site = req.headers['sec-fetch-site'];
       if (url.pathname.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') return send(res, 403, 'Cross-site request refused');
+      // second lock for older browsers without Sec-Fetch-Site: a browser that names another web address as the origin of an API call is refused
+      { const og = req.headers.origin; if (url.pathname.startsWith('/api/') && og && og !== 'null') { let oh = ''; try { oh = new URL(og).host; } catch { oh = '?'; } if (oh !== (req.headers.host || '')) return send(res, 403, 'Cross-site request refused'); } }
       // Not activated yet: only the activation page and its two calls are served. Nothing is collected or shown until a valid key is entered.
       if (!license.ok()) {
         const lp = url.pathname;
@@ -1471,7 +1473,7 @@ async function sanitize(body, current) {
   for (const k of ['tlsSyslogEnabled', 'udpEnabled', 'tcpEnabled', 'rawLogEnabled', 'healthAlerts']) if (k in out) out[k] = !!out[k];
   num('diskWarnPercent', 1, 90); num('diskCritPercent', 1, 90);
   if ('mode' in out) out.mode = out.mode === 'probe' ? 'probe' : 'central';
-  if ('probe' in out) { const v = out.probe && typeof out.probe === 'object' ? out.probe : {}; const cur = current.probe || {}; const server = str(v.server, 300); if (server && !/^(https?:\/\/)?[^\s/]+(:\d+)?(\/.*)?$/i.test(server)) bad('The central server address is not valid. Example: https://nms.example.com:8514'); out.probe = { server, token: v.token === '********' ? cur.token || '' : str(v.token, 200), name: str(v.name, 60), allowSelfSigned: !!v.allowSelfSigned }; }
+  if ('probe' in out) { const v = out.probe && typeof out.probe === 'object' ? out.probe : {}; const cur = current.probe || {}; const server = str(v.server, 300); if (server && !/^(https?:\/\/)?[^\s/]+(:\d+)?(\/.*)?$/i.test(server)) bad('The central server address is not valid. Example: https://nms.example.com:8514'); out.probe = { ...cur, server, token: v.token === '********' ? cur.token || '' : str(v.token, 200), name: str(v.name, 60), allowSelfSigned: !!v.allowSelfSigned }; }   // the probe's own settings (HTTPS required, pinned certificate, its sign-in, address list ...) are set on the probe page and are kept as they are
   if ('systemMessages' in out) { const v = out.systemMessages && typeof out.systemMessages === 'object' ? out.systemMessages : {}; out.systemMessages = Object.fromEntries(['all', 'health', 'silent', 'audit'].map((k) => [k, v[k] !== false])); }
   if ('vendorParsers' in out) { const v = out.vendorParsers && typeof out.vendorParsers === 'object' ? out.vendorParsers : {}; out.vendorParsers = Object.fromEntries(Object.keys(FAMILIES).map((k) => [k, v[k] !== false])); }
   if ('syslogBind' in out && !net.isIP(String(out.syslogBind))) bad('"Listen on address" must be an IP address such as 0.0.0.0.');

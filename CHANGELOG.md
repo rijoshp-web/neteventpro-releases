@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.2
+- **Security fix: probe protections kept.** Saving the main Settings page dropped the probe's own settings (HTTPS required, pinned certificate, rate limit, the probe page's sign-in, its address list and certificate files). They now stay as they were.
+- **Extra protection against other websites:** an API call that a browser marks as coming from another web address is refused, also in older browsers.
+- **Fix:** on a slow network, opening Settings could fail with "views.snmp is not a function". The app now waits until all its files have loaded.
+- **Fix:** a dashboard with an SNMP polling tile no longer keeps asking the server for polling data when the account is not allowed to see it.
+- **Fix:** clicking Settings in the side panel while a settings section is open goes back to the list of settings.
+
 ## 1.97.1
 - **Fix:** choosing a logo in Settings → Reports did nothing, because the page's security rules blocked the way the picture was read. The logo now loads and shows at once; click "Save name and logo" to keep it.
 
