@@ -65,4 +65,16 @@ const packRaw = (raw, message) => (typeof raw === 'string' && typeof message ===
 const rawText = (raw, message) => (typeof raw === 'string' && raw.charCodeAt(0) === 1 ? raw.slice(1) + (message ?? '') : raw);
 const rowOut = (r) => ({ ...r, tags: r.tags ? String(r.tags).split(',') : [], ...('raw' in r ? { raw: rawText(r.raw, r.message) } : {}) });
 
-module.exports = { COLS, buildWhere, rowOut, parseSevs, packRaw, rawText };
+/** 1.98.1 the words a search must contain (not excluded words, not tag: filters), for the word index; words under 3 letters cannot use it */
+function indexTerms(text) {
+  const out = [];
+  for (const raw of (String(text || '').slice(0, 1000).match(/"[^"]+"|\S+/g) || []).slice(0, MAX_TERMS)) {
+    if (raw.startsWith('-') && raw.length > 1) continue;
+    const t = raw.replace(/^"|"$/g, '').slice(0, MAX_TERM_LEN); if (/^tag:./i.test(t)) continue;
+    if (t.length >= 3) out.push(t);
+  }
+  return out;
+}
+/** an FTS5 query: every word as a phrase (the trigram index then finds it inside any of message, host, process) */
+const ftsQuery = (terms) => terms.map((t) => '"' + t.replace(/"/g, '""') + '"').join(' AND ');
+module.exports = { COLS, buildWhere, rowOut, parseSevs, packRaw, rawText, indexTerms, ftsQuery };

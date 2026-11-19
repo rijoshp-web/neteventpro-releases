@@ -31,6 +31,8 @@ const { MibStore, installStarterMibs } = require('./mib');
 const { TrapReceiver } = require('./traps');
 const { FACILITIES, SEVERITIES } = require('./parser');
 const SEVX = require('./sev');
+const LDAP = require('./ldap');
+const { HA } = require('./ha');
 const { hashPassword, verifyPassword, LoginGuard } = require('./auth');
 const { SourceFilter } = require('./acl');
 const { parseSevs } = require('./query');
@@ -57,7 +59,7 @@ const SEC_HEADERS = {
 
 // settings the dashboard may change (everything else in config.json is ignored)
 const EDITABLE = ['tlsSyslogEnabled', 'tlsSyslogPort', 'udpPort', 'udpRecvMB', 'tcpPort', 'udpEnabled', 'tcpEnabled', 'syslogBind', 'allowedSources', 'webPort', 'webBind', 'adminPassword', 'tlsCertFile', 'tlsKeyFile',
-  'retentionDays', 'format', 'sevNames', 'sevColors', 'setupDone', 'branding', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
+  'retentionDays', 'format', 'sevNames', 'sevColors', 'setupDone', 'searchIndex', 'ldap', 'ha', 'branding', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const isLoopback = (b) => ['127.0.0.1', '::1', 'localhost'].includes(b);
@@ -94,23 +96,27 @@ async function main() {
   // a probe is a lean program of its own: only the listeners, the queue and a small local status page (see probe-main.js)
   if (config.get().mode === 'probe') { await require('./probe-main').run(config, { version: VERSION, updater }); return; }
   const store = new Store(config.dir);
-  let devJson = { list: null };      // the device list as JSON (and compressed), shared by everyone asking within 2 s
+  let devJson = { list: null };
+  store.setSearchIndex(!!config.get().searchIndex); config.onChange((c) => store.setSearchIndex(!!c.searchIndex));      // 1.98.1 word index      // the device list as JSON (and compressed), shared by everyone asking within 2 s
   const users = new UserStore(config.dir, restrictToAdmins);
   const loginFlush = setInterval(() => users.flushLogins(), 60000); loginFlush.unref?.();
   const engine = new Engine(config, store);
   const sources = new SourceFilter(); sources.load(config.get().allowedSources);
   const probe = new Probe(config, config.dir), probes = new ProbeRegistry(config);
-  const listeners = new Listeners((buf, ip, proto) => !license.ok() ? undefined : (probe.on ? probe.addSyslog(buf, ip) : engine.handlePacket(buf, ip, proto)), (ip) => sources.allows(ip));
+  const listeners = new Listeners((buf, ip, proto) => !license.ok() ? undefined : (probe.on ? probe.addSyslog(buf, ip) : (ha?.tap('s', buf, ip), engine.handlePacket(buf, ip, proto))), (ip) => sources.allows(ip));
+  let ha = null;      // 1.98.1 high availability (created below, once users exist)
   await listeners.apply(config.get());
   try { const r = installStarterMibs(path.join(config.dir, 'mibs')); if (r.copied) console.log(`[snmp] ${r.copied} standard MIB files added to the MIB folder`); } catch (e) { console.error('[snmp] standard MIBs:', e.message); }
   const mibs = new MibStore(path.join(config.dir, 'mibs'));
   const traps = new TrapReceiver({ config, mibs, engine, isAllowed: (ip) => license.ok() && license.has('traps') && sources.allows(ip) });
+  { const own = traps.onPacket.bind(traps); traps.onPacket = (buf, ip, rinfo, opts = {}) => { if (!opts.fromProbe && rinfo) ha?.tap('t', buf, ip); return own(buf, ip, rinfo, opts); }; }
   const v3 = new V3Engine(config.dir); traps.v3 = v3; engine.trapForwarder.v3 = v3;
   traps.forward = (buf, ip, rinfo) => { if (!probe.on) return false; probe.addTrap(buf, ip, rinfo, traps.sock); return true; };
   await traps.apply(config.get());
   const health = new Health({ config, store, engine, listeners, traps }); engine.health = health;
   const audit = (who, text) => { try { engine.internalMessage(5, `${who?.name || 'admin'} ${text}`, 'NetEventPro', 'audit', 'audit'); } catch { /* logging the action is best effort */ } };
   const reports = new Reports({ config, store, dir: config.dir });
+  ha = new HA({ config, users, audit: (w, t) => { try { engine.internalMessage(5, `${w?.name || 'admin'} ${t}`, 'NetEventPro', 'audit'); } catch { /* */ } }, note: (sev, t) => { try { engine.internalMessage(sev, t, 'NetEventPro', 'health'); } catch { /* */ } }, version: VERSION });
   engine.mail.reportFn = () => reports.quick24h();      // escalation e-mails carry the last-24-hours PDF
   const ntp = new ntpmod.NtpClock(config); ntp.start();
   const maint = new Maintenance(config); engine.maint = maint;
@@ -156,16 +162,19 @@ async function main() {
   const maxMs = (cfg) => { const d = Number(cfg.sessionMaxDays); return d > 0 ? d * 24 * HOUR : Infinity; };
   const sessionFile = path.join(config.dir, 'sessions.json');
   const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
-  try { for (const [k, v] of JSON.parse(fs.readFileSync(sessionFile, 'utf8'))) if (/^[0-9a-f]{64}$/.test(k) && v && typeof v.name === 'string') sessions.set(k, { name: v.name, ver: String(v.ver), born: +v.born || 0, last: +v.last || 0, ip: String(v.ip || ''), ua: String(v.ua || '') }); } catch { /* none yet */ }
+  try { for (const [k, v] of JSON.parse(fs.readFileSync(sessionFile, 'utf8'))) if (/^[0-9a-f]{64}$/.test(k) && v && typeof v.name === 'string') sessions.set(k, { name: v.name, ver: String(v.ver), born: +v.born || 0, last: +v.last || 0, ip: String(v.ip || ''), ua: String(v.ua || ''), ...(v.ldap && Array.isArray(v.ldap.roleIds) ? { ldap: { roleIds: v.ldap.roleIds.map(String), fullName: String(v.ldap.fullName || '') }, lver: String(v.lver || '') } : {}) }); } catch { /* none yet */ }
   let sessDirty = false;
   const saveSessions = () => { if (!sessDirty) return; sessDirty = false; try { fs.writeFileSync(sessionFile, JSON.stringify([...sessions]), { mode: 0o600 }); } catch { /* the sign-in simply is not kept over a restart */ } };
   const authVersion = (cfg) => sha(String(cfg.adminPasswordHash || '') + '\0' + users.version);   // changes when any password, role or user changes
   const cookieOf = (req) => { const m = /(?:^|;\s*)sp_session=([A-Za-z0-9_-]{20,80})/.exec(req.headers.cookie || ''); return m ? m[1] : ''; };
   const sessionCookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${state.https ? '; Secure' : ''}`;
   const cookieAge = (cfg) => { const m = maxMs(cfg); return m === Infinity ? TEN_YEARS : Math.floor(m / 1000); };   // the server enforces the idle time; the cookie only has to outlive it
-  function newSession(name, cfg, req) {
+  // 1.98.1 a directory sign-in ends when the directory settings change (another server, other group mappings)
+  const ldapVer = (cfg) => sha(JSON.stringify([cfg.ldap?.enabled, cfg.ldap?.url, cfg.ldap?.baseDN, cfg.ldap?.userFilter, cfg.ldap?.groupRoles, cfg.ldap?.defaultRoleId]));
+  const whoOf = (se) => (se.name === 'admin' ? UserStore.adminIdentity() : se.ldap ? (config.get().ldap?.enabled && se.lver === ldapVer(config.get()) ? users.identityFor(se.name, se.ldap.fullName, se.ldap.roleIds) : null) : users.identity(se.name));
+  function newSession(name, cfg, req, ldapInfo) {
     const token = crypto.randomBytes(32).toString('base64url'), now = Date.now();
-    sessions.set(sha(token), { name, ver: authVersion(cfg), born: now, last: now, ip: req ? remoteIp(req) : '', ua: req ? uaName(req.headers['user-agent']) : '' }); sessDirty = true;
+    sessions.set(sha(token), { name, ver: authVersion(cfg), born: now, last: now, ip: req ? remoteIp(req) : '', ua: req ? uaName(req.headers['user-agent']) : '', ...(ldapInfo ? { ldap: ldapInfo, lver: ldapVer(cfg) } : {}) }); sessDirty = true;
     if (sessions.size > 500) for (const [k, v] of sessions) if (now - v.last > idleMs(cfg) || sessions.size > 500) sessions.delete(k);
     saveSessions(); return token;
   }
@@ -189,7 +198,7 @@ async function main() {
     if (tok) {
       const k = sha(tok), se = sessions.get(k), now = Date.now();
       if (se && now - se.last <= idleMs(cfg) && now - se.born <= maxMs(cfg) && se.ver === authVersion(cfg)) {
-        const who = se.name === 'admin' ? UserStore.adminIdentity() : users.identity(se.name);
+        const who = whoOf(se);
         if (who) { if (now - se.last > 300000) sessDirty = true; se.last = now; return { status: 'ok', who, session: k }; }
       }
       if (se) sessions.delete(k);
@@ -324,6 +333,16 @@ async function main() {
         let ok = false;
         if (user === 'admin') ok = !!cfg.adminPasswordHash && await verifyPassword(pass, cfg.adminPasswordHash);
         else if (user) ok = await users.verify(user, pass);
+        // 1.98.1 not a local account: ask the company directory (Active Directory / LDAP) when that is set up
+        if (!ok && user && user !== 'admin' && !users.find(user) && cfg.ldap?.enabled) {
+          const r = await LDAP.authenticate(cfg.ldap, user, pass);
+          if (r.ok && !r.roleIds.length) { audit({ name: cleanName(user) || '?' }, `directory sign-in refused from ${ip}: no group with a NetEventPro role`); return json(res, { error: 'Your directory account is not in a group that has access to NetEventPro. Ask an administrator to map one of your groups to a role.' }, 403); }
+          if (r.ok && users.identityFor(user, r.fullName, r.roleIds)) {
+            guard.success(ip); acct.success(user); audit({ name: user }, `signed in from ${ip} with the company directory (${users.identityFor(user, r.fullName, r.roleIds).roleNames.join(', ')})`);
+            return json(res, { ok: true }, 200, { 'set-cookie': sessionCookie(newSession(user, config.get(), req, { roleIds: r.roleIds, fullName: r.fullName }), cookieAge(cfg)) });
+          }
+          if (!r.ok && r.reason !== 'Wrong user name or password.') console.error('[ldap]', r.reason);
+        }
         if (!ok) { guard.fail(ip); acct.fail(user, pol2); audit({ name: cleanName(user) || '?' }, `failed sign-in from ${ip}`); return json(res, { error: 'Wrong user name or password.' }, 401); }
         if (twofa.has(user)) {
           if (!code) return json(res, { need2fa: true });
@@ -334,6 +353,26 @@ async function main() {
         guard.success(ip); acct.success(user); audit({ name: user }, `signed in from ${ip}`);
         await rehash(user, pass, cfg);
         return json(res, { ok: true }, 200, { 'set-cookie': sessionCookie(newSession(user, config.get(), req), cookieAge(cfg)) });
+      }
+      // 1.98.1 the high-availability partner (signed with the shared key; no sign-in, no cookies)
+      if (url.pathname.startsWith('/api/ha/') && ['/api/ha/peer', '/api/ha/ingest', '/api/ha/config'].includes(url.pathname)) {
+        const ip = remoteIp(req); if (guard.locked(ip)) return json(res, { error: 'Too many failed attempts. Try again in 5 minutes.' }, 429);
+        const raw = req.method === 'POST' ? await readBody(req, 30e6) : '';
+        if (!ha || !ha.verify(req, raw)) { guard.fail(ip); return json(res, { error: 'Not a known high-availability partner.' }, 401); }
+        const hc = ha.cfg();
+        if (url.pathname === '/api/ha/peer') return json(res, { role: hc.role, active: !ha.passive(), version: VERSION, now: Date.now() });
+        if (url.pathname === '/api/ha/config') { if (hc.role !== 'primary') return json(res, { error: 'Only the primary hands out settings.' }, 409); return json(res, ha.exportBox()); }
+        if (hc.role !== 'standby') return json(res, { error: 'Only the standby takes copied messages.' }, 409);
+        let b; try { b = JSON.parse(raw); } catch { return json(res, { error: 'bad body' }, 400); }
+        let n = 0; const now = Date.now();
+        for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, 5000)) {
+          if (!it || typeof it.b !== 'string' || typeof it.ip !== 'string' || !/^[0-9a-fA-F:.]{2,45}$/.test(it.ip)) continue;
+          const buf = Buffer.from(it.b, 'base64'); if (!buf.length || buf.length > 65535) continue;
+          const t = Number.isFinite(+it.t) && +it.t > 0 && +it.t <= now + 60000 ? Math.round(+it.t) : now;
+          if (it.k === 't') traps.onPacket(buf, it.ip, null, { ts: t, fromProbe: true }); else engine.handlePacket(buf, it.ip, 'ha', { ts: t });
+          n++;
+        }
+        return json(res, { ok: true, accepted: n });
       }
       // a remote probe sends its packets here with its own token (no dashboard sign-in, no cookies)
       if (url.pathname.startsWith('/api/probe/') && !license.has('probes')) return json(res, { error: 'Remote probes are not part of this licence.', notLicensed: true }, 402);
@@ -490,6 +529,7 @@ async function main() {
     if (p === '/api/me') return json(res, meInfo());
     if (p === '/api/me/password' && POST) {
       if (who.anonymous) throw new HttpError(400, 'Sign-in is not turned on, so there is no password to change.');
+      if (who.ldap) throw new HttpError(400, 'Your password is kept by your company directory. Change it the way you change your Windows / company password.');
       const b = await readJson(req), cur = String(b.current ?? ''), pw = String(b.password ?? '');
       if (who.builtin) {
         if (!(await verifyPassword(cur, cfg.adminPasswordHash))) throw new HttpError(403, 'The current password is not correct.');
@@ -578,6 +618,18 @@ async function main() {
         return res.end('\ufeffTime,Who and what\r\n' + rows.map((r) => `${csv(new Date(r.ts).toISOString())},${csv(r.message)}`).join('\r\n') + '\r\n');
       }
       return json(res, { rows: rows.map((r) => ({ id: r.id, ts: r.ts, text: r.message })) });
+    }
+    if (p === '/api/ha/status' && req.method === 'GET') { need('settings'); return json(res, ha ? ha.status() : { role: 'off' }); }
+    if (p === '/api/ha/sync' && POST) { need('settings'); const r = ha ? await ha.syncNow() : { ok: false }; return json(res, { ...r, status: ha?.status() }); }
+    if (p === '/api/ha/check' && POST) { need('settings'); try { const r = await ha.call('GET', '/api/ha/peer'); return json(res, { ok: true, partner: r }); } catch (e) { return json(res, { ok: false, error: e.message }); } }
+    // 1.98.1 try the company directory settings (the ones on the screen, before saving) with a real account; nothing is stored
+    if (p === '/api/ldap/test' && POST) {
+      need('users'); const b = await readJson(req); const c = { ...(cfg.ldap || {}), ...(b.ldap && typeof b.ldap === 'object' ? b.ldap : {}) };
+      if (c.bindPassword === '********') c.bindPassword = cfg.ldap?.bindPassword || '';
+      const r = await LDAP.authenticate(c, String(b.username || '').trim().slice(0, 64), String(b.password || '').slice(0, 256));
+      const roleNames = r.ok ? r.roleIds.map((id) => users.data.roles.find((x) => x.id === id)?.name).filter(Boolean) : [];
+      audit(who, `tested directory sign-in for "${String(b.username || '').slice(0, 64)}": ${r.ok ? 'password right' : 'failed'}`);
+      return json(res, { ok: r.ok, reason: r.reason || '', steps: r.steps, groups: r.groups || [], roleNames, fullName: r.fullName || '' });
     }
     if (p === '/api/users' || p.startsWith('/api/users/')) {
       need('users');
@@ -720,7 +772,7 @@ async function main() {
     if (p === '/api/state') return json(res, {
       version: VERSION, now: ntp.now(), clock: (({ server, ...rest }) => (who.perms.has('settings') ? { server, ...rest } : rest))(ntp.info()), platform: process.platform, node: process.version,
       dataDirs: { data: config.dir, db: store.file, config: config.file, rawLogs: path.join(config.dir, 'raw'), serviceLogs: path.join(config.dir, 'logs') }, backupBusy: !!state.backupBusy,
-      listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES, sevLabels: SEVX.LABELS, firstRun: !cfg.adminPasswordHash && !users.enabled && !cfg.setupDone && who.anonymous, serverZone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(),
+      listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES, sevLabels: SEVX.LABELS, ha: ha ? { role: ha.cfg().role, state: ha.state } : { role: 'off' }, firstRun: !cfg.adminPasswordHash && !users.enabled && !cfg.setupDone && who.anonymous, serverZone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(),
       features: (() => { const l = license.status(); return Object.keys(FEATURES).filter((f) => license.has(f)); })(),
       licenseNote: (() => { const l = license.status(); return l.state === 'grace' ? `This copy is not activated yet: ${l.graceDaysLeft} day${l.graceDaysLeft === 1 ? '' : 's'} left. Machine code ${l.machine}. Enter the key under Settings → About.` : ''; })(),
       me: meInfo(), authEnabled: !!cfg.adminPasswordHash || users.enabled, https: state.https, webBindActive: state.bind, webWarning: state.webWarning
@@ -1053,6 +1105,12 @@ function send(res, code, body, type = 'text/plain; charset=utf-8', extra = {}) {
   res.writeHead(code, { ...SEC_HEADERS, 'content-type': type, 'cache-control': 'no-store', ...extra }); res.end(body);
 }
 function json(res, obj, code = 200, headers) { send(res, code, JSON.stringify(obj), 'application/json; charset=utf-8', headers); }
+/** 1.98.1 the raw request body as text (the HA partner signs the exact bytes) */
+function readBody(req, limit = 2e6) {
+  return new Promise((resolve, reject) => { const chunks = []; let size = 0;
+    req.on('data', (c) => { size += c.length; if (size > limit) { reject(new HttpError(413, 'Request is too large')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8'))); req.on('error', reject); });
+}
 function readJson(req, limit = 2e6, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
@@ -1073,6 +1131,8 @@ function publicConfig(c, full = true) {
   o.adminPassword = c.adminPasswordHash ? '********' : '';
   o.smtp = { ...c.smtp, password: c.smtp?.password ? '********' : '' };
   o.smpp = { ...(c.smpp || {}), password: c.smpp?.password ? '********' : '' };
+  o.ldap = { ...(c.ldap || {}), bindPassword: c.ldap?.bindPassword ? '********' : '' };
+  o.ha = { ...(c.ha || {}), sharedKey: c.ha?.sharedKey ? '********' : '' };
   o.sqlCopy = { ...(c.sqlCopy || {}), password: c.sqlCopy?.password ? '********' : '' };
   o.backup = { ...c.backup, passphrase: c.backup?.passphrase ? '********' : '', folderPassword: c.backup?.folderPassword ? '********' : '' };
   o.reports = maskReports(c.reports);
@@ -1085,6 +1145,7 @@ function publicConfig(c, full = true) {
     o.webhooks = (c.webhooks || []).map((h) => ({ name: h.name, url: '', enabled: h.enabled }));
     o.notifProfiles = (c.notifProfiles || []).map((x) => ({ id: x.id, name: x.name, enabled: x.enabled, email: { on: !!x.email?.on, to: '', cc: '' }, webhook: { on: !!x.webhook?.on, url: '', format: x.webhook?.format || 'generic' }, sms: { on: !!x.sms?.on, to: '' } }));
     o.smpp = { host: '', port: 2775, tls: false, systemId: '', password: '' };
+    o.ldap = { enabled: !!c.ldap?.enabled }; o.ha = { role: c.ha?.role || 'off' };
     o.sqlCopy = { enabled: !!c.sqlCopy?.enabled };
     o.backup = { enabled: false, time: '02:00', keep: 7, includeDb: true, folder: '', passphrase: '' }; o.reports = [];
     o.ntp = { enabled: !!c.ntp?.enabled, server: '', port: 123, intervalMin: 15, zone: c.ntp?.zone || '' };
@@ -1557,6 +1618,7 @@ async function sanitize(body, current) {
   if ('ntp' in out) out.ntp = sanitizeNtp(out.ntp);
   if ('branding' in out) out.branding = require('./brand').clean(out.branding, bad);
   if ('setupDone' in out) out.setupDone = !!out.setupDone;
+  if ('searchIndex' in out) out.searchIndex = !!out.searchIndex;
   if ('format' in out) { const f = out.format && typeof out.format === 'object' ? out.format : {}; out.format = { date: ['ymd', 'dmy', 'mdy'].includes(f.date) ? f.date : 'ymd', clock: f.clock === '12' ? '12' : '24' }; }
   if ('sevNames' in out) { const n = out.sevNames && typeof out.sevNames === 'object' ? out.sevNames : {}; out.sevNames = {}; for (let i = 0; i < 10; i++) { const v = SEVX.cleanLabel(n[i]); if (v && v !== SEVX.DEF_LABELS[i]) out.sevNames[i] = v; } }
   if ('sevColors' in out) { const n = out.sevColors && typeof out.sevColors === 'object' ? out.sevColors : {}; out.sevColors = {}; for (let i = 0; i < 10; i++) if (SEVX.isHex(n[i])) out.sevColors[i] = String(n[i]).toLowerCase(); }
@@ -1596,6 +1658,30 @@ async function sanitize(body, current) {
     // a deleted profile disappears from the rules that used it
     const keep = new Set(out.notifProfiles.map((x) => x.id)), strip = (rs) => (rs || []).map((r) => { const a = r.actions || {}; const pl = (a.profiles || []).filter((i) => keep.has(i)), el = (a.alarmEscProfiles || []).filter((i) => keep.has(i)); const na = { ...a }; if (pl.length) na.profiles = pl; else delete na.profiles; if (el.length) na.alarmEscProfiles = el; else delete na.alarmEscProfiles; return { ...r, actions: na }; });
     if ('rules' in out) out.rules = strip(out.rules); else if ((current.rules || []).some((r) => (r.actions?.profiles || r.actions?.alarmEscProfiles || []).some((i) => !keep.has(i)))) out.rules = strip(current.rules);
+  }
+  if ('ha' in out) {         // 1.98.1 high availability
+    const h = out.ha && typeof out.ha === 'object' ? out.ha : {}, cur = current.ha || {};
+    const o = { role: ['primary', 'standby'].includes(h.role) ? h.role : 'off', partner: str(h.partner, 300).trim().replace(/\/+$/, ''), sharedKey: h.sharedKey === '********' ? (cur.sharedKey || '') : str(h.sharedKey, 200),
+      copyMessages: !!h.copyMessages, syncSettings: h.syncSettings !== false, allowSelfSigned: !!h.allowSelfSigned };
+    if (o.role !== 'off') {
+      if (!/^https?:\/\/[^\s/]+(:\d{1,5})?$/i.test(o.partner)) bad('The partner address must look like https://nep2.corp.local:8514 (the other server\'s dashboard address).');
+      if (o.sharedKey.length < 16) bad('The shared key must be at least 16 characters, and the same on both servers.');
+    }
+    out.ha = o;
+  }
+  if ('ldap' in out) {       // 1.98.1 company directory sign-in
+    const l = out.ldap && typeof out.ldap === 'object' ? out.ldap : {}, cur = current.ldap || {};
+    const o = { enabled: !!l.enabled, url: str(l.url, 300).trim(), startTls: !!l.startTls, verifyCert: l.verifyCert !== false, caFile: str(l.caFile, 400).trim(), bindDN: str(l.bindDN, 400).trim(),
+      bindPassword: l.bindPassword === '********' ? (cur.bindPassword || '') : str(l.bindPassword, 300), baseDN: str(l.baseDN, 400).trim(), userFilter: str(l.userFilter, 500).trim(), nested: !!l.nested,
+      defaultRoleId: str(l.defaultRoleId, 64), timeoutMs: clampInt(l.timeoutMs, 1000, 30000, 8000),
+      groupRoles: (Array.isArray(l.groupRoles) ? l.groupRoles : []).slice(0, 100).map((m) => ({ group: str(m?.group, 400).trim(), roleId: str(m?.roleId, 64) })).filter((m) => m.group && m.roleId) };
+    if (o.url && !/^ldaps?:\/\/[^\s/]+(:\d{1,5})?\/?$/i.test(o.url)) bad('The directory server address must look like ldaps://dc1.corp.local or ldap://10.0.0.5:389.');
+    if (o.userFilter) { if (!o.userFilter.includes('{user}')) bad('The user filter must contain {user} where the typed user name goes.'); try { LDAP.parseFilter(o.userFilter.split('{user}').join('x')); } catch (e) { bad('The user filter is not valid: ' + e.message); } }
+    if (o.enabled && !o.url) bad('Enter the directory server address before turning directory sign-in on.');
+    if (o.enabled && !o.baseDN) bad('Enter the base DN (where users are searched, for example DC=corp,DC=local).');
+    if (o.enabled && !(out.adminPasswordHash ?? current.adminPasswordHash)) bad('Set the admin password first: directory sign-in only works when sign-in is turned on.');
+    if (o.enabled && !/^ldaps:/i.test(o.url) && !o.startTls) bad('Use ldaps:// or tick StartTLS: passwords must not cross the network in clear text.');
+    out.ldap = o;
   }
   if ('smpp' in out) {
     const s = (out.smpp && typeof out.smpp === 'object') ? out.smpp : {}, cur = current.smpp || {}, opt = (v, hi) => (v === '' || v === null || v === undefined ? '' : clampInt(v, 0, hi, 0));

@@ -135,6 +135,7 @@ class Store {
         this.insertStmt.run(m.id, m.ts, m.devTs, m.srcIp, m.host, m.facility, m.severity,
           m.app, m.pid, m.msgid, m.message, m.tags ? m.tags.join(',') : '', m.color || '', packRaw(m.raw, m.message), m.source === 'snmp' ? 'snmp' : 'syslog', m.vb ? JSON.stringify(m.vb) : '', m.seq || 0);
       }
+      if (this.ftsOn) for (const m of batch) this.ftsIns.run(m.id, m.message || '', m.host || '', m.app || '');
       this.db.exec('COMMIT');
       const live = this.sumLive ? batch.filter((m) => m.ts >= this.sumLive) : batch;
       if (live.length) SUM.tally(this.sumAcc, live);
@@ -198,6 +199,47 @@ class Store {
     const keep = rows.filter((r) => r.ts >= this.sumCov);
     if (keep.length) SUM.apply(this.db, SUM.tally({}, keep, -1), this.sumStmts);
   }
+  // ---- word index (1.98.1): a trigram index over message, device and process, so a search for a rare word does not read every message ----
+  // Contentless (it stores no copy of the text, only the index). Holds every message with id >= fts_from; older ones are added in the background.
+  setSearchIndex(on) {
+    on = !!on; if (on === !!this.ftsOn && this.ftsReady !== undefined) return;
+    try {
+      if (on) {
+        const had = !!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'logs_fts'").get();
+        this.db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS logs_fts USING fts5(message, host, app, content='', contentless_delete=1, tokenize='trigram')");
+        this.ftsIns = this.db.prepare('INSERT OR REPLACE INTO logs_fts (rowid, message, host, app) VALUES (?, ?, ?, ?)');
+        this.flush();
+        if (!had || this.db.prepare("SELECT v FROM sum_meta WHERE k = 'fts_from'").get() === undefined) this.setMeta('fts_from', this.maxId() + 1);
+        this.ftsOn = true; this.ftsReady = true; this.ftsBackfillSoon();
+      } else {
+        this.ftsOn = false; this.ftsReady = false; clearTimeout(this.ftsTimer);
+        this.db.exec("DROP TABLE IF EXISTS logs_fts; DELETE FROM sum_meta WHERE k = 'fts_from'");
+      }
+    } catch (e) { this.ftsOn = false; console.error('[store] word index:', e.message); }
+  }
+  ftsStatus() {
+    if (!this.ftsOn) return { on: false };
+    const from = this.db.prepare("SELECT v FROM sum_meta WHERE k = 'fts_from'").get()?.v ?? 0, lo = this.db.prepare('SELECT MIN(id) AS m FROM logs').get().m;
+    const done = lo === null || from <= lo, oldest = done ? null : this.db.prepare('SELECT ts FROM logs WHERE id >= ? ORDER BY id LIMIT 1').get(from)?.ts;
+    return { on: true, complete: done, coveredFrom: done ? null : oldest || null };
+  }
+  ftsBackfillSoon(ms = 3000) { clearTimeout(this.ftsTimer); this.ftsTimer = setTimeout(() => this.ftsBackfill().catch((e) => console.error('[store] word index fill:', e.message)), ms); this.ftsTimer.unref?.(); }
+  /** adds older messages to the index, newest first, 5 000 at a time with pauses, so receiving never waits */
+  async ftsBackfill() {
+    if (this.ftsBusy || !this.ftsOn) return; this.ftsBusy = true;
+    try {
+      const sel = this.db.prepare('SELECT id, message, host, app FROM logs WHERE id < ? ORDER BY id DESC LIMIT 5000');
+      for (;;) {
+        if (this.closed || !this.ftsOn) break;
+        const from = this.db.prepare("SELECT v FROM sum_meta WHERE k = 'fts_from'").get()?.v ?? 0, rows = sel.all(from);
+        if (!rows.length) { this.setMeta('fts_from', 0); break; }
+        this.db.exec('BEGIN');
+        try { for (const r of rows) this.ftsIns.run(r.id, r.message || '', r.host || '', r.app || ''); this.setMeta('fts_from', rows[rows.length - 1].id); this.db.exec('COMMIT'); } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* */ } throw e; }
+        await new Promise((r) => setTimeout(r, 10));
+      }
+    } finally { this.ftsBusy = false; }
+  }
+
   /** deletes messages by an id-selecting SQL, keeping the summaries right; returns how many went */
   deleteWhere(idSql, args) {
     this.sumFlush();
@@ -207,6 +249,7 @@ class Store {
     try {
       this.sumForget(rows);
       const n = Number(this.db.prepare('DELETE FROM logs WHERE id IN (SELECT value FROM json_each(?))').run(JSON.stringify(rows.map((r) => r.id))).changes);
+      if (this.ftsOn) this.db.prepare('DELETE FROM logs_fts WHERE rowid IN (SELECT value FROM json_each(?))').run(JSON.stringify(rows.map((r) => r.id)));
       this.db.exec('COMMIT'); return n;
     } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
   }
@@ -318,6 +361,7 @@ class Store {
     this.flush();
     this.sumAcc = {}; this.sumLive = 0; this.sumCov = 0;
     this.db.exec(`DELETE FROM logs; ${SUM.TABLES.map(([t]) => `DELETE FROM ${t};`).join(' ')}`); this.setMeta('cov', 0); this.setMeta('upto', Date.now());
+    if (this.ftsOn) { this.db.exec('DELETE FROM logs_fts'); this.setMeta('fts_from', 0); }
     this.db.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM;'); this._rows = 0;
   }
 

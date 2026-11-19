@@ -314,7 +314,7 @@ class Engine extends EventEmitter {
 
   // ---- webhooks ---------------------------------------------------------
   async callWebhook(w, msg) {
-    if (this.blockedHooks?.()) return;
+    if (this.blockedHooks?.() || require('./ha').passive()) return;
     const hook = (this.config.get().webhooks || []).find(h => h.name === w.hook && h.enabled !== false);
     if (!hook || !hook.url) return;
     const text = `[${msg.severityName.toUpperCase()}] ${msg.host} ${msg.app ? msg.app + ': ' : ''}${msg.message}` +

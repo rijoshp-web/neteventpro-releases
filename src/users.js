@@ -94,6 +94,12 @@ class UserStore {
     for (const id of roleIds) { const r = this.data.roles.find((x) => x.id === id); if (r) { names.push(r.name); for (const p of r.perms) perms.add(p); } }
     return { name: u.name, fullName: u.fullName, roleNames: names, perms };
   }
+  /** 1.98.1 a directory (LDAP) user: not stored here; the roles come from the directory groups at sign-in */
+  identityFor(name, fullName, roleIds) {
+    const perms = new Set(), names = [];
+    for (const id of roleIds || []) { const r = this.data.roles.find((x) => x.id === id); if (r) { names.push(r.name); for (const p of r.perms) perms.add(p); } }
+    return names.length ? { name: String(name), fullName: fullName || '', roleNames: names, perms, ldap: true } : null;
+  }
   static adminIdentity() { return { name: 'admin', fullName: 'Built-in administrator', roleNames: ['Administrator'], perms: new Set(PERM_IDS), builtin: true }; }
 
   async verify(name, pass) {

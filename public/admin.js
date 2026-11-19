@@ -270,3 +270,57 @@ views.backup = (el) => {
   timer = setInterval(() => { if (d && (d.busy || d.pending)) load().then(() => { if (!el.contains(document.activeElement) || document.activeElement === document.body) draw(); }).catch(() => {}); }, 4000);
   return () => clearInterval(timer);
 };
+
+// ---------- 1.98.1 company directory sign-in (LDAP / Active Directory), shown under the Users page ----------
+(function () {
+  const usersView = views.users;
+  views.users = (el, main, embedded) => {
+    el.innerHTML = '<div class="u-host"></div><div class="ldap-host"></div>';
+    const clean = usersView(el.querySelector('.u-host'), main, embedded);
+    if (can('settings')) ldapBox(el.querySelector('.ldap-host'));
+    return clean;
+  };
+  async function ldapBox(host) {
+    let cfg, roles = [];
+    try { cfg = await api('/api/config'); roles = (await api('/api/users')).roles || []; } catch (e) { host.innerHTML = ''; return; }
+    let l = { url: '', startTls: false, verifyCert: true, caFile: '', bindDN: '', bindPassword: '', baseDN: '', userFilter: '', nested: true, defaultRoleId: '', groupRoles: [], enabled: false, ...(cfg.ldap || {}) };
+    const roleSel = (sel, attr) => `<select ${attr}><option value="">${attr.includes('def') ? 'No access' : 'Pick a role'}</option>${roles.map((r) => `<option value="${esc(r.id)}" ${r.id === sel ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`;
+    const draw = () => {
+      host.innerHTML = `<fieldset id="sec-ldap"><legend>Company directory (Active Directory / LDAP)</legend>
+        <p class="muted" style="margin:0 0 10px;max-width:780px">People sign in with their company user name and password. Their directory groups decide their role here, worked out again at every sign-in, so removing someone from a group in the directory removes their access. Local users and admin keep working. Scripts using a password in the request (HTTP Basic) use local users only.</p>
+        <div class="form">
+          <div class="field"><label for="ldOn">Directory sign-in</label><div><label class="chk"><input type="checkbox" id="ldOn" ${l.enabled ? 'checked' : ''}> Let people sign in with their directory account</label></div></div>
+          <div class="field"><label for="ldUrl">Server</label><div><input id="ldUrl" class="w-lg" value="${esc(l.url)}" placeholder="ldaps://dc1.corp.local"><div class="hint">ldaps:// (port 636) is the safest. With ldap:// (port 389) tick StartTLS. Several domain controllers: use the domain name, which points at all of them.</div></div></div>
+          <div class="field"><label>Security</label><div><label class="chk"><input type="checkbox" id="ldTls" ${l.startTls ? 'checked' : ''}> StartTLS (for ldap://)</label> <label class="chk"><input type="checkbox" id="ldVerify" ${l.verifyCert !== false ? 'checked' : ''}> Check the server's certificate</label>
+            <div class="hint">CA certificate file (optional, for a company CA): <input id="ldCa" class="w-lg" value="${esc(l.caFile)}" placeholder="C:\\certs\\corp-ca.pem"></div></div></div>
+          <div class="field"><label for="ldBind">Service account</label><div><input id="ldBind" class="w-lg" value="${esc(l.bindDN)}" placeholder="CN=svc-neteventpro,OU=Service,DC=corp,DC=local"> <input id="ldBindPw" type="password" class="w-md" value="${esc(l.bindPassword)}" placeholder="password" autocomplete="new-password"><div class="hint">A read-only account that may search users and groups. Empty = anonymous search (most Active Directory servers refuse that).</div></div></div>
+          <div class="field"><label for="ldBase">Base DN</label><div><input id="ldBase" class="w-lg" value="${esc(l.baseDN)}" placeholder="DC=corp,DC=local"></div></div>
+          <div class="field"><label for="ldFilter">User filter</label><div><input id="ldFilter" class="w-xl" value="${esc(l.userFilter)}" placeholder="(&amp;(objectClass=person)(|(sAMAccountName={user})(userPrincipalName={user})(uid={user})))"><div class="hint">{user} is replaced by the typed user name. The standard one finds Active Directory and most LDAP users; leave it empty to use it.</div></div></div>
+          <div class="field"><label>Groups</label><div><label class="chk"><input type="checkbox" id="ldNested" ${l.nested ? 'checked' : ''}> Include groups inside groups (Active Directory)</label></div></div>
+          <div class="field"><label>Group → role</label><div><table class="data" id="ldMap"><thead><tr><th>Directory group (name or full DN)</th><th>NetEventPro role</th><th></th></tr></thead><tbody>
+            ${l.groupRoles.map((m, i) => `<tr data-i="${i}"><td><input class="w-lg" data-m="group" value="${esc(m.group)}" placeholder="NOC Operators"></td><td>${roleSel(m.roleId, 'data-m="roleId"')}</td><td><button type="button" data-ld="del">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">No mappings yet.</td></tr>'}
+            </tbody></table><div class="toolbar" style="margin-top:6px"><button type="button" data-ld="add">Add a mapping</button></div>
+            <div class="hint">Someone in several mapped groups gets every one of those roles. In none of them: ${roleSel(l.defaultRoleId, 'id="ldDef" data-def="1"')}</div></div></div>
+        </div>
+        <div class="toolbar" style="margin-top:12px"><button type="button" class="primary" data-ld="save">Save directory settings</button><span class="spacer"></span><input id="ldTU" class="w-sm" placeholder="user name" autocomplete="off"> <input id="ldTP" type="password" class="w-sm" placeholder="password" autocomplete="new-password"> <button type="button" data-ld="test">Test sign-in</button></div>
+        <div id="ldOut" class="ldout" aria-live="polite"></div></fieldset>`;
+    };
+    const collect = () => { const v = (id) => host.querySelector('#' + id).value.trim(), ck = (id) => host.querySelector('#' + id).checked;
+      l = { ...l, enabled: ck('ldOn'), url: v('ldUrl'), startTls: ck('ldTls'), verifyCert: ck('ldVerify'), caFile: v('ldCa'), bindDN: v('ldBind'), bindPassword: host.querySelector('#ldBindPw').value, baseDN: v('ldBase'), userFilter: v('ldFilter'), nested: ck('ldNested'), defaultRoleId: v('ldDef'),
+        groupRoles: [...host.querySelectorAll('#ldMap tbody tr[data-i]')].map((tr) => ({ group: tr.querySelector('[data-m="group"]').value.trim(), roleId: tr.querySelector('[data-m="roleId"]').value })) };
+      return l; };
+    host.addEventListener('click', async (e) => {
+      const a = e.target.closest('[data-ld]')?.dataset.ld; if (!a) return;
+      if (a === 'add') { collect(); l.groupRoles.push({ group: '', roleId: '' }); draw(); host.querySelector('#ldMap tbody tr:last-child input')?.focus(); return; }
+      if (a === 'del') { collect(); l.groupRoles.splice(+e.target.closest('tr').dataset.i, 1); draw(); return; }
+      if (a === 'save') { try { const r = await api('/api/config', { method: 'PUT', body: { ldap: collect() } }); l = { ...l, ...(r.config.ldap || {}) }; draw(); toast('Directory settings saved'); } catch (err) { toast(err.message, true); } return; }
+      if (a === 'test') {
+        const out = host.querySelector('#ldOut'); out.innerHTML = '<p class="muted">Testing…</p>';
+        try { const r = await api('/api/ldap/test', { method: 'POST', body: { ldap: collect(), username: host.querySelector('#ldTU').value, password: host.querySelector('#ldTP').value } });
+          out.innerHTML = `<ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol><p><b>${r.ok ? (r.roleNames.length ? `Would sign in as ${esc(r.fullName || '')} with: ${esc(r.roleNames.join(', '))}` : 'The password is right, but none of this person\'s groups has a role: they would be refused.') : esc(r.reason)}</b></p>`;
+        } catch (err) { out.innerHTML = `<p>${esc(err.message)}</p>`; }
+      }
+    });
+    draw();
+  }
+})();

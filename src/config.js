@@ -117,7 +117,7 @@ function migrateNotifications(c) {
 /** every place in config.json that holds a secret; they are encrypted on disk (enc1:) and plain in memory */
 function eachSecret(c, fn) {
   const at = (o, k) => { if (o && typeof o === 'object' && typeof o[k] === 'string' && o[k]) fn(o, k); };
-  at(c.smtp, 'password'); at(c.sqlCopy, 'password'); at(c.smpp, 'password'); at(c.backup, 'passphrase'); at(c.backup, 'folderPassword');
+  at(c.smtp, 'password'); at(c.sqlCopy, 'password'); at(c.smpp, 'password'); at(c.ldap, 'bindPassword'); at(c.ha, 'sharedKey'); at(c.backup, 'passphrase'); at(c.backup, 'folderPassword');
   for (const p of c.notifProfiles || []) at(p?.webhook, 'url');
   for (const w of c.webhooks || []) at(w, 'url');
   for (const r of c.reports || []) at(r?.folder, 'password');

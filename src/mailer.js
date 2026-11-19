@@ -212,6 +212,7 @@ class AlertMailer {
   }
   /** info: { rule, suppressed, to, cc, report }  (report = attach the last-24-hours report) */
   enqueue(info, msg) {
+    if (require('./ha').passive()) return;        // 1.98.1 a standby holds back while the primary is in charge
     if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(), m = buildAlert(info, msg, ok.to, cfg);
@@ -220,6 +221,7 @@ class AlertMailer {
   }
   /** the escalation e-mail of one alarm: ctx has what the page and the text need (see mailtpl.js) */
   enqueueEscalation(info, o) {
+    if (require('./ha').passive()) return;
     if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms'); { const b = require('./brand').brand(cfg); o.brand = { name: b.name, footer: b.footer }; }
@@ -228,6 +230,7 @@ class AlertMailer {
   }
   /** the recovery e-mail of an escalated alarm that has cleared */
   enqueueRecovery(info, o) {
+    if (require('./ha').passive()) return;
     if (this.blocked?.()) return;
     const ok = this.admit(info); if (!ok) return;
     const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms'); { const b = require('./brand').brand(cfg); o.brand = { name: b.name, footer: b.footer }; }

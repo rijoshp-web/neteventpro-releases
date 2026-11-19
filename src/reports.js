@@ -64,6 +64,7 @@ class Reports {
   statusOf(id) { return { ...(this.state[id] || {}), running: this.running.has(id) }; }
 
   async tick() {
+    if (require('./ha').passive()) return;        // 1.98.1 only the server in charge sends scheduled reports
     if (this.blocked?.()) return;
     const now = Date.now();
     for (const def of this.list()) {

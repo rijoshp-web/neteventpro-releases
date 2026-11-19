@@ -2,6 +2,17 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.0
+Dashboard tabs, company directory sign-in, fast word search, high availability, installer signing and a load test kit.
+- **Dashboard page with two tabs**: Operations (the ready-made sheets) and My dashboards (your own boards, unchanged). The separate Operations menu item is gone; old #ops links still work.
+- **Company directory sign-in (Active Directory / LDAP)** under Settings → Users: LDAPS or StartTLS, a read-only service account, user filter, nested groups, directory group → role mapping, a Test button that explains every step. Roles are worked out at every sign-in; directory users change their password the company way. Written without libraries and tested against a simulated directory.
+- **Fast word search** (Settings → Storage, off by default): a word index so a search for a rare word answers at once. On 20 million messages: 2.1–2.8 s → under 10 ms; the index roughly doubles the database size (5.3 GB + 5.3 GB) and builds in the background (about 20 minutes). Results are the same as without it.
+- **High availability** (Settings → High availability): a primary and a standby. The standby holds back notifications, reports, forwarding and the SQL copy, takes over after 15 s without the primary and hands back when it returns; it can receive a copy of every message and takes the primary's settings and users every minute. Signed and encrypted with a shared key.
+- **Code signing** of the installer, its uninstaller and the service program in build.ps1 (USB token by thumbprint, or a .pfx; GitHub Actions secrets NEP_SIGN_PFX / NEP_SIGN_PASSWORD). See docs/CODE-SIGNING.md.
+- **Load test kit** for your own server: tools/loadtest (run from a second computer; writes a report).
+- Help: new sections for directory sign-in, high availability and the Dashboard tabs.
+- Tests: word index, directory sign-in (LDAPS and StartTLS), two-server high availability; 10 more end-to-end checks.
+
 ## 1.98.0
 A new Operations dashboard, first-run setup, date and time formats, your own severity names and colours, one language file and a neutral Help page.
 - New **Operations** page (left menu, under Dashboard): one screen with a sheet for every part — Overview, Syslog, SNMP traps, Alarms, Devices, Polling and System. Time range 15 min / 1 h / 24 h / 7 days, refreshes by itself, and every number, bar, alarm and message opens the page where you can act on it.

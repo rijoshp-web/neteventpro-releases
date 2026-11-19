@@ -116,6 +116,7 @@ class SqlCopy {
 
   /** one round: create the tables if needed, then copy what is new (devices, logs / traps, alarms) */
   async tick() {
+    if (require('./ha').passive()) return;        // 1.98.1 only the server in charge copies to SQL Server
     if (this.busy || !this.active() || Date.now() < this.state.nextAt) return;
     this.busy = true; const c = this.cfg(), s = this.state, t0 = Date.now();
     try {

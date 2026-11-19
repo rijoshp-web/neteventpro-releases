@@ -89,6 +89,7 @@ class Notifier {
 
   /** send one alert to every channel of every chosen profile. Never throws: a broken channel is written to the delivery log */
   dispatch(ids, kind, ctx) {
+    if (require('./ha').passive()) return;        // 1.98.1 a standby holds back while the primary is in charge
     if (this.blocked?.()) return;      // alert delivery is not part of the licence
     let f; try { f = this.facts(kind, ctx); } catch (e) { return console.error('[notify]', e.message); }
     for (const p of this.profiles(ids)) {

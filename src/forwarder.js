@@ -18,6 +18,7 @@ class Forwarder {
   }
 
   send(msg) {
+    if (require('./ha').passive()) return;        // 1.98.1 a standby does not forward while the primary is in charge
     for (const t of this.targets) {
       if (t.minSeverity !== undefined && t.minSeverity !== '' && SEVX.rank(msg.severity) > SEVX.rank(+t.minSeverity)) continue; // only forward this severity and worse
       const st = this.stats.get(key(t)) || { sent: 0, errors: 0 };
@@ -61,6 +62,7 @@ class TrapForwarder {
   constructor() { this.targets = []; this.udp = dgram.createSocket('udp4'); this.udp.on('error', () => {}); this.stats = new Map(); this.reqId = 1; this.v3 = null; }
   configure(targets) { this.targets = (targets || []).filter((t) => t && t.enabled !== false && t.host && t.port); }
   send(msg) {
+    if (require('./ha').passive()) return;        // 1.98.1 a standby does not forward while the primary is in charge
     const f = msg.trapFwd; if (!f || !this.targets.length) return;
     for (const t of this.targets) {
       if (t.minSeverity !== undefined && t.minSeverity !== '' && SEVX.rank(msg.severity) > SEVX.rank(+t.minSeverity)) continue;

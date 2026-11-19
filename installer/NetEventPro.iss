@@ -9,6 +9,11 @@
 #endif
 
 [Setup]
+#ifdef Sign
+; 1.98.1 code signing: build.ps1 passes /DSign and the sign command when a code-signing certificate is given
+SignTool=nep
+SignedUninstaller=yes
+#endif
 AppId={{B6C1E2C4-7D1A-4E55-9B6B-5C2D1E7A9F31}
 AppName=NetEventPro
 AppVersion={#AppVersion}

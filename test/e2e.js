@@ -669,7 +669,7 @@ END`;
     check('exports use the own severity name', /,Major,/.test(exT), exT.split('\n').slice(0, 2).join(' | '));
     for (const f of ['/ops.js', '/setup.js', '/lang-en.js']) { const fr = await fetch(`http://127.0.0.1:${WEB}${f}`); check(`${f} is served`, fr.status === 200 && /javascript/.test(fr.headers.get('content-type') || ''), String(fr.status)); }
     const ix = await (await fetch(`http://127.0.0.1:${WEB}/`)).text();
-    check('the Operations page is in the menu and the language file loads before the pages', /href="#ops"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js'));
+    check('Operations is a tab of the Dashboard page (no separate menu item) and the language file loads before the pages', !/href="#ops"/.test(ix) && /href="#dashboard"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js') && ix.indexOf('dashboard.js') < ix.indexOf('ops.js'));
     const dsh = await api('/api/dash', { method: 'POST', body: JSON.stringify({ from: Date.now() - 86400000, to: Date.now(), tiles: [{ id: 'a', kind: 'top', by: 'severity', ds: 'alarms', filter: { astate: 'active' } }, { id: 'b', kind: 'top', by: 'msgid', filter: { source: 'snmp' } }, { id: 'c', kind: 'heatDow', tz: 240 }] }) });
     check('the Operations sheets\' data requests are answered', dsh.status === 200 && Array.isArray(dsh.json.tiles.a.rows) && Array.isArray(dsh.json.tiles.b.rows) && dsh.json.tiles.c.cells.length === 7, dsh.text.slice(0, 200));
     await put({ format: { date: 'ymd', clock: '24' }, sevNames: {}, sevColors: {} });
@@ -691,6 +691,26 @@ END`;
 
   // ---------- users, roles, groups -----------------------------------------------------------------------------------------------
   const AD = basic('admin', 'correct-horse-battery');
+  {   // ---------- 1.98.1 company directory sign-in ----------
+    const { fakeServer, makeCert } = require('./fake-ldap'); const ld = await fakeServer({ secure: true, cert: makeCert() });
+    const ldap = { enabled: true, url: `ldaps://127.0.0.1:${ld.port}`, verifyCert: false, bindDN: 'CN=svc,OU=Service,DC=corp,DC=local', bindPassword: 'svc-pass', baseDN: 'DC=corp,DC=local', nested: true, groupRoles: [{ group: 'NOC Operators', roleId: 'operator' }] };
+    let lr = await api('/api/config', { method: 'PUT', body: JSON.stringify({ ldap: { ...ldap, url: 'ldap://127.0.0.1:1' } }), headers: AD }); check('directory sign-in over plain ldap:// without StartTLS is refused', lr.status === 400 && /StartTLS/.test(lr.json?.error), lr.json?.error);
+    lr = await api('/api/config', { method: 'PUT', body: JSON.stringify({ ldap }), headers: AD }); check('directory settings are saved', lr.status === 200 && lr.json.config.ldap.enabled === true && lr.json.config.ldap.bindPassword === '********', lr.text.slice(0, 160));
+    check('the service account password is encrypted in config.json', !fs.readFileSync(path.join(dir, 'config.json'), 'utf8').includes('svc-pass'));
+    const lg2 = (u, p) => fetch(`http://127.0.0.1:${WEB}/api/login`, { method: 'POST', headers: H, body: JSON.stringify({ username: u, password: p }) });
+    let s1 = await lg2('jane', 'Jane-Pass-1'); const jc = (s1.headers.get('set-cookie') || '').split(';')[0];
+    check('a directory user signs in with the company password', s1.status === 200 && /sp_session=/.test(jc), String(s1.status));
+    const me = await (await fetch(`http://127.0.0.1:${WEB}/api/me`, { headers: { cookie: jc } })).json();
+    check('the directory group decides the role', JSON.stringify(me.roles) === '["Operator"]' || (me.roles || []).includes('Operator'), JSON.stringify(me.roles));
+    const cp = await fetch(`http://127.0.0.1:${WEB}/api/me/password`, { method: 'POST', headers: { ...H, cookie: jc }, body: JSON.stringify({ current: 'Jane-Pass-1', password: 'x-new-password-123' }) });
+    check('a directory user cannot change the password here', cp.status === 400);
+    check('a wrong directory password is refused', (await lg2('jane', 'nope')).status === 401);
+    const nb = await lg2('bob', 'Bob-Pass-1'); check('a directory user without a mapped group is refused with an explanation', nb.status === 403 && /group/.test((await nb.json()).error));
+    const tr = await api('/api/ldap/test', { method: 'POST', body: JSON.stringify({ username: 'jane', password: 'Jane-Pass-1' }), headers: AD }); check('the Test button explains each step', tr.json?.ok === true && tr.json.steps.length >= 4 && tr.json.roleNames.includes('Operator'), tr.text.slice(0, 200));
+    await api('/api/config', { method: 'PUT', body: JSON.stringify({ ldap: { ...ldap, bindPassword: '********', enabled: false } }), headers: AD });
+    check('turning directory sign-in off ends directory sessions', (await fetch(`http://127.0.0.1:${WEB}/api/state`, { headers: { cookie: jc } })).status === 401);
+    ld.srv.close();
+  }
   const jfetch = async (p, opts = {}, who = AD) => { const r2 = await fetch(`http://127.0.0.1:${WEB}${p}`, { ...opts, headers: { ...(opts.method && opts.method !== 'GET' ? H : {}), ...who, ...(opts.headers || {}) } }); const t = await r2.text(); let j = null; try { j = JSON.parse(t); } catch { /* */ } return { status: r2.status, json: j, text: t }; };
   const up0 = await jfetch('/api/users'); check('admin can list users (built-in roles exist)', up0.status === 200 && up0.json.roles.some((x) => x.id === 'admin' && x.locked) && up0.json.roles.some((x) => x.id === 'viewer') && up0.json.adminEnabled === true, up0.text.slice(0, 120));
   let ur = await jfetch('/api/users', { method: 'POST', body: JSON.stringify({ roles: up0.json.roles, groups: [], users: [{ name: 'alice', roleId: 'viewer' }] }) });

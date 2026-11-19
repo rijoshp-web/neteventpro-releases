@@ -17,7 +17,14 @@ param(
   [string]$NodeMajor = '22',
   [string]$WinSWVersion = 'v2.12.0',
   [string]$WinSWSha256 = '',   # optional: pin the service wrapper download to this SHA-256 (see the value printed by a first build)
-  [string]$IsccPath = ''
+  [string]$IsccPath = '',
+  # 1.98.1 code signing (optional). A .pfx code-signing certificate and its password; on GitHub Actions they come from the
+  # secrets NEP_SIGN_PFX (the .pfx as base64) and NEP_SIGN_PASSWORD. Without a certificate the installer is built unsigned.
+  [string]$CertPath = '',
+  [string]$CertPassword = '',
+  # or a certificate on a USB token / in the Windows certificate store (most code-signing certificates since 2023): its thumbprint
+  [string]$CertThumbprint = '',
+  [string]$TimestampUrl = 'http://timestamp.digicert.com'
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -116,10 +123,30 @@ Copy-Item (Join-Path $Root 'README.md') $Stage -ErrorAction SilentlyContinue
 
 # ---- compile installer --------------------------------------------------------------------------------
 Write-Host "[4/4] Compiling installer" -ForegroundColor Cyan
-& $IsccPath "/DAppVersion=$Version" "/DStageDir=$Stage" (Join-Path $Root 'installer\NetEventPro.iss')
+if (-not $CertPath -and $env:NEP_SIGN_PFX) { $CertPath = Join-Path $Build 'sign.pfx'; [IO.File]::WriteAllBytes($CertPath, [Convert]::FromBase64String($env:NEP_SIGN_PFX)) }
+if (-not $CertPassword -and $env:NEP_SIGN_PASSWORD) { $CertPassword = $env:NEP_SIGN_PASSWORD }
+$signArgs = @()
+if ($CertPath -or $CertThumbprint) {
+  $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
+  if (-not $signtool) { throw 'signtool.exe not found: install the Windows SDK (winget install Microsoft.WindowsSDK.10.0.22621) or build without -CertPath.' }
+  Write-Host "      signing with $($signtool.FullName)" -ForegroundColor DarkGray
+  # the service wrapper inside the installer is signed too, so Windows trusts every program NetEventPro starts
+  $which = if ($CertThumbprint) { @('/sha1', $CertThumbprint) } else { @('/f', $CertPath, '/p', $CertPassword) }
+  & $signtool.FullName sign /fd sha256 /tr $TimestampUrl /td sha256 @which (Join-Path $Stage 'service\NetEventProService.exe')
+  if ($LASTEXITCODE -ne 0) { throw "signing the service wrapper failed ($LASTEXITCODE)" }
+  $whichText = if ($CertThumbprint) { "/sha1 $CertThumbprint" } else { "/f `"$CertPath`" /p `"$CertPassword`"" }
+  $signArgs = @("/Snep=`"$($signtool.FullName)`" sign /fd sha256 /tr $TimestampUrl /td sha256 $whichText `$f", '/DSign')
+}
+& $IsccPath "/DAppVersion=$Version" "/DStageDir=$Stage" @signArgs (Join-Path $Root 'installer\NetEventPro.iss')
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
 
 $out = Join-Path $Dist "NetEventPro-Setup-$Version.exe"
 $mb = [math]::Round((Get-Item $out).Length / 1MB, 1)
+if ($CertPath -or $CertThumbprint) {
+  & $signtool.FullName verify /pa /q $out
+  if ($LASTEXITCODE -ne 0) { throw 'The installer signature does not verify.' }
+  Write-Host "      signature verified" -ForegroundColor Green
+  if ($env:NEP_SIGN_PFX) { Remove-Item (Join-Path $Build 'sign.pfx') -Force -ErrorAction SilentlyContinue }
+}
 Write-Host ""
 Write-Host "Done: $out ($mb MB)" -ForegroundColor Green

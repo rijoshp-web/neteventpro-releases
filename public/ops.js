@@ -218,7 +218,7 @@
     };
     const schedule = () => { clearInterval(timer); const every = range === '15m' || range === '1h' ? 15000 : 60000; timer = setInterval(() => { if (!document.hidden) load(false); }, every); };
     el.addEventListener('click', (e) => {
-      const tb = e.target.closest('[data-sheet]'); if (tb) { sheet = tb.dataset.sheet; store.set('nep.ops.sheet', sheet); $$('[data-sheet]', el).forEach((b) => b.setAttribute('aria-selected', String(b === tb))); try { history.replaceState(null, '', '#ops?sheet=' + sheet); } catch { /* */ } gen++; busy = false; load(true); return; }
+      const tb = e.target.closest('[data-sheet]'); if (tb) { sheet = tb.dataset.sheet; store.set('nep.ops.sheet', sheet); $$('[data-sheet]', el).forEach((b) => b.setAttribute('aria-selected', String(b === tb))); try { history.replaceState(null, '', '#dashboard?tab=ops&sheet=' + sheet); } catch { /* */ } gen++; busy = false; load(true); return; }
       const rb = e.target.closest('[data-range]'); if (rb) { range = rb.dataset.range; store.set('nep.ops.range', range); $$('[data-range]', el).forEach((b) => b.setAttribute('aria-pressed', String(b === rb))); gen++; busy = false; load(true); schedule(); return; }
       const h = e.target.closest('[data-href]'); if (h && !e.target.closest('a')) location.hash = h.dataset.href;
     });
@@ -230,4 +230,23 @@
     load(true); schedule();
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', vis); gen++; };
   };
+
+  // 1.98.1 one Dashboard page with two tabs: the ready-made Operations sheets and the user's own tile boards (unchanged)
+  const opsView = views.ops, boardView = views.dashboard;
+  const page = (el, main, force) => {
+    let tab = force || S.hq?.get('tab') || store.get('nep.dash.tab', 'ops'); if (tab !== 'ops' && tab !== 'mine') tab = 'ops';
+    el.innerHTML = `<div class="dtabs" role="tablist" aria-label="${esc(L('dash.tabs'))}"><button type="button" role="tab" data-dtab="ops">${esc(L('dash.tab.ops'))}</button><button type="button" role="tab" data-dtab="mine">${esc(L('dash.tab.mine'))}</button></div><div class="viewbox dtab-host"></div>`;
+    const host = el.querySelector('.dtab-host'); let clean = null;
+    const show = (t) => {
+      try { clean?.(); } catch { /* the old tab is gone anyway */ } clean = null; tab = t; store.set('nep.dash.tab', t);
+      el.querySelectorAll('[data-dtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.dtab === t)));
+      host.innerHTML = ''; host.removeAttribute('style'); host.removeAttribute('data-card'); host.removeAttribute('data-titles');
+      clean = (t === 'ops' ? opsView : boardView)(host, main) || null;
+    };
+    el.querySelector('.dtabs').addEventListener('click', (e) => { const b = e.target.closest('[data-dtab]'); if (b && b.dataset.dtab !== tab) { try { history.replaceState(null, '', '#dashboard?tab=' + b.dataset.dtab); } catch { /* */ } S.hq = new URLSearchParams('tab=' + b.dataset.dtab); show(b.dataset.dtab); } });
+    show(tab);
+    return () => { try { clean?.(); } catch { /* */ } };
+  };
+  views.dashboard = (el, main) => page(el, main);
+  views.ops = (el, main) => page(el, main, 'ops');        // old links (#ops, #ops?sheet=alarms) still work
 })();

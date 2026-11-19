@@ -4,7 +4,9 @@
 const { parentPort, workerData } = require('node:worker_threads');
 const { DatabaseSync } = require('node:sqlite');
 const SEVX = require('./sev');
-const { COLS, buildWhere, rowOut } = require('./query');
+const { COLS, buildWhere, rowOut, indexTerms, ftsQuery } = require('./query');
+/** 1.98.1 lowest message id the word index holds, or null when there is no index */
+const ftsFrom = () => { try { const v = db.prepare("SELECT v FROM sum_meta WHERE k = 'fts_from'").get()?.v; if (v === undefined) return null; db.prepare('SELECT rowid FROM logs_fts LIMIT 0').all(); return v; } catch { return null; } };
 const dashq = require('./dashq');
 
 const db = new DatabaseSync(workerData.file, { readOnly: true });
@@ -24,6 +26,21 @@ const ops = {
     const { sql, args } = buildWhere(qq); const range = sql ? sql + ' AND id >= ? AND id < ?' : 'WHERE id >= ? AND id < ?';
     const st = db.prepare(`SELECT ${COLS} FROM logs ${range} ORDER BY id DESC LIMIT ?`);
     let hi = Math.min(b.hi + 1, Number.isFinite(+qq.beforeId) && qq.beforeId !== '' && qq.beforeId !== null ? +qq.beforeId : Infinity), span = 20000; const out = [];
+    // 1.98.1 a search for words: the word index lists the candidate messages, newest first; every candidate is still checked against the full filter
+    const terms = indexTerms(qq.text), ff = terms.length ? ftsFrom() : null;
+    if (ff !== null) {
+      let lo = Math.max(ff, b.lo);
+      if (Number(qq.from) > 0) { const r = db.prepare('SELECT id FROM logs WHERE ts >= ? ORDER BY ts LIMIT 1').get(+qq.from - 3600000); lo = Math.max(lo, r ? r.id : hi); }
+      const page = db.prepare('SELECT rowid AS id FROM logs_fts WHERE logs_fts MATCH ? AND rowid < ? AND rowid >= ? ORDER BY rowid DESC LIMIT 2000');
+      const byIds = db.prepare(`SELECT ${COLS} FROM logs ${sql ? sql + ' AND' : 'WHERE'} id IN (SELECT value FROM json_each(?)) ORDER BY id DESC`), mq = ftsQuery(terms);
+      while (out.length < n && hi > lo) {
+        const ids = page.all(mq, hi, lo).map((r) => r.id); if (!ids.length) { hi = lo; break; }
+        for (const r of byIds.all(...args, JSON.stringify(ids))) { out.push(rowOut(r)); if (out.length >= n) break; }
+        hi = ids[ids.length - 1]; if (ids.length < 2000) { hi = lo; break; }
+      }
+      if (out.length >= n || hi <= b.lo || lo > Math.max(ff, b.lo)) return out.slice(0, n);   // done, or the time range starts inside the indexed part
+      hi = Math.min(hi, ff);                                                                       // older messages the index does not hold yet: read them as before
+    }
     while (hi > b.lo && out.length < n) {
       const lo = Math.max(b.lo, hi - span);
       for (const r of st.all(...args, lo, hi, n - out.length)) out.push(rowOut(r));
@@ -33,6 +50,14 @@ const ops = {
   },
   count({ q }) {
     const { sql, args } = buildWhere(q);
+    const terms = indexTerms(q && q.text), ff = terms.length ? ftsFrom() : null;
+    // 1.98.1 counted from the word index's candidates (and the not yet indexed older part as before) — unless the words are
+    // common: then reading messages reaches the 100 001 cap sooner than listing millions of candidates
+    if (ff !== null && db.prepare('SELECT COUNT(*) AS n FROM (SELECT rowid FROM logs_fts WHERE logs_fts MATCH ? LIMIT 200001)').get(ftsQuery(terms)).n <= 200000) {
+      const a = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM logs ${sql ? sql + ' AND' : 'WHERE'} id IN (SELECT rowid FROM logs_fts WHERE logs_fts MATCH ? AND rowid >= ?) LIMIT 100001)`).get(...args, ftsQuery(terms), ff).n;
+      if (a > 100000 || !ff) return a;
+      return Math.min(100001, a + db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM logs ${sql ? sql + ' AND' : 'WHERE'} id < ? LIMIT ${100001 - a})`).get(...args, ff).n);
+    }
     // counting stops at 100 001 rows so "Everything stored" stays fast with tens of millions of messages (the screen then shows 100,000+)
     return db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM logs ${sql} LIMIT 100001)`).get(...args).n;
   },

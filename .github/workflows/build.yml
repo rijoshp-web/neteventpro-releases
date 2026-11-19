@@ -13,8 +13,11 @@ jobs:
         with: { node-version: 22 }
       - name: Unit tests
         run: npm test
-      - name: Build installer
+      - name: Build installer (signed when the NEP_SIGN_PFX and NEP_SIGN_PASSWORD secrets exist)
         shell: pwsh
+        env:
+          NEP_SIGN_PFX: ${{ secrets.NEP_SIGN_PFX }}
+          NEP_SIGN_PASSWORD: ${{ secrets.NEP_SIGN_PASSWORD }}
         run: ./build.ps1
       - uses: actions/upload-artifact@v4
         with:

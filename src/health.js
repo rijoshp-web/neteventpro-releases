@@ -157,7 +157,7 @@ class Health {
       at: now, status, checks,
       system: { uptimeSec: Math.round((now - eng.totals.since) / 1000), pid: process.pid, node: process.version, platform: process.platform, rssMB: Math.round(mem.rss / MB), heapMB: Math.round(mem.heapUsed / MB), cpuPct: this.cpuPct, loopLagMs: this.lag.length ? this.lag[this.lag.length - 1][1] : 0, loopLagMaxMs: lagMax, cores: os.cpus().length },
       disk,
-      db: { rows, fileMB: Math.round(fileMB * 10) / 10, usedMB: Math.round(usedMB * 10) / 10, maxMB: cfg.maxDbMB, retentionDays: cfg.retentionDays, oldest, queue: st.queue.length, overflowDropped: st.droppedOnOverflow, rowsPerDay: rowsPerDay ? Math.round(rowsPerDay) : null, mbPerDay: dayMB ? Math.round(dayMB * 10) / 10 : null, plateauMB: plateauMB ? Math.round(plateauMB) : null },
+      db: { rows, wordIndex: st.ftsStatus ? st.ftsStatus() : { on: false }, fileMB: Math.round(fileMB * 10) / 10, usedMB: Math.round(usedMB * 10) / 10, maxMB: cfg.maxDbMB, retentionDays: cfg.retentionDays, oldest, queue: st.queue.length, overflowDropped: st.droppedOnOverflow, rowsPerDay: rowsPerDay ? Math.round(rowsPerDay) : null, mbPerDay: dayMB ? Math.round(dayMB * 10) / 10 : null, plateauMB: plateauMB ? Math.round(plateauMB) : null },
       ingest: { eps: eng.currentEps(), peak: eng.totals.peakEps, received: eng.totals.received, droppedByRules: eng.totals.dropped, devices: eng.devices.size, silent, udp: ls.udp, tcp: ls.tcp },
       outputs: { email, forwarders: fw, rawLog: { enabled: eng.rawlog.enabled, error: eng.rawlog.lastError } }
     };

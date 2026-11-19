@@ -16,7 +16,7 @@
 const { buildWhere } = require('./query');
 
 const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS sum_meta (k TEXT PRIMARY KEY, v INTEGER);
+  CREATE TABLE IF NOT EXISTS sum_meta (k TEXT PRIMARY KEY, v INTEGER);       -- also holds fts_from (1.98.1 word index)
   CREATE TABLE IF NOT EXISTS sum_sev (t INTEGER NOT NULL, source TEXT NOT NULL, severity INTEGER NOT NULL, facility INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (t, source, severity, facility)) WITHOUT ROWID;
   CREATE TABLE IF NOT EXISTS sum_host5 (t INTEGER NOT NULL, source TEXT NOT NULL, host TEXT NOT NULL, severity INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (t, source, host, severity)) WITHOUT ROWID;
   CREATE TABLE IF NOT EXISTS sum_host60 (t INTEGER NOT NULL, source TEXT NOT NULL, host TEXT NOT NULL, severity INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (t, source, host, severity)) WITHOUT ROWID;
