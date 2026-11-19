@@ -653,6 +653,29 @@ END`;
   check('an earlier certificate is kept, not overwritten', fs.readdirSync(path.join(dir, 'tls')).some((f) => /^neteventpro\.crt\.old-/.test(f)));
   await put({ tlsCertFile: '', tlsKeyFile: '' }); check('HTTPS can be switched off again', (await api('/api/config')).json.tlsCertFile === cfgBefore);
 
+  // ---------- 1.98.0: first-run setup, time format, severity names, new pages ----------------------------------------------------
+  {
+    let st = await api('/api/state');
+    check('a new installation without a password asks for the first-run setup', st.json.firstRun === true, JSON.stringify({ fr: st.json.firstRun }));
+    check('the computer\'s own time zone is reported for the default', typeof st.json.serverZone === 'string' && st.json.serverZone.length > 0, st.json.serverZone);
+    r = await put({ setupDone: true, format: { date: 'dmy', clock: '12' }, sevNames: { 3: 'Major', 2: '' }, sevColors: { 3: '#7B2CBF', 4: 'not-a-colour' } });
+    check('setup choices are saved', r.status === 200 && r.json.config.setupDone === true && r.json.config.format.date === 'dmy' && r.json.config.format.clock === '12', r.text.slice(0, 200));
+    check('own severity names and colours are cleaned and saved', JSON.stringify(r.json.config.sevNames) === '{"3":"Major"}' && JSON.stringify(r.json.config.sevColors) === '{"3":"#7b2cbf"}', JSON.stringify([r.json.config.sevNames, r.json.config.sevColors]));
+    st = await api('/api/state');
+    check('after setup the first-run screen is not offered again', st.json.firstRun === false);
+    check('the screens get the own severity names', st.json.sevLabels[3] === 'Major' && st.json.sevLabels[2] === 'Critical');
+    await sendUdp('<11>Oct 25 22:41:00 core-sw1 app: severity name check e2e'); await sleep(700);
+    const ex = await fetch(`http://127.0.0.1:${WEB}/api/export?format=csv&text=${encodeURIComponent('severity name check e2e')}`); const exT = await ex.text();
+    check('exports use the own severity name', /,Major,/.test(exT), exT.split('\n').slice(0, 2).join(' | '));
+    for (const f of ['/ops.js', '/setup.js', '/lang-en.js']) { const fr = await fetch(`http://127.0.0.1:${WEB}${f}`); check(`${f} is served`, fr.status === 200 && /javascript/.test(fr.headers.get('content-type') || ''), String(fr.status)); }
+    const ix = await (await fetch(`http://127.0.0.1:${WEB}/`)).text();
+    check('the Operations page is in the menu and the language file loads before the pages', /href="#ops"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js'));
+    const dsh = await api('/api/dash', { method: 'POST', body: JSON.stringify({ from: Date.now() - 86400000, to: Date.now(), tiles: [{ id: 'a', kind: 'top', by: 'severity', ds: 'alarms', filter: { astate: 'active' } }, { id: 'b', kind: 'top', by: 'msgid', filter: { source: 'snmp' } }, { id: 'c', kind: 'heatDow', tz: 240 }] }) });
+    check('the Operations sheets\' data requests are answered', dsh.status === 200 && Array.isArray(dsh.json.tiles.a.rows) && Array.isArray(dsh.json.tiles.b.rows) && dsh.json.tiles.c.cells.length === 7, dsh.text.slice(0, 200));
+    await put({ format: { date: 'ymd', clock: '24' }, sevNames: {}, sevColors: {} });
+    st = await api('/api/state'); check('standard severity names come back when the own ones are removed', st.json.sevLabels[3] === 'Error');
+  }
+
   // ---------- passwords ----------------------------------------------------------------------------------------------------------
   r = await put({ adminPassword: 'short' });
   check('short dashboard password refused', r.status === 400, r.json?.error);

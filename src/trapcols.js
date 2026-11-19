@@ -32,7 +32,7 @@ function recipeValue(m, key) {
   else if (n === 'trap') v = vb?.n || m.msgid || '';
   else if (n === 'oid') v = vb?.o || m.trapOid || '';
   else if (n === 'host' || n === 'device') v = m.host || '';
-  else if (n === 'severity') v = cap(SEVERITIES[m.severity] || '');
+  else if (n === 'severity') v = require('./sev').label(m.severity) || cap(SEVERITIES[m.severity] || '');
   else if (n === 'message') v = m.message || '';
   else if (n === 'number' || n === 'id') v = m.seq || m.id || '';
   else if (n === 'date') v = m.ts ? dateOf(m.ts) : '';
@@ -95,7 +95,7 @@ const setReplacements = (list) => { repRules = rulesFor(list); };
 function viewColumns(view) {
   if (!view) return null; const cache = new Map();
   const cols = [];
-  if (view.std !== false) cols.push({ label: 'Date', get: (m) => dateOf(m.ts) }, { label: 'Time', get: (m) => timeOf(m.ts) }, { label: 'Device', get: (m) => m.host || '' }, { label: 'Severity', get: (m) => cap(SEVERITIES[m.severity] || '') });
+  if (view.std !== false) cols.push({ label: 'Date', get: (m) => dateOf(m.ts) }, { label: 'Time', get: (m) => timeOf(m.ts) }, { label: 'Device', get: (m) => m.host || '' }, { label: 'Severity', get: (m) => require('./sev').label(m.severity) || cap(SEVERITIES[m.severity] || '') });
   for (const c of view.cols || []) if (!c.hide) cols.push({ label: c.label, get: (m) => colText(applyMap(cellText(fieldView(m, repRules), c.field), c.map, m, cache), c.label, c.field, repRules) });
   if (view.message) cols.push({ label: 'Message', get: (m) => m.message || '' });
   return cols;

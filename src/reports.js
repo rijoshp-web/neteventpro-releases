@@ -194,9 +194,9 @@ class Reports {
       ...(data.traps ? [['SNMP traps', data.traps.total], ['Devices that sent traps', data.traps.devices]] : []),
       ...(data.alarmsActive ? [['Active alarms now', data.alarmsActive.length]] : []),
       ...(data.alarmHistory ? [['Alarms raised in the period', data.alarmHistory.raised], ['Alarms cleared in the period', data.alarmHistory.cleared], ['Average time to clear (min)', Math.round(data.alarmHistory.avgClearMs / 60000)]] : []), [], [b('Syslog severity'), b('Messages')]];
-    SEVX.ORDER.forEach((i) => sum.push([SEVERITIES[i], data.sevN[i]])); sum.push([], [b('Busiest devices'), b('Messages'), b('Most serious')]);
-    for (const r of data.hosts) sum.push([r.key, r.n, SEVERITIES[r.worst]]); sum.push([], [b('Busiest processes'), b('Messages'), b('Most serious')]);
-    for (const r of data.apps) sum.push([r.key, r.n, SEVERITIES[r.worst]]);
+    SEVX.ORDER.forEach((i) => sum.push([SEVX.label(i), data.sevN[i]])); sum.push([], [b('Busiest devices'), b('Messages'), b('Most serious')]);
+    for (const r of data.hosts) sum.push([r.key, r.n, SEVX.label(r.worst)]); sum.push([], [b('Busiest processes'), b('Messages'), b('Most serious')]);
+    for (const r of data.apps) sum.push([r.key, r.n, SEVX.label(r.worst)]);
     const sheets = [{ name: 'Summary', rows: sum, header: false, widths: [34, 44, 14] }];
     if (c.messages !== false) {
       const lc = VC.logColumns(this.prefs(data.def), 'logs');
@@ -205,7 +205,7 @@ class Reports {
     if (data.traps) {
       const t = data.traps, tcols = VC.logColumns(this.prefs(data.def), 'traps');
       sheets.push({ name: 'SNMP traps', rows: this.table(tcols, t.rows), widths: tcols.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 100)) });
-      const top = [[b('Top traps'), b('Count'), b('Most serious')], ...t.names.map((x) => [x.key, x.n, SEVERITIES[x.worst]]), [], [b('Top trap senders'), b('Count'), b('Most serious')], ...t.hosts.map((x) => [x.key, x.n, SEVERITIES[x.worst]])];
+      const top = [[b('Top traps'), b('Count'), b('Most serious')], ...t.names.map((x) => [x.key, x.n, SEVX.label(x.worst)]), [], [b('Top trap senders'), b('Count'), b('Most serious')], ...t.hosts.map((x) => [x.key, x.n, SEVX.label(x.worst)])];
       sheets.push({ name: 'Trap summary', rows: top, header: false, widths: [40, 12, 14] });
     }
     const acols = VC.alarmColumns(this.prefs(data.def), false), hcols = VC.alarmColumns(this.prefs(data.def), true), aw = (cols) => cols.map((c) => (c.w ? Math.max(8, Math.round(c.w / 4.5)) : 80));
@@ -238,7 +238,7 @@ class Reports {
     const kpis = (items) => { const w = (W - 2 * M - 12 * (items.length - 1)) / items.length; items.forEach(([label, v, col], i) => { const x = M + i * (w + 12); p.rect(x, y, w, 42, '#f1f4f8'); if (col) p.rect(x, y, 4, 42, col); p.text(x + 12, y + 7, label, { size: 8, color: '#555555' }); p.text(x + 12, y + 20, v, { size: 16, font: 'F2' }); }); y += 54; };
     const sevAndTrend = (sevN, series, bucketMs, from, to) => {
       p.text(M, y, 'By severity', { size: 10, font: 'F2' }); p.text(M + 340, y, 'Over time', { size: 10, font: 'F2' }); y += 16;
-      const mx = Math.max(1, ...sevN); SEVX.ORDER.forEach((i, row) => { const n = SEVERITIES[i]; const yy = y + row * 14; p.text(M, yy, n, { size: 8, max: 70 }); const w = Math.round((sevN[i] / mx) * 190); p.rect(M + 75, yy, Math.max(w, sevN[i] ? 2 : 0), 10, SEV_COLORS[i]); p.text(M + 75 + w + 6, yy, N(sevN[i]), { size: 8, color: '#333333' }); });
+      const mx = Math.max(1, ...sevN); SEVX.ORDER.forEach((i, row) => { const n = SEVX.label(i); const yy = y + row * 14; p.text(M, yy, n, { size: 8, max: 70 }); const w = Math.round((sevN[i] / mx) * 190); p.rect(M + 75, yy, Math.max(w, sevN[i] ? 2 : 0), 10, SEV_COLORS[i]); p.text(M + 75 + w + 6, yy, N(sevN[i]), { size: 8, color: '#333333' }); });
       const cx = M + 340, cw = W - M - cx, ch = 104, tot = series.map((bk) => bk.reduce((a2, x) => a2 + x, 0)), tmax = Math.max(1, ...tot), bw = cw / Math.max(1, tot.length);
       series.forEach((bk, i) => { let top = y + ch; bk.forEach((n, sv) => { const h = (n / tmax) * ch; if (h > 0) { p.rect(cx + i * bw, top - h, Math.max(bw - 0.6, 0.6), h, SEV_COLORS[sv]); top -= h; } }); });
       p.line(cx, y + ch, cx + cw, y + ch, '#999999'); p.text(cx, y + ch + 3, local(from).slice(0, 16), { size: 7, color: '#555555' }); p.textRight(cx + cw, y + ch + 3, local(to).slice(0, 16), { size: 7, color: '#555555' });

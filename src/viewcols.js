@@ -12,7 +12,7 @@ const FMT = require('./fmt');
 const dateOf = (ts) => FMT.date(ts);
 const timeOf = (ts, ms = true) => FMT.time(ts, ms);
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const sevName = (n) => cap(SEVX.NAMES[n] || '');
+const sevName = (n) => SEVX.label(n) || cap(SEVX.NAMES[n] || '');
 const dur = (ms) => { const m = Math.round(ms / 60000); return m < 90 ? `${m} min` : m < 2880 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} days`; };
 
 // label = the long name shown in the column chooser, th = the heading on the screen (that is what the exports use), w = relative width for the PDF (points)

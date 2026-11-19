@@ -73,10 +73,10 @@ const TYPES = {
   poll: { label: 'Polled devices and readings', desc: 'SNMP polling on the dashboard: device status by group, open polling alarms, or any readings (for example the temperature of many devices in one table, tile grid, bar list, gauge or graph).', w: 6, h: 8, minW: 2, minH: 3 },
   snmpstatus: { label: 'SNMP trap receiver', desc: 'Whether the trap port is listening, and how many traps came in.', w: 6, h: 3, minW: 3, minH: 3 },
   bar: { label: 'Bar chart', desc: 'Columns or bars: the busiest devices, processes, severities or facilities. Click a bar to open the messages.', w: 6, h: 8, minW: 3, minH: 5 },
-  treemap: { label: 'Treemap', desc: 'Rectangles sized by message count, like Power BI: see at a glance which devices or processes dominate.', w: 6, h: 8, minW: 3, minH: 5 },
+  treemap: { label: 'Treemap', desc: 'Rectangles sized by message count: see at a glance which devices or processes dominate.', w: 6, h: 8, minW: 3, minH: 5 },
   table: { label: 'Table', desc: 'A ranking table with count and share of the total (device, process, severity, facility or trap name).', w: 6, h: 9, minW: 3, minH: 4 },
-  bargauge: { label: 'Bar gauge', desc: 'Horizontal gauges that turn green, amber or red, like the Grafana bar gauge (set warning and critical counts or let it use the share of the biggest).', w: 4, h: 8, minW: 3, minH: 4 },
-  statspark: { label: 'Number with trend line', desc: 'A big number with a small trend line behind it (Grafana “stat” panel). Can turn amber or red at levels you set.', w: 3, h: 5, minW: 2, minH: 3 },
+  bargauge: { label: 'Bar gauge', desc: 'Horizontal gauges that turn green, amber or red, (set warning and critical counts or let it use the share of the biggest).', w: 4, h: 8, minW: 3, minH: 4 },
+  statspark: { label: 'Number with trend line', desc: 'A big number with a small trend line behind it. Can turn amber or red at levels you set.', w: 3, h: 5, minW: 2, minH: 3 },
   text: { label: 'Text note', desc: 'Your own text: a heading, instructions, a runbook link or a reminder for the shift (bold, bullets and links are supported).', w: 4, h: 5, minW: 2, minH: 2 },
   alarm: { label: 'Alarm card', desc: 'A card from the alarm list: active, acknowledged, escalated, cleared or total alarms. Click it to open the Alarms page. Styled like every other tile.', w: 2, h: 3, minW: 2, minH: 2 },
   waffle: { label: 'Waffle chart', desc: 'A grid of 100 squares, each one is 1% of the total: an easy-to-read share of severity, device, process or alarm state.', w: 4, h: 7, minW: 3, minH: 5 },
@@ -108,7 +108,7 @@ const PALETTES = {
   pastel: ['#a5d8ff', '#b2f2bb', '#ffec99', '#d0bfff', '#ffc9c9', '#99e9f2', '#fcc2d7', '#ffd8a8', '#c0eb75', '#bac8ff'],
   mono: ['#f2f2f4', '#d4d4d8', '#b4b4ba', '#94949b', '#76767d', '#5b5b61', '#46464b', '#a1a1aa', '#71717a', '#52525b']
 };
-const PAL_NAMES = [['theme', 'Follow the theme'], ['classic', 'Classic'], ['powerbi', 'Power BI'], ['grafana', 'Grafana'], ['warm', 'Warm'], ['cool', 'Cool'], ['neon', 'Neon'], ['pastel', 'Pastel'], ['mono', 'Greys']];
+const PAL_NAMES = [['theme', 'Follow the theme'], ['classic', 'Classic'], ['powerbi', 'Business'], ['grafana', 'Operations'], ['warm', 'Warm'], ['cool', 'Cool'], ['neon', 'Neon'], ['pastel', 'Pastel'], ['mono', 'Greys']];
 // 1.72 glass looks: charts get glossy bars, glowing lines and a clear donut hole (only while a glass theme is on)
 const glassy = () => ['glass', 'ios'].includes(document.documentElement.dataset.look);
 const glossRect = (g, x, y, w, h, color) => { if (h <= 0) return; const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, hexA(color, 95)); gr.addColorStop(1, hexA(color, 55)); g.fillStyle = typeof gr === 'object' && /^#/.test(color) ? gr : color; g.fillRect(x, y, w, h); if (h > 3 && w > 2) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x, y, w, 1); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, Math.min(w, Math.max(1, w * 0.35)), h); } };
@@ -138,7 +138,7 @@ const readable = (col, bg, min = 3.2) => {
 const thSteps = (c) => (c?.th?.steps?.length ? [...c.th.steps].sort((a, b) => a.v - b.v) : (c?.warn > 0 || c?.crit > 0) ? [{ v: 0, c: 'var(--ok)' }, ...(c.warn > 0 ? [{ v: c.warn, c: 'var(--s4)' }] : []), ...(c.crit > 0 ? [{ v: c.crit, c: 'var(--bad)' }] : [])] : null);
 const thColor = (c, v) => { const st = thSteps(c); if (!st || v === null || v === undefined || Number.isNaN(+v)) return ''; let col = st[0].c; for (const x of st) if (v >= x.v) col = x.c; return col; };
 const thMode = (c) => c?.th?.mode || (thSteps(c) ? 'value' : 'none');
-const STEP_PRESETS = [['Green → amber → red', [{ v: 0, c: '#30a46c' }, { v: 50, c: '#f5a524' }, { v: 100, c: '#e5484d' }]], ['Red → amber → green (higher is better)', [{ v: 0, c: '#e5484d' }, { v: 50, c: '#f5a524' }, { v: 90, c: '#30a46c' }]], ['Blue → purple → pink', [{ v: 0, c: '#3b82f6' }, { v: 50, c: '#8b5cf6' }, { v: 100, c: '#ec4899' }]], ['Grafana', [{ v: 0, c: '#73bf69' }, { v: 50, c: '#f2cc0c' }, { v: 100, c: '#f2495c' }]]];
+const STEP_PRESETS = [['Green → amber → red', [{ v: 0, c: '#30a46c' }, { v: 50, c: '#f5a524' }, { v: 100, c: '#e5484d' }]], ['Red → amber → green (higher is better)', [{ v: 0, c: '#e5484d' }, { v: 50, c: '#f5a524' }, { v: 90, c: '#30a46c' }]], ['Blue → purple → pink', [{ v: 0, c: '#3b82f6' }, { v: 50, c: '#8b5cf6' }, { v: 100, c: '#ec4899' }]], ['Traffic light', [{ v: 0, c: '#73bf69' }, { v: 50, c: '#f2cc0c' }, { v: 100, c: '#f2495c' }]]];
 const LOOK_PRESETS = [
   ['Theme default', null],
   ['Transparent', { bgMode: 'none', shadow: 'none', bw: 0 }],
@@ -188,7 +188,7 @@ const lp = (name) => structuredClone(LOOK_PRESETS.find((x) => x[0] === name)[1])
 const GRADS = ['Blue gradient', 'Purple gradient', 'Orange gradient', 'Green gradient'];
 /** one-click looks for the whole board: page colours, colour theme, a look for every tile, chart colours */
 const QUICK_LOOKS = [
-  ['powerbi', 'Power BI', 'Clean white cards on a light grey page, blue accent.'], ['grafana', 'Grafana', 'Dark flat panels; alarm cards turn solid green or red.'],
+  ['powerbi', 'Business', 'Clean white cards on a light grey page, blue accent.'], ['grafana', 'Operations', 'Dark flat panels; alarm cards turn solid green or red.'],
   ['neon', 'Neon NOC', 'Black page, glowing neon outlines for numbers.'], ['executive', 'Executive', 'Deep violet page, glass cards, gradient number tiles.'], ['plain', 'Plain', 'Remove every custom look and colour.']
 ];
 function quickLook(id, tiles) {
@@ -301,7 +301,7 @@ const ICON_NAMES = ['main', 'alarms', 'syslog', 'traps', 'polling', 'devices', '
 function rangeOf(r, now = Date.now()) {
   r = r || { preset: '24h' }; const p = PRESETS.find((x) => x[0] === r.preset) || PRESETS[3];
   const startOfDay = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
-  const fmt = (t) => `${dateOf(t)} ${timeOf(t, false).slice(0, 5)}`;
+  const fmt = (t) => `${dateOf(t)} ${hhmm(t)}`;
   if (p[2]) return { from: now - p[2], to: now, rolling: true, label: p[1].toLowerCase() };
   if (p[0] === 'today') return { from: startOfDay(now), to: now, rolling: true, label: 'today' };
   if (p[0] === 'yesterday') { const s = startOfDay(now); return { from: s - 86400000, to: s, rolling: false, label: 'yesterday' }; }
@@ -598,7 +598,7 @@ views.dashboard = (el) => {
     const d = data?.tiles?.[t.id]; if (!d) return '<div class="muted">Loading…</div>'; if (d.error) return `<div class="muted">${esc(d.error)}</div>`;
     if (d.alarms) {
       if (!d.alarms.length) return `<div class="empty" style="padding:16px"><b>Nothing found</b>${noData(t)}</div>`;
-      return `<table class="data"><tbody>${d.alarms.map((a) => `<tr class="sev-${a.severity}" data-aid="${a.id}" data-q="${esc(a.host)}" data-st="${esc(a.state)}" style="cursor:pointer"><td><span class="sevname">${SEV[a.severity] ?? ''}</span></td><td class="trunc" style="max-width:130px">${esc(a.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(a.rule || a.message || '')}</td><td class="muted" style="white-space:nowrap">${esc(catName('state', a.state))}</td><td class="muted" style="white-space:nowrap">${dayish() ? dateOf(a.last).slice(5) + ' ' : ''}${timeOf(a.last, false)}</td></tr>`).join('')}</tbody></table>`;
+      return `<table class="data"><tbody>${d.alarms.map((a) => `<tr class="sev-${a.severity}" data-aid="${a.id}" data-q="${esc(a.host)}" data-st="${esc(a.state)}" style="cursor:pointer"><td><span class="sevname">${SEV[a.severity] ?? ''}</span></td><td class="trunc" style="max-width:130px">${esc(a.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(a.rule || a.message || '')}</td><td class="muted" style="white-space:nowrap">${esc(catName('state', a.state))}</td><td class="muted" style="white-space:nowrap">${dayish() ? shortDate(a.last) + ' ' : ''}${timeOf(a.last, false)}</td></tr>`).join('')}</tbody></table>`;
     }
     if (d.devices) {
       if (!d.devices.length) return `<div class="empty" style="padding:16px"><b>Nothing found</b>${noData(t)}</div>`;
@@ -606,7 +606,7 @@ views.dashboard = (el) => {
     }
     if (!d.rows.length) return '<div class="empty" style="padding:16px"><b>Nothing found</b>No messages match in this time range.</div>';
     const long = dayish();
-    return `<table class="data"><tbody>${d.rows.map((m) => `<tr class="sev-${m.severity}" data-id="${m.id}" style="cursor:pointer"><td><span class="sevname">${SEV[m.severity]}</span></td><td class="trunc" style="max-width:130px">${esc(m.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(m.message)}</td><td class="muted" style="white-space:nowrap">${long ? dateOf(m.ts).slice(5) + ' ' : ''}${timeOf(m.ts, false)}</td></tr>`).join('')}</tbody></table>`;
+    return `<table class="data"><tbody>${d.rows.map((m) => `<tr class="sev-${m.severity}" data-id="${m.id}" style="cursor:pointer"><td><span class="sevname">${SEV[m.severity]}</span></td><td class="trunc" style="max-width:130px">${esc(m.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(m.message)}</td><td class="muted" style="white-space:nowrap">${long ? shortDate(m.ts) + ' ' : ''}${timeOf(m.ts, false)}</td></tr>`).join('')}</tbody></table>`;
   }
   function paint() { for (const t of getTiles()) paintTile(t); }
   function afterPaint(t, wb) {
@@ -756,9 +756,9 @@ views.dashboard = (el) => {
       g.beginPath(); pathPts(g, pts, !!ch.smooth, true); g.strokeStyle = l.color; g.lineWidth = lw; g.lineJoin = 'round'; if (glassy()) { g.shadowColor = l.color; g.shadowBlur = 9; } g.stroke(); g.shadowBlur = 0;
       if (ch.pts) { g.fillStyle = l.color; for (const [px, py] of pts) { g.beginPath(); g.arc(px, py, Math.max(2, lw + 0.8), 0, 7); g.fill(); } }
     }
-    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
+    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? shortDate(ts) + ' ' : '') + hhmm(ts);
     if (axis) { g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3); }
-    cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - padL) / (w - padL - 8)) * (n - 1)); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs; cv.title = `${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)}\n` + lines.map((l) => `${l.name}: ${fmtN(l.v[i])}`).join('\n'); };
+    cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - padL) / (w - padL - 8)) * (n - 1)); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs; cv.title = `${dateOf(ts)} ${hhmm(ts)}\n` + lines.map((l) => `${l.name}: ${fmtN(l.v[i])}`).join('\n'); };
     const lg = $('.legend', wbOf(t.id)); if (lg) lg.innerHTML = lines.length > 1 && ch.legend !== 'hide' ? lines.map((l) => `<span class="muted"><span class="dot" style="background:${l.color};margin-right:5px"></span>${l.name}</span>`).join('') : '';
   }
   function drawLine(t) { const ls = lineSeries(t); if (ls) drawLines(t, ls.lines, ls.d, { stack: false }); }
@@ -772,8 +772,8 @@ views.dashboard = (el) => {
     const shade = (v) => `--c:${v ? (theme === 'blue' ? `color-mix(in srgb, var(--accent) ${Math.max(10, Math.round(v / max * 100))}%, transparent)` : themeCol(theme, v / max)) : 'transparent'}`;
     const cols = dow ? 24 : (cells[0] ? cells[0].length : 1), labels = dow ? DOWN : d.hosts;
     const head = dow ? `<div class="hm-row hm-head"><span></span>${Array.from({ length: 24 }, (_, h) => `<i>${h % 6 === 0 ? h : ''}</i>`).join('')}</div>` : '';
-    const rows = cells.map((row, ri) => `<div class="hm-row${ri % 2 ? ' odd' : ''}"><span class="trunc" title="${esc(labels[ri])}">${esc(labels[ri])}</span>${row.map((v, ci) => { const tip = dow ? `${DOWN[ri]} ${String(ci).padStart(2, '0')}:00 — ${fmtN(v)} messages` : (() => { const ts = (d.firstBucket + ci) * d.bucketMs; return `${labels[ri]} · ${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)} — ${fmtN(v)} messages`; })(); return `<i class="hmc shp-${shape}${v ? '' : ' z'}" style="${shade(v)}" title="${esc(tip)}"></i>`; }).join('')}</div>`).join('');
-    const foot = dow ? '' : `<div class="hm-row hm-head"><span></span><i style="grid-column:span ${Math.ceil(cols / 2)};text-align:left">${esc(dateOf(d.firstBucket * d.bucketMs).slice(5) + ' ' + timeOf(d.firstBucket * d.bucketMs, false).slice(0, 5))}</i><i style="grid-column:span ${Math.floor(cols / 2) || 1};text-align:right">${esc(dateOf(data.to).slice(5) + ' ' + timeOf(data.to, false).slice(0, 5))}</i></div>`;
+    const rows = cells.map((row, ri) => `<div class="hm-row${ri % 2 ? ' odd' : ''}"><span class="trunc" title="${esc(labels[ri])}">${esc(labels[ri])}</span>${row.map((v, ci) => { const tip = dow ? `${DOWN[ri]} ${String(ci).padStart(2, '0')}:00 — ${fmtN(v)} messages` : (() => { const ts = (d.firstBucket + ci) * d.bucketMs; return `${labels[ri]} · ${dateOf(ts)} ${hhmm(ts)} — ${fmtN(v)} messages`; })(); return `<i class="hmc shp-${shape}${v ? '' : ' z'}" style="${shade(v)}" title="${esc(tip)}"></i>`; }).join('')}</div>`).join('');
+    const foot = dow ? '' : `<div class="hm-row hm-head"><span></span><i style="grid-column:span ${Math.ceil(cols / 2)};text-align:left">${esc(shortDate(d.firstBucket * d.bucketMs) + ' ' + hhmm(d.firstBucket * d.bucketMs))}</i><i style="grid-column:span ${Math.floor(cols / 2) || 1};text-align:right">${esc(shortDate(data.to) + ' ' + hhmm(data.to))}</i></div>`;
     return `<div class="heat${shape === 'hex' || shape === 'hexo' ? ' honey' : ''}" style="--cols:${cols}">${head}${rows}${foot}</div><div class="muted" style="font-size:11.5px;margin-top:4px;display:flex;gap:6px;align-items:center">0 <span class="hmleg" style="background:linear-gradient(90deg, ${theme === 'blue' ? 'transparent, var(--accent)' : THEMES[theme].join(',')})"></span> ${fmtN(max)} messages in one cell</div>`;
   }
   const nOf = (m, d) => { if (!d || d.error) return null; return m === 'perMinute' ? Math.round(d.n / Math.max(1, (data.to - data.from) / 60000) * 10) / 10 : d.n; };
@@ -958,10 +958,10 @@ views.dashboard = (el) => {
     g.strokeStyle = css('--line'); g.fillStyle = css('--faint'); g.textAlign = 'right';
     for (let i = 0; i <= 3; i++) { const v = (max / 3) * i, yy = y(v); if (t.cfg?.ch?.grid !== false) { g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); } if (t.cfg?.ch?.axis !== false) g.fillText(v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v), padL - 5, yy + 3); }
     d.series.forEach((a, i) => { let base = 0; GROUPS.forEach((grp, gi) => { const v = grp.reduce((s, k) => s + a[k], 0); if (!v) return; const y1 = y(base + v), y0 = y(base); if (glassy()) glossRect(g, padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1, colors[gi]); else { g.fillStyle = colors[gi]; g.fillRect(padL + i * bw, y1, Math.max(1, bw - 1), y0 - y1); } base += v; }); });
-    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? dateOf(ts).slice(5) + ' ' : '') + timeOf(ts, false).slice(0, 5);
+    const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? shortDate(ts) + ' ' : '') + hhmm(ts);
     g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3);
     cv.onmousemove = (e) => { const i = Math.floor((e.offsetX - padL) / bw); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs;
-      cv.title = `${dateOf(ts)} ${timeOf(ts, false).slice(0, 5)} (${data.bucketMs >= 3600000 ? data.bucketMs / 3600000 + ' h' : data.bucketMs / 60000 + ' min'})\n` + GNAMES.map((nm, k) => `${nm}: ${fmtN(GROUPS[k].reduce((s, q) => s + d.series[i][q], 0))}`).join('\n'); };
+      cv.title = `${dateOf(ts)} ${hhmm(ts)} (${data.bucketMs >= 3600000 ? data.bucketMs / 3600000 + ' h' : data.bucketMs / 60000 + ' min'})\n` + GNAMES.map((nm, k) => `${nm}: ${fmtN(GROUPS[k].reduce((s, q) => s + d.series[i][q], 0))}`).join('\n'); };
     const lg = $('.legend', wbOf(t.id)); if (lg) lg.innerHTML = t.cfg?.ch?.legend === 'hide' ? '' : GNAMES.map((nm, i) => `<span class="muted"><span class="dot" style="background:${colors[i]};margin-right:5px"></span>${nm}</span>`).join('');
   }
   // charts redraw when their tile changes size (dragging, side panel, window)

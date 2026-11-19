@@ -2,6 +2,20 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.98.0
+A new Operations dashboard, first-run setup, date and time formats, your own severity names and colours, one language file and a neutral Help page.
+- New **Operations** page (left menu, under Dashboard): one screen with a sheet for every part — Overview, Syslog, SNMP traps, Alarms, Devices, Polling and System. Time range 15 min / 1 h / 24 h / 7 days, refreshes by itself, and every number, bar, alarm and message opens the page where you can act on it.
+  - Overview: a sentence and a coloured band for the open alarms, key numbers with trend lines, messages over time, active alarms, a square per device coloured by its worst alarm (silent devices hollow), busiest devices.
+  - Drawn only from the theme's own colours: checked in all 12 themes, with glass, and at phone width.
+- **First-run setup** on a new installation without a password: time zone (filled in from this computer), date and clock format, syslog ports, the look, and the administrator password. Every step can be skipped and changed later.
+- **Date and time** in Settings → Appearance: year-month-day, day/month/year or month/day/year, and a 24 or 12 hour clock. Used on every screen, the top clock, exports, reports and e-mails.
+- **Time zone**: when none is chosen, the zone of the computer NetEventPro runs on is used everywhere (it was each browser's own zone on screen), so everyone sees the same times.
+- **Your own severity names and colours** (Settings → Appearance): rename, for example, Error to Major, or give a severity its own colour. Names are used on screens, in e-mails, reports, exports and notifications; colours replace the theme's in every theme and in e-mails. Rules and trap mapping keep working with the standard names.
+- **One language file** (public/lang-en.js) for the menu, dialogs, severity names, the Operations page, the setup and the whole Help page. A translation is a copy of this file. The other pages still carry their own text and move over in later versions.
+- **Help** rewritten to be neutral: the build-PC release instructions became a short "Updates" section for users, names of other products and of particular sites and equipment were removed, and a section for the Operations page was added.
+- Dashboard looks and palettes named after other products now have neutral names (Business, Operations, NOC, Traffic light).
+- Tests: 4 new unit tests (language file, severity names) and 13 new end-to-end checks.
+
 ## 1.97.6
 Faster for big sites (tested with 12,000 devices and 20 million stored messages), plus one export fix.
 - Dashboards over long periods are much faster. The app now keeps per-minute and per-hour message counts, so a dashboard adds up summaries instead of reading every message. With 20 million messages, a 24-hour dashboard went from 14 s to 0.07 s, and a 48-hour one from 31 s to 0.12 s. Every number is the same as before.

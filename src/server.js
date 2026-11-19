@@ -30,6 +30,7 @@ const { V3Engine, AUTH_PROTOCOLS, PRIV_PROTOCOLS } = require('./snmpv3');
 const { MibStore, installStarterMibs } = require('./mib');
 const { TrapReceiver } = require('./traps');
 const { FACILITIES, SEVERITIES } = require('./parser');
+const SEVX = require('./sev');
 const { hashPassword, verifyPassword, LoginGuard } = require('./auth');
 const { SourceFilter } = require('./acl');
 const { parseSevs } = require('./query');
@@ -56,7 +57,7 @@ const SEC_HEADERS = {
 
 // settings the dashboard may change (everything else in config.json is ignored)
 const EDITABLE = ['tlsSyslogEnabled', 'tlsSyslogPort', 'udpPort', 'udpRecvMB', 'tcpPort', 'udpEnabled', 'tcpEnabled', 'syslogBind', 'allowedSources', 'webPort', 'webBind', 'adminPassword', 'tlsCertFile', 'tlsKeyFile',
-  'retentionDays', 'format', 'branding', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
+  'retentionDays', 'format', 'sevNames', 'sevColors', 'setupDone', 'branding', 'alarmRetentionDays', 'maxDbMB', 'sessionIdleHours', 'sessionMaxDays', 'liveBufferSize', 'silentDeviceMinutes', 'rawLogEnabled', 'forwardTargets', 'trapForwardTargets', 'update', 'replacements', 'smtp', 'rules', 'webhooks', 'notifProfiles', 'smpp', 'sqlCopy', 'deviceAliases', 'deviceInfo', 'mutedDevices', 'uiPrefs', 'vendorParsers', 'systemMessages', 'healthAlerts', 'diskWarnPercent', 'diskCritPercent', 'reports', 'backup', 'ntp', 'maintenance', 'snmp', 'mode', 'probe'];
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const isLoopback = (b) => ['127.0.0.1', '::1', 'localhost'].includes(b);
@@ -65,7 +66,8 @@ async function main() {
   applyPendingRestore(dataDir());     // a restore chosen in the dashboard is applied here, before any file is opened
   const license = new License(dataDir());   // the activation key (see license.js); opened before the config so an installation that already holds data is recognised
   const config = new Config();
-  require('./fmt').configure(config.get()); config.onChange((c) => require('./fmt').configure(c));       // time zone and date / clock format used by exports, reports and e-mails
+  require('./fmt').configure(config.get()); config.onChange((c) => require('./fmt').configure(c));
+  require('./sev').configure(config.get()); config.onChange((c) => require('./sev').configure(c));       // 1.98.0 the user's severity names and colours       // time zone and date / clock format used by exports, reports and e-mails
   try {   // the setup program asks for a change of type (full / probe) on an existing installation by leaving this file
     const f = path.join(config.dir, 'apply-setup.json');
     if (fs.existsSync(f)) {
@@ -718,7 +720,7 @@ async function main() {
     if (p === '/api/state') return json(res, {
       version: VERSION, now: ntp.now(), clock: (({ server, ...rest }) => (who.perms.has('settings') ? { server, ...rest } : rest))(ntp.info()), platform: process.platform, node: process.version,
       dataDirs: { data: config.dir, db: store.file, config: config.file, rawLogs: path.join(config.dir, 'raw'), serviceLogs: path.join(config.dir, 'logs') }, backupBusy: !!state.backupBusy,
-      listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES,
+      listeners: { ...listeners.status, snmp: traps.status() }, config: publicConfig(cfg, who.perms.has('settings')), facilities: FACILITIES, severities: SEVERITIES, sevLabels: SEVX.LABELS, firstRun: !cfg.adminPasswordHash && !users.enabled && !cfg.setupDone && who.anonymous, serverZone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(),
       features: (() => { const l = license.status(); return Object.keys(FEATURES).filter((f) => license.has(f)); })(),
       licenseNote: (() => { const l = license.status(); return l.state === 'grace' ? `This copy is not activated yet: ${l.graceDaysLeft} day${l.graceDaysLeft === 1 ? '' : 's'} left. Machine code ${l.machine}. Enter the key under Settings → About.` : ''; })(),
       me: meInfo(), authEnabled: !!cfg.adminPasswordHash || users.enabled, https: state.https, webBindActive: state.bind, webWarning: state.webWarning
@@ -910,8 +912,8 @@ async function main() {
         if (closed) break;
         if (ccols && fmt === 'json') buf += JSON.stringify(Object.fromEntries(ccols.map((c) => [c.label, c.get(r)]))) + '\n';
         else if (ccols && fmt === 'csv') buf += ccols.map((c) => csv(c.get(r))).join(',') + '\r\n';
-        else if (fmt === 'json') buf += JSON.stringify({ ...r, time: new Date(r.ts).toISOString(), facility: FACILITIES[r.facility], severity: SEVERITIES[r.severity] }) + '\n';
-        else buf += [r.id, new Date(r.ts).toISOString(), r.devTs ? new Date(r.devTs).toISOString() : '', r.srcIp, r.host, FACILITIES[r.facility], SEVERITIES[r.severity], r.app, r.pid, r.message, (r.tags || []).join('|')].map(csv).join(',') + '\r\n';
+        else if (fmt === 'json') buf += JSON.stringify({ ...r, time: new Date(r.ts).toISOString(), facility: FACILITIES[r.facility], severity: SEVX.label(r.severity) }) + '\n';
+        else buf += [r.id, new Date(r.ts).toISOString(), r.devTs ? new Date(r.devTs).toISOString() : '', r.srcIp, r.host, FACILITIES[r.facility], SEVX.label(r.severity), r.app, r.pid, r.message, (r.tags || []).join('|')].map(csv).join(',') + '\r\n';
         if (buf.length > 65536) { await flushTo(buf); buf = ''; }
       }
       if (buf) await flushTo(buf);
@@ -1554,7 +1556,10 @@ async function sanitize(body, current) {
   if ('reports' in out) out.reports = sanitizeReports(out.reports, current.reports || []);
   if ('ntp' in out) out.ntp = sanitizeNtp(out.ntp);
   if ('branding' in out) out.branding = require('./brand').clean(out.branding, bad);
+  if ('setupDone' in out) out.setupDone = !!out.setupDone;
   if ('format' in out) { const f = out.format && typeof out.format === 'object' ? out.format : {}; out.format = { date: ['ymd', 'dmy', 'mdy'].includes(f.date) ? f.date : 'ymd', clock: f.clock === '12' ? '12' : '24' }; }
+  if ('sevNames' in out) { const n = out.sevNames && typeof out.sevNames === 'object' ? out.sevNames : {}; out.sevNames = {}; for (let i = 0; i < 10; i++) { const v = SEVX.cleanLabel(n[i]); if (v && v !== SEVX.DEF_LABELS[i]) out.sevNames[i] = v; } }
+  if ('sevColors' in out) { const n = out.sevColors && typeof out.sevColors === 'object' ? out.sevColors : {}; out.sevColors = {}; for (let i = 0; i < 10; i++) if (SEVX.isHex(n[i])) out.sevColors[i] = String(n[i]).toLowerCase(); }
   if ('snmp' in out) out.snmp = sanitizeSnmp(out.snmp, current.snmp || {});
   if ('maintenance' in out) out.maintenance = sanitizeMaintenance(out.maintenance);
   if ('backup' in out) out.backup = sanitizeBackup(out.backup, current.backup || {});

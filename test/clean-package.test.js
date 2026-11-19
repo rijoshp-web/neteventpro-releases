@@ -18,7 +18,7 @@ test('the update package contains program folders only', () => {
   for (const forbidden of ['data', 'test', 'tools', 'docs', 'scripts', 'installer', 'release']) assert.ok(!dirs.includes(forbidden), forbidden + ' must not ship');
 });
 test('no equipment names, sites or time zones from the author\'s own system in the shipped code', () => {
-  const ALLOW = [/src[\\/]enterprises\.js$/, /public[\\/]guide\.js$/];   // a vendor-number lookup table, and the release history in Help
+  const ALLOW = [/src[\\/]enterprises\.js$/];   // a vendor-number lookup table (1.98.0: the Help text, now in lang-en.js, is checked too)
   const terms = /dnwp|connection master|dubai|\beltek\b|\bspectracom\b|\beventide\b/i;
   const hits = [];
   for (const f of files.filter((x) => /\.(js|html|css|json|txt|xml|vbs|ps1)$/i.test(x) && !ALLOW.some((a) => a.test(x)))) {

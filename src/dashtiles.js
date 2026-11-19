@@ -49,7 +49,7 @@ async function run(prefs, id, from, to, dashFn) {
   for (const q of pl.requests) {
     const m = pl.meta.get(q.id), r = res.tiles && res.tiles[q.id]; if (!r) continue;
     if (m.one) rows.push([m.title, '', r.n ?? r.value ?? 0]);
-    else for (const x of r.rows || []) rows.push([m.title, m.by === 'severity' && SEVERITIES[x.key] ? SEVERITIES[x.key] : String(x.label ?? x.key ?? ''), x.n ?? x.value ?? 0]);
+    else for (const x of r.rows || []) rows.push([m.title, m.by === 'severity' && SEVERITIES[x.key] ? require('./sev').label(x.key) : String(x.label ?? x.key ?? ''), x.n ?? x.value ?? 0]);
   }
   return { name: pl.name, rows };
 }

@@ -5,7 +5,8 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const SEV = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug', 'Minor', 'Cleared'];
+const tx = (k, v, d) => { const r = window.T ? window.T(k, v) : k; return r === k && d !== undefined ? d : r; };      // 1.98.0 screen text from the language file (lang-en.js)
+const SEV = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug', 'Minor', 'Cleared'].map((d, i) => tx('sev.' + i, null, d));
 const SEVORD = [0, 1, 2, 3, 8, 4, 5, 9, 6, 7];            // most serious first: Minor sits between Error and Warning, Cleared after Notice
 const SEVRANK = []; SEVORD.forEach((id, i) => { SEVRANK[id] = i; });
 const sevRank = (s) => SEVRANK[s] ?? 99;
@@ -13,8 +14,43 @@ const sevOpt = (i) => (i < 8 ? `${i} · ${SEV[i]}` : SEV[i]);
 const css = (n) => getComputedStyle(document.getElementById('view') || document.documentElement).getPropertyValue(n).trim();   // read from the page area, so a dashboard theme that sets its own colours reaches the charts
 const fmtN = (n) => Number(n || 0).toLocaleString();
 const pad = (n, l = 2) => String(n).padStart(l, '0');
-const timeOf = (ts, ms = true) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` + (ms ? '.' + pad(d.getMilliseconds(), 3) : ''); };
-const dateOf = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+// 1.98.0 dates and times follow Settings → Appearance (date order, 12 or 24 hour clock) and the time zone of Settings → Storage and time,
+// which by default is the time zone of the computer NetEventPro runs on, so every screen, export, report and e-mail shows the same clock
+const FMTC = { date: 'ymd', clock: '24', zone: '' };
+const _dtf = new Map(), _off = new Map();
+const zoneOff = (ts) => {
+  const z = FMTC.zone; if (!z) return -new Date(ts).getTimezoneOffset() * 60000;
+  const k = z + '|' + Math.floor(ts / 900000); let o = _off.get(k);
+  if (o === undefined) {
+    try {
+      let f = _dtf.get(z); if (!f) { f = new Intl.DateTimeFormat('en-US', { timeZone: z, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }); _dtf.set(z, f); }
+      const p = {}; for (const x of f.formatToParts(new Date(ts))) p[x.type] = +x.value;
+      o = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second) - Math.floor(ts / 1000) * 1000;
+    } catch { o = -new Date(ts).getTimezoneOffset() * 60000; }
+    if (_off.size > 5000) _off.clear(); _off.set(k, o);
+  }
+  return o;
+};
+const wallOf = (ts) => new Date(+ts + zoneOff(+ts));
+const timeOf = (ts, ms = true) => { const d = wallOf(ts), h = d.getUTCHours(), rest = `${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}` + (ms ? '.' + pad(d.getUTCMilliseconds(), 3) : ''); return FMTC.clock === '12' ? `${h % 12 || 12}:${rest} ${h < 12 ? 'AM' : 'PM'}` : `${pad(h)}:${rest}`; };
+/** hours and minutes only */
+const hhmm = (ts) => { const d = wallOf(ts), h = d.getUTCHours(), m = pad(d.getUTCMinutes()); return FMTC.clock === '12' ? `${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}` : `${pad(h)}:${m}`; };
+const dateOf = (ts) => { const d = wallOf(ts), y = d.getUTCFullYear(), m = pad(d.getUTCMonth() + 1), dd = pad(d.getUTCDate()); return FMTC.date === 'dmy' ? `${dd}/${m}/${y}` : FMTC.date === 'mdy' ? `${m}/${dd}/${y}` : `${y}-${m}-${dd}`; };
+/** day and month only */
+const shortDate = (ts) => { const d = wallOf(ts), m = pad(d.getUTCMonth() + 1), dd = pad(d.getUTCDate()); return FMTC.date === 'dmy' ? `${dd}/${m}` : FMTC.date === 'mdy' ? `${m}/${dd}` : `${m}-${dd}`; };
+/** takes the settings of /api/state: date and clock format, time zone (own choice, else this computer's), severity names and colours */
+function applyLocale(info) {
+  if (!info) return; const c = info.config || {}, f = c.format || {};
+  FMTC.date = ['ymd', 'dmy', 'mdy'].includes(f.date) ? f.date : 'ymd'; FMTC.clock = f.clock === '12' ? '12' : '24';
+  let z = (c.ntp && c.ntp.zone) || info.serverZone || ''; try { if (z) new Intl.DateTimeFormat('en', { timeZone: z }); } catch { z = ''; }
+  if (z !== FMTC.zone) { FMTC.zone = z; _off.clear(); }
+  if (Array.isArray(info.sevLabels)) info.sevLabels.forEach((n, i) => { if (n && i < SEV.length) SEV[i] = String(n); });
+  const cols = Object.entries(c.sevColors || {}).filter(([i, v]) => +i >= 0 && +i < 10 && /^#[0-9a-f]{6}$/i.test(v)).map(([i, v]) => `--s${+i}: ${v};`).join(' ');
+  let st = document.getElementById('sevColorCss');
+  if (!cols) { if (st) st.remove(); return; }
+  if (!st) { st = document.createElement('style'); st.id = 'sevColorCss'; document.head.appendChild(st); }
+  st.textContent = `:root:not(#_):not(#__), #view:not(#_):not(#__) { ${cols} }`;
+}
 const ago = (sec) => sec < 5 ? 'just now' : sec < 90 ? `${Math.round(sec)}s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : sec < 172800 ? `${Math.round(sec / 3600)} h ago` : `${Math.round(sec / 86400)} d ago`;
 const uptime = (s) => s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m` : `${Math.floor(s / 86400)}d ${Math.floor(s % 86400 / 3600)}h`;
 
@@ -32,8 +68,8 @@ function askConfirm(message, okLabel) {
   return new Promise((resolve) => {
     const back = document.createElement('div'); back.className = 'modal-back';
     const danger = !okLabel || /delete|remove|restart|reset|wipe|clear/i.test(message + ' ' + (okLabel || ''));
-    back.innerHTML = `<div class="modal" role="alertdialog" aria-modal="true" aria-label="Please confirm"><p class="confirm-msg"></p><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">Cancel</button><button type="button" data-a="yes" class="${danger ? 'danger' : 'primary'}"></button></div></div>`;
-    $('.confirm-msg', back).textContent = message; const yes = $('[data-a="yes"]', back); yes.textContent = okLabel || 'Yes';
+    back.innerHTML = `<div class="modal" role="alertdialog" aria-modal="true" aria-label="${tx('common.confirm')}"><p class="confirm-msg"></p><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">${tx('common.cancel')}</button><button type="button" data-a="yes" class="${danger ? 'danger' : 'primary'}"></button></div></div>`;
+    $('.confirm-msg', back).textContent = message; const yes = $('[data-a="yes"]', back); yes.textContent = okLabel || tx('common.yes');
     const prev = document.activeElement; let done = false;
     const end = (v) => { if (done) return; done = true; back.remove(); document.removeEventListener('keydown', key, true); try { prev && prev.focus && prev.focus(); } catch { /* */ } resolve(v); };
     const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(false); } else if (e.key === 'Enter' && e.target.dataset?.a !== 'no') { e.preventDefault(); e.stopPropagation(); end(true); } };
@@ -46,7 +82,7 @@ function askConfirm(message, okLabel) {
 function askText(message, value = '') {
   return new Promise((resolve) => {
     const back = document.createElement('div'); back.className = 'modal-back';
-    back.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><p class="confirm-msg"></p><textarea rows="3" style="width:100%" maxlength="300"></textarea><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">Cancel</button><button type="button" data-a="yes" class="primary">Save</button></div></div>`;
+    back.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><p class="confirm-msg"></p><textarea rows="3" style="width:100%" maxlength="300"></textarea><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">${tx('common.cancel')}</button><button type="button" data-a="yes" class="primary">Save</button></div></div>`;
     $('.confirm-msg', back).textContent = message; const ta = $('textarea', back); ta.value = value; let done = false;
     const end = (v) => { if (done) return; done = true; back.remove(); resolve(v); };
     back.addEventListener('click', (e) => { const a = e.target.dataset?.a; if (a) end(a === 'yes' ? ta.value : null); else if (e.target === back) end(null); });
@@ -65,7 +101,7 @@ function toast(msg, err = false) {
   n.querySelector('.note-x').onclick = bye; host.appendChild(n); while (host.children.length > 3) host.firstChild.remove();
   let tm = setTimeout(bye, Math.max(2600, msg.length * 55)); n.onmouseenter = () => clearTimeout(tm); n.onmouseleave = () => { tm = setTimeout(bye, 1500); };
 }
-function msgWindow(msg, title = 'Please check') {
+function msgWindow(msg, title = tx('common.check')) {
   let w = $('#msgWin');
   if (w) { const l = $('.msg-list', w); if (![...l.children].some((x) => x.textContent === msg)) { const p = document.createElement('p'); p.textContent = msg; l.appendChild(p); } return; }
   w = document.createElement('div'); w.id = 'msgWin'; w.className = 'modal-back msgback';
@@ -691,11 +727,11 @@ const clockState = { base: 0, at: 0, info: null };
 function syncClock(i) { if (i && i.now) { clockState.base = i.now; clockState.at = performance.now(); clockState.info = i.clock || null; } }
 function drawClock() {
   const el = $('#clock'), wb = $('#wallBar'); if (!el && !wb) return; if (!clockState.base) { clockState.base = Date.now(); clockState.at = performance.now(); }   // before the server time arrives the PC's own clock is shown
-  const c = clockState.info || {}, ms = clockState.base + (performance.now() - clockState.at), d = new Date(ms), zone = c.zone || undefined;
+  const c = clockState.info || {}, ms = clockState.base + (performance.now() - clockState.at), d = new Date(ms), zone = c.zone || FMTC.zone || undefined;
   let date, time, tz;
   try {
     date = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: zone }).format(d);
-    time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: zone }).format(d);
+    time = new Intl.DateTimeFormat(FMTC.clock === '12' ? 'en-US' : undefined, { hour: FMTC.clock === '12' ? 'numeric' : '2-digit', minute: '2-digit', second: '2-digit', hour12: FMTC.clock === '12', timeZone: zone || FMTC.zone || undefined }).format(d);
     tz = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone: zone }).formatToParts(d).find((p) => p.type === 'timeZoneName')?.value || '';
   } catch { date = d.toDateString(); time = d.toTimeString().slice(0, 8); tz = ''; }
   if (wb) { wb.querySelector('.wdate').textContent = date; wb.querySelector('.wtime').textContent = time; }
@@ -728,7 +764,7 @@ async function restartService() {
   toast('Restarting…'); S.restartNeeded = false; setTimeout(() => location.reload(), 4000);
 }
 async function pollStats() {
-  try { S.stats = await api('/api/stats'); S.info = { ...S.info, ...(await api('/api/state')) }; syncClock(S.info); drawClock(); renderStatus(); S.onStats?.(S.stats); if (typeof setBadge === 'function') setBadge(S.stats.alarms); } catch { /* server restarting */ }
+  try { S.stats = await api('/api/stats'); S.info = { ...S.info, ...(await api('/api/state')) }; applyLocale(S.info); syncClock(S.info); drawClock(); renderStatus(); S.onStats?.(S.stats); if (typeof setBadge === 'function') setBadge(S.stats.alarms); } catch { /* server restarting */ }
 }
 
 // ============================ VIEWS ==========================================================================
@@ -1314,11 +1350,11 @@ const SETUP_MENU = [   // the Settings start page: groups of links to one page e
   { n: 'Reports', ic: 'file', items: [['sec-reports', 'Reports', 'daily weekly schedule pdf csv excel']] },
   { n: 'Users and security', ic: 'users', items: [['sec-users', 'Users, roles and groups', 'permission password account ldap'], ['sec-security', 'Security', 'password two-factor 2fa allow ip audit https tls certificate'], ['sec-access', 'Dashboard access', 'web port https bind address'], ['sec-sessions', 'Login sessions', 'logged in who signed']] },
   { n: 'Storage and backup', ic: 'db', items: [['sec-storage', 'Storage, time and data folder', 'keep days retention disk size prune old logs clock timezone ntp server time format folder path directory system messages own audit health'], ['sec-backup', 'Backup and restore', 'export import nepbak']] },
-  { n: 'Appearance', ic: 'look', items: [['sec-appearance', 'Appearance', 'theme colour dark light font glass background'], ['sec-trapviews', 'SNMP trap columns', 'columns traps table logs alarms views'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
+  { n: 'Appearance', ic: 'look', items: [['sec-appearance', 'Appearance', 'theme colour dark light font glass background date time format clock 12 24 hour severity names colours rename'], ['sec-trapviews', 'SNMP trap columns', 'columns traps table logs alarms views'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
   { n: 'Updates and licence', ic: 'tool', items: [['sec-update', 'Updates', 'upgrade version install automatic'], ['sec-about', 'About and licence', 'version licence activation key machine code copyright support'], ['sec-tools', 'Service and test message', 'restart stop start send test syslog']] },
   { n: 'Advanced', ic: 'filter', items: [['sec-replace', 'Text replacement', 'rewrite mask regex names instead of addresses'], ['sec-sqlcopy', 'SQL Server copy', 'database copy mssql export']] }
 ];
-const PAGES = { 'sec-appearance': ['sec-appearance', 'sec-glass', 'sec-motion'], 'sec-storage': ['sec-storage', 'sec-time', 'sec-sysmsg', 'sec-data'], 'sec-fwd': ['sec-fwd', 'sec-trapfwd'], 'sec-tools': ['sec-tools', 'sec-sendtest'] };   // sections shown together on one page
+const PAGES = { 'sec-appearance': ['sec-appearance', 'sec-format', 'sec-sevs', 'sec-glass', 'sec-motion'], 'sec-storage': ['sec-storage', 'sec-time', 'sec-sysmsg', 'sec-data'], 'sec-fwd': ['sec-fwd', 'sec-trapfwd'], 'sec-tools': ['sec-tools', 'sec-sendtest'] };   // sections shown together on one page
 const PAGE_OF = Object.fromEntries(Object.entries(PAGES).flatMap(([k, v]) => v.map((x) => [x, k])));
 const ADV_SECS = ['sec-replace', 'sec-sqlcopy'];       // only listed while "Show advanced settings" is on
 const advOn = () => { try { return localStorage.getItem('sp.adv') === '1'; } catch { return false; } };
@@ -1410,7 +1446,7 @@ views.settings = (el) => {
       <label class="chk"><input type="checkbox" id="ntpOn" ${c.ntp?.enabled ? 'checked' : ''}> Take the time from an NTP server</label>
       <div class="field"><label for="ntpServer">NTP server</label><div><input type="text" id="ntpServer" class="w-md" value="${esc(c.ntp?.server || '')}" placeholder="10.0.0.5 or ntp.corp.local"> port <input type="number" id="ntpPort" class="w-sm" min="1" max="65535" value="${c.ntp?.port || 123}"> <button type="button" id="ntpTest">Test</button> <span id="ntpResult" class="muted"></span><div class="hint">Uses UDP. Allow outgoing UDP 123 from this PC to the server.</div></div></div>
       <div class="field"><label for="ntpEvery">Check every</label><div><input type="number" id="ntpEvery" class="w-sm" min="1" max="1440" value="${c.ntp?.intervalMin || 15}"> minutes</div></div>
-      <div class="field"><label for="ntpZone">Show time in</label><div><input type="text" id="ntpZone" class="w-md" list="zoneList" value="${esc(c.ntp?.zone || '')}" placeholder="Same as the browser"><datalist id="zoneList">${(Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []).map((z) => `<option value="${esc(z)}">`).join('')}</datalist><div class="hint">A time zone name such as Europe/London. Empty = each person's own browser setting.</div></div></div>
+      <div class="field"><label for="ntpZone">Show time in</label><div><input type="text" id="ntpZone" class="w-md" list="zoneList" value="${esc(c.ntp?.zone || '')}" placeholder="${esc(S.info?.serverZone || '')}"><datalist id="zoneList">${(Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []).map((z) => `<option value="${esc(z)}">`).join('')}</datalist><div class="hint">A time zone name such as Europe/London. Empty = the time zone of the computer NetEventPro runs on${S.info?.serverZone ? ` (${esc(S.info.serverZone)})` : ''}. Every screen, export, report and e-mail uses this zone, so everyone sees the same times.</div></div></div>
     </div></fieldset>
     <fieldset id="sec-storage"><legend>Storage</legend><div class="form">
       <div class="field"><label for="retSel">Keep messages and traps for</label><div>${(() => { const P = [[30, '30 days'], [90, '3 months'], [180, '6 months'], [365, '1 year'], [730, '2 years'], [1825, '5 years'], [0, 'Keep everything (never delete)']]; const known = P.some(([d]) => d === c.retentionDays); return `<select id="retSel">${P.map(([d, n]) => `<option value="${d}" ${c.retentionDays === d ? 'selected' : ''}>${n}</option>`).join('')}<option value="custom" ${known ? '' : 'selected'}>Another number of days…</option></select> <input type="number" id="retentionDays" class="w-sm" min="1" max="36500" value="${c.retentionDays || 30}" ${known ? 'hidden' : ''}> <span id="retDaysLbl" ${known ? 'hidden' : ''}>days</span>`; })()}
@@ -1463,6 +1499,14 @@ views.settings = (el) => {
       </div></fieldset>
     <fieldset id="sec-appearance"><legend>Colour theme</legend><div class="form"><div class="field"><label for="themeSel">Pick a theme</label><div><div id="themeGrid" class="themegrid" role="radiogroup" aria-label="Colour theme">${['Dark', 'Palette', 'Light', 'Template', 'Special'].map((g) => `<div class="tgroup"><div class="tgname">${g === 'Special' ? 'Special looks' : g === 'Template' ? 'Admin-template looks' : g + ' themes'}</div><div class="tcards">${window.NEP.THEMES.filter(([id]) => window.NEP.THEME_META[id][4] === g).map(([id, n]) => { const m = window.NEP.THEME_META[id]; return `<button type="button" class="tcard" role="radio" aria-checked="${document.documentElement.dataset.theme === id}" data-theme-pick="${id}" title="${esc(m[5])}"><span class="tprev" style="background:${m[0]}"><i style="background:${m[1]}"></i><b style="background:${m[2]}"></b><u style="background:${m[3]}"></u></span><span class="tname">${esc(n)}</span></button>`; }).join('')}</div></div>`).join('')}</div> <span class="muted">Applies at once. Saved in this browser.</span></div></div></div></fieldset>
     <fieldset id="sec-glass" ${['neumorphism', 'skeuomorphic'].includes(document.documentElement.dataset.theme) ? 'data-off="1"' : ''}><legend>Glass and background picture</legend><p class="muted secoff">The Neumorphism and Skeuomorphic themes have their own look, so glass and pictures are not used with them. Choose another theme to use them.</p><div class="form glassform"><div class="field"><label for="glassOn">Glass effect</label><div><label class="chk"><input type="checkbox" id="glassOn" ${store.get('sp.glass', '0') === '1' ? 'checked' : ''}> Frosted glass on every panel and tile</label> <span class="muted">Works with every theme except Neumorphism and Skeuomorphic. It shows a built-in picture until you choose your own below; picking a picture turns the glass on by itself.</span></div></div><div class="field"><label>Background picture</label><div id="bgBox"><div class="bgpre">${bgTilesHtml()}</div><div class="muted" id="hwNote" ${['neumorphism', 'skeuomorphic'].includes(document.documentElement.dataset.theme) ? '' : 'hidden'}>The Neumorphism and Skeuomorphic themes have their own look, so glass, picture and the sliders below have no effect. Choose another theme to use them.</div><div class="bgsl" id="bgSliders" ${glassInUse() ? '' : 'hidden'}><label>Dim <input type="range" id="bgDim" min="0" max="85" value="${window.NEP.bgGet().dim}"></label><label>Background glass blur <input type="range" id="bgBlur" min="0" max="40" value="${window.NEP.bgGet().blur}"></label><label>Tile frost <input type="range" id="bgFrost" min="0" max="40" value="${window.NEP.bgGet().frost}"></label></div><span class="muted">A picture behind the dashboard turns the panels into real frosted glass: one glass layer for the page, one for every tile. Saved in this browser only; the picture is resized to 1920 px.</span></div></div></div></fieldset>
+    <fieldset id="sec-format"><legend>Date and time</legend><div class="form">
+      <div class="field"><label for="fmtDate">Date</label><div><select id="fmtDate">${[['ymd', 'Year-month-day', '2026-11-19'], ['dmy', 'Day/month/year', '19/11/2026'], ['mdy', 'Month/day/year', '11/19/2026']].map(([k, l, x]) => `<option value="${k}" ${(c.format?.date || 'ymd') === k ? 'selected' : ''}>${l} (${x})</option>`).join('')}</select></div></div>
+      <div class="field"><label for="fmtClock">Clock</label><div><select id="fmtClock"><option value="24" ${c.format?.clock !== '12' ? 'selected' : ''}>24 hour (14:05)</option><option value="12" ${c.format?.clock === '12' ? 'selected' : ''}>12 hour (2:05 PM)</option></select>
+        <div class="hint">Used on every screen and in exports, reports and e-mails, for everyone. Time zone: <a href="#settings" data-tab="${TAB_OF['sec-storage'] || 'syslog'}" data-sec="sec-storage">${esc(c.ntp?.zone || S.info?.serverZone || 'this computer')}</a>.</div></div></div></div></fieldset>
+    <fieldset id="sec-sevs"><legend>Severity names and colours</legend><p class="muted" style="margin:0 0 10px;max-width:760px">Rename a severity (for example Error → Major) or give it your own colour. Names are used on every screen and in e-mails, reports and exports. Colours replace the theme's colour for that severity in every theme. Leave a name empty to keep the standard one; choose “Theme colour” to keep the theme's.</p>
+      <div class="sevtab">${SEVORD.map((i) => { const own = c.sevColors?.[i]; const name = c.sevNames?.[i] || ''; const def = window.T ? window.T('sev.' + i) : SEV[i];
+        return `<div class="sevrow"><span class="sevnum">${i < 8 ? i : ''}</span><input type="color" data-sevc="${i}" aria-label="Colour of ${esc(def)}" data-cx-none="Theme colour" value="${esc(own || (rgbOf(css('--s' + i)) ? '#' + rgbOf(css('--s' + i)).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('') : '#888888'))}" ${own ? '' : 'data-unset="1"'}><input type="text" data-sevn="${i}" maxlength="24" value="${esc(name)}" placeholder="${esc(def)}" aria-label="Name for ${esc(def)}"></div>`; }).join('')}</div>
+      <div class="toolbar" style="margin-top:10px"><button type="button" id="sevReset">Standard names and colours</button></div></fieldset>
     <fieldset id="sec-motion"><legend>Animations</legend><div class="form"><div class="field"><label for="mo_master">Movement</label><div id="moBox"><label class="chk"><input type="checkbox" id="mo_master" ${window.MOTION.master() ? 'checked' : ''}> Animate the app and the dashboards</label> <span class="muted">Movement only: it never changes colours, and it works with every theme and dashboard. Switch on or off each one below. Saved in this browser. If your device is set to reduce motion, animations start off.</span><div class="mogrid">${window.MOTION.LIST.map(([k, n, d]) => `<label class="chk mo" title="${esc(d)}"><input type="checkbox" id="mo_${k}" data-motion="${k}" ${window.MOTION.isOn(k) ? 'checked' : ''} ${window.MOTION.master() ? '' : 'disabled'}> <span><b>${esc(n)}</b><small class="muted">${esc(d)}</small></span></label>`).join('')}</div></div></div></div></fieldset>
     <fieldset id="sec-sound"><legend>Sound and desktop alerts</legend><label class="chk"><input type="checkbox" id="soundOn" ${S.sound ? 'checked' : ''}> Play a sound when a rule with the “Sound” action matches or a new alarm is raised</label> <button id="soundTest">Test normal sound</button> <button id="soundTestCrit">Test critical sound</button>
       <div class="form" style="margin-top:8px"><div class="field"><label for="sndNormal">Normal alerts</label><div><select id="sndNormal">${Object.entries(SOUNDS).map(([k, v]) => `<option value="${k}" ${SOUND_PREF().normal === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>
@@ -1589,6 +1633,7 @@ views.settings = (el) => {
     if (id === 'ntpTest') { const out = $('#ntpResult', el); out.textContent = 'Asking…'; try { const r = await api('/api/ntp/test', { method: 'POST', body: { server: $('#ntpServer').value.trim(), port: +$('#ntpPort').value || 123 } }); out.style.color = r.ok ? 'var(--ok)' : 'var(--s1)'; out.textContent = r.ok ? `Works — stratum ${r.stratum}, this PC is ${r.offsetMs} ms off, round trip ${r.delayMs} ms` : r.error; } catch (err) { out.style.color = 'var(--s1)'; out.textContent = err.message; } return; }
     if (id === 'httpsMake') return httpsWizard(el);
     if (id === 'wipe' && await askConfirm('Delete ALL stored syslog messages and SNMP traps? Alarms, settings and users are kept.', 'Continue') && await askConfirm('Last check: every stored message will be gone for good. Delete them now?', 'Delete all messages')) { await api('/api/clear', { method: 'POST' }); toast('All stored messages deleted'); }
+    if (id === 'sevReset') { $$('[data-sevn]', el).forEach((x) => { x.value = ''; }); $$('[data-sevc]', el).forEach((x) => { x.dataset.unset = '1'; x.closest('.colw')?.classList.add('unset'); window.NEPColor?.enhance(x); x.dispatchEvent(new Event('change', { bubbles: true })); }); setDirty(true); return; }
     if (id === 'saveAll') {
       const v = (k) => $('#' + k).value, ck = (k) => $('#' + k).checked;
       const body = { tlsSyslogEnabled: ck('tlsSyslogEnabled'), tlsSyslogPort: +v('tlsSyslogPort') || 6514, udpEnabled: ck('udpEnabled'), tcpEnabled: ck('tcpEnabled'), udpPort: +v('udpPort'), udpRecvMB: +v('udpRecvMB') || 16, tcpPort: +v('tcpPort'), syslogBind: v('syslogBind').trim(), allowedSources: v('allowedSources'),
@@ -1597,9 +1642,12 @@ views.settings = (el) => {
         ntp: { enabled: ck('ntpOn'), server: v('ntpServer').trim(), port: +v('ntpPort') || 123, intervalMin: +v('ntpEvery') || 15, zone: v('ntpZone').trim() },
         mode: v('prMode'), probe: { server: v('prServer').trim(), token: v('prToken'), name: v('prNameP').trim(), allowSelfSigned: ck('prSelf') },
         systemMessages: Object.fromEntries($$('[data-sm]', el).map((x) => [x.dataset.sm, x.checked])), healthAlerts: ck('healthAlerts'), diskWarnPercent: +v('diskWarnPercent'), diskCritPercent: +v('diskCritPercent'),
-        forwardTargets: c.forwardTargets.filter((t) => t.host), trapForwardTargets: (c.trapForwardTargets || []).filter((t) => t.host) };
+        forwardTargets: c.forwardTargets.filter((t) => t.host), trapForwardTargets: (c.trapForwardTargets || []).filter((t) => t.host),
+        format: { date: v('fmtDate'), clock: v('fmtClock') },
+        sevNames: Object.fromEntries($$('[data-sevn]', el).map((x) => [x.dataset.sevn, x.value.trim()]).filter(([, n]) => n)),
+        sevColors: Object.fromEntries($$('[data-sevc]', el).filter((x) => x.dataset.unset !== '1').map((x) => [x.dataset.sevc, x.value])) };
       try { await $('#snmpHost', el)?._saveIfDirty?.(); } catch (e) { return toast(e.message, true); }
-      try { const r = await api('/api/config', { method: 'PUT', body }); toast('Settings saved'); dirty = false; if (r.restartRequired) { S.restartNeeded = true; } c = r.config; await pollStats(); draw(); } catch (err) { toast(err.message, true); }
+      try { const r = await api('/api/config', { method: 'PUT', body }); toast('Settings saved'); dirty = false; if (r.restartRequired) { S.restartNeeded = true; } c = r.config; await pollStats(); applyLocale(S.info); draw(); } catch (err) { toast(err.message, true); }
     }
   });
   el.addEventListener('input', (e) => { const i = e.target.id; if (i === 'bgDim' || i === 'bgBlur' || i === 'bgFrost') { const g = window.NEP.bgGet(); g[i.slice(2).toLowerCase()] = +e.target.value; window.NEP.bgSet(g); } });
@@ -1658,7 +1706,7 @@ document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail 
   const fsToggle = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch((e) => toast('Your browser did not allow full screen: ' + e.message, true)); };
   document.addEventListener('click', (e) => { if (e.target.closest?.('[data-fs]')) { e.preventDefault(); fsToggle(); } }); { const fb = $('#fsBtn'); if (fb) fb.hidden = !document.fullscreenEnabled; }
   document.addEventListener('fullscreenchange', () => { const on = !!document.fullscreenElement; document.querySelectorAll('[data-fs]').forEach((b) => { const l = b.querySelector('.lbl'); (l || b).textContent = on ? 'Exit full screen' : (l ? 'Full screen' : 'Show full screen'); b.setAttribute('aria-pressed', String(on)); }); setTimeout(() => window.dispatchEvent(new Event('resize')), 200); });
-  const DASHES = [['classic', 'Classic', ['#3b82f6', '#e5484d', '#f5a524', '#30a46c']], ['noc', 'NOC (Grafana)', ['#73bf69', '#f2cc0c', '#5794f2', '#f2495c']], ['pbi', 'Power BI light', ['#118dff', '#12239e', '#e66c37', '#e044a7']], ['pbidark', 'Power BI dark', ['#2b88ff', '#8a6cff', '#ff8f4d', '#f36bb5']], ['midnight', 'Midnight violet', ['#8b5cf6', '#22d3ee', '#f472b6', '#facc15']], ['aurora', 'Aurora', ['#2dd4bf', '#a78bfa', '#38bdf8', '#4ade80']], ['sunset', 'Sunset', ['#fb923c', '#f43f5e', '#fbbf24', '#c084fc']], ['ocean', 'Deep ocean', ['#38bdf8', '#0ea5e9', '#34d399', '#818cf8']], ['neon', 'Neon night', ['#00f5d4', '#ff2e93', '#fee440', '#7b61ff']], ['forest', 'Forest', ['#4ade80', '#a3e635', '#fbbf24', '#2dd4bf']], ['slate', 'Slate light', ['#475569', '#2563eb', '#d97706', '#059669']]];
+  const DASHES = [['classic', 'Classic', ['#3b82f6', '#e5484d', '#f5a524', '#30a46c']], ['noc', 'NOC', ['#73bf69', '#f2cc0c', '#5794f2', '#f2495c']], ['pbi', 'Business light', ['#118dff', '#12239e', '#e66c37', '#e044a7']], ['pbidark', 'Business dark', ['#2b88ff', '#8a6cff', '#ff8f4d', '#f36bb5']], ['midnight', 'Midnight violet', ['#8b5cf6', '#22d3ee', '#f472b6', '#facc15']], ['aurora', 'Aurora', ['#2dd4bf', '#a78bfa', '#38bdf8', '#4ade80']], ['sunset', 'Sunset', ['#fb923c', '#f43f5e', '#fbbf24', '#c084fc']], ['ocean', 'Deep ocean', ['#38bdf8', '#0ea5e9', '#34d399', '#818cf8']], ['neon', 'Neon night', ['#00f5d4', '#ff2e93', '#fee440', '#7b61ff']], ['forest', 'Forest', ['#4ade80', '#a3e635', '#fbbf24', '#2dd4bf']], ['slate', 'Slate light', ['#475569', '#2563eb', '#d97706', '#059669']]];
   const setDash = (d) => { if (!DASHES.some((x) => x[0] === d)) d = 'classic'; document.documentElement.dataset.dash = d; store.set('sp.dash', d); if (S.onStats && S.stats) S.onStats(S.stats); };
 
   // 1.75 background picture: the page and every tile become frosted glass over a picture (own upload or a built-in one)
@@ -1674,14 +1722,16 @@ document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail 
   window.NEP = { THEMES, THEME_META, setTheme, DASHES, setDash, bgGet, bgSet, bgPick, bgPreset, bgApply }; setTheme(theme); setDash('classic'); bgApply();
   // wait until every page script (dashboard.js … guide.js, loaded after this file) has run: on a slow link the first answer can arrive before the later files, and a page would then call code that is not there yet
   if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
-  try { S.info = await api('/api/state'); S.stats = await api('/api/stats'); } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Cannot reach the NetEventPro service</b>${esc(e.message)}. Check that the NetEventPro service is running.</div>`; return; }
+  try { S.info = await api('/api/state'); applyLocale(S.info); S.stats = await api('/api/stats'); } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Cannot reach the NetEventPro service</b>${esc(e.message)}. Check that the NetEventPro service is running.</div>`; return; }
   S.prefs = S.info.config.uiPrefs || {};
   { const m2 = S.info.me; if (m2?.need2fa) { try { if (!sessionStorage.getItem('n2fa')) { sessionStorage.setItem('n2fa', '1'); toast('Please set up two-factor sign-in: My account → Two-factor sign-in.'); } } catch { /* no storage */ } } }
   { const me = S.info.me || { perms: [] }; $$('.rail a[data-perm]').forEach((l) => { l.hidden = !me.perms.includes(l.dataset.perm) || (!!l.dataset.feature && !!S.info.features && !S.info.features.includes(l.dataset.feature)); }); const st = $('.rail a[data-view="settings"]'); if (st) st.hidden = !me.perms.includes('settings'); if (me.perms.includes('settings')) $$('.rail a[data-view="users"], .rail a[data-view="backup"], .rail a[data-view="maintenance"], .rail a[data-view="rules"], .rail a[data-view="notifications"], .rail a[data-view="sqlcopy"], .rail a[data-view="reports"]').forEach((l) => { l.hidden = true; });
     $('#signOut').hidden = !!me.anonymous; $('#meBox').hidden = !!me.anonymous; { const al = $('#acctLink'); if (al) al.hidden = !!me.anonymous; } { const mb = $('#meBox'); if (mb && !mb.dataset.go) { mb.dataset.go = '1'; mb.style.cursor = 'pointer'; mb.addEventListener('click', () => { location.hash = '#account'; }); } } if (!me.anonymous) { const nm = String(me.name || '?'), ini = nm.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'; $('#meAv').textContent = ini; $('#meName').textContent = nm; $('#meRole').textContent = (me.roles || []).join(', '); $('#meBox').title = `${nm} · ${(me.roles || []).join(', ')}`; } }
   $('#signOut').onclick = async (ev) => { ev.preventDefault(); try { await api('/api/logout', { method: 'POST' }); } catch { /* reload anyway */ } location.reload(); };
   syncClock(S.info); drawClock(); setInterval(drawClock, 250);
+  $$('.rail a[data-view]').forEach((a) => { const k = 'nav.' + a.dataset.view, l = tx(k, null, ''), tip = tx(k + '.tip', null, ''); const s = a.querySelector('.lbl'); if (l && s) s.textContent = l; if (tip) a.title = tip; else if (l) a.title = l; });
   applyLook(); renderStatus(); connectStream(); route(); setInterval(pollStats, 2000);
+  if (S.info.firstRun && window.NEPSetup) window.NEPSetup.open();      // 1.98.0 a new, unprotected installation: the setup steps
 })();
 
 // ---------- every pop-up window can be dragged by its title ---------------------------------------------------------------------------

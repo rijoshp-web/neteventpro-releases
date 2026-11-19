@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { sendSms, cleanNumber } = require('./smpp');
 
-const SEV_NAMES = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
+const SEVX = require('./sev');
 const one = (s) => String(s ?? '').replace(/[\r\n\u0000]+/g, ' ').trim();
 const MAX_LOG = 300;
 
@@ -42,11 +42,11 @@ class Notifier {
   /** ctx for kind 'alert': { rule, suppressed, msg }; for 'escalation' / 'recovery': { o } (the same facts the e-mail page shows) */
   facts(kind, ctx) {
     if (kind === 'alert') {
-      const m = ctx.msg, sev = String(m.severityName || SEV_NAMES[m.severity] || '');
+      const m = ctx.msg, sev = String(SEVX.label(m.severity) || m.severityName || '');
       return { kind, severity: m.severity, sevName: sev, host: one(m.host), srcIp: one(m.srcIp), rule: one(ctx.rule?.name), port: '', message: String(m.message ?? ''), app: one(m.app), facility: one(m.facilityName), source: m.source || 'syslog', time: m.ts || Date.now(), suppressed: ctx.suppressed || 0,
         head: `[${sev.toUpperCase()}] ${one(m.host)} ${m.app ? one(m.app) + ': ' : ''}${one(m.message)}` + (ctx.suppressed ? `\n(+${ctx.suppressed} similar alerts suppressed in the last cooldown window)` : ''), sms: `${sev.toUpperCase()} ${one(m.host)}: ${one(m.message)}` };
     }
-    const o = ctx.o, sev = String(o.severityName || SEV_NAMES[o.severity] || ''), esc = kind === 'escalation';
+    const o = ctx.o, sev = String(SEVX.label(o.severity) || o.severityName || ''), esc = kind === 'escalation';
     const tag = esc ? 'ESCALATION' : 'CLEARED', what = `${one(o.rule)}${o.port ? ' ' + one(o.port) : ''}`;
     return { kind, severity: o.severity, sevName: sev, host: one(o.host), srcIp: one(o.srcIp), rule: one(o.rule), port: one(o.port), message: String(o.message ?? ''), app: '', facility: '', source: o.source || 'syslog', time: Date.now(), suppressed: 0,
       head: `[${tag}] ${sev.toUpperCase()} on ${one(o.host)}: ${what}${esc ? ` (not acknowledged for ${o.escMin} min)` : ''}\n${one(o.message)}`, sms: `${tag} ${sev.toUpperCase()} ${one(o.host)}: ${what}` };

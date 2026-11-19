@@ -2,8 +2,8 @@
 // E-mail look for alert and escalation messages: a self-contained HTML page (tables and inline styles only, so Outlook,
 // Gmail and phone mail apps all show it the same way) plus the plain-text twin that is sent alongside it.
 
-const SEV_COLORS = ['#b71c1c', '#c62828', '#d84315', '#e65100', '#f9a825', '#1565c0', '#2e7d32', '#616161', '#fb8c00', '#00897b'];
-const SEV_NAMES = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug', 'Minor', 'Cleared'];
+const SEV_COLORS = require('./sev').COLORS;       // 1.98.0: the user's own colours when set (changed in place)
+const SEV_NAMES = require('./sev').LABELS;        // 1.98.0: the user's own names when set
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const one = (s) => String(s ?? '').replace(/[\r\n\u0000]+/g, ' ').trim();
 const FMT = require('./fmt');

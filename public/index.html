@@ -12,6 +12,7 @@
   <nav class="rail" id="rail" aria-label="Main">
     <div class="brand"><span class="mark"></span><span class="lbl">NetEventPro</span><button id="railToggle" class="ghost icon-btn" aria-label="Collapse side panel" aria-expanded="true" title="Collapse side panel">&laquo;</button></div>
     <a href="#dashboard" data-view="dashboard" title="Dashboard"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span class="lbl">Dashboard</span></a>
+    <a href="#ops" data-view="ops" title="Operations: one page with a sheet for every part (overview, syslog, traps, alarms, devices, polling, system)"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><span class="lbl">Operations</span></a>
     <a href="#logs" data-view="logs" title="Logs"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span class="lbl">Logs</span><span class="badge" id="navLiveCount"></span></a>
     <a href="#traps" data-view="traps" title="SNMP traps"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 13h6l-1 8 8-10h-6z"/></svg></span><span class="lbl">Traps</span><span class="badge" id="navTrapCount"></span></a>
     <a href="#alarms" data-view="alarms" title="Alarms"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21h4"/><path d="M12 8v4"/><path d="M12 14.5v.5"/></svg></span><span class="lbl">Alarms</span><span class="badge bad" id="navAlarms"></span></a>
@@ -42,10 +43,13 @@
 </div>
 <aside class="drawer" id="drawer" hidden aria-label="Message details"></aside>
 <div class="toast" id="toast" role="status"></div>
+<script src="lang-en.js"></script>
 <script src="motion.js"></script>
 <script src="app.js"></script>
 <script src="colorpick.js"></script>
 <script src="dashboard.js"></script>
+<script src="ops.js"></script>
+<script src="setup.js"></script>
 <script src="health.js"></script>
 <script src="admin.js"></script>
 <script src="alarms.js"></script>
