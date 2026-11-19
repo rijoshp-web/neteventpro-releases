@@ -2,7 +2,7 @@
 // Alarm test generator. Sends "problem" and "recovered" syslog messages in the order a real device would, so you can watch the
 // Alarms page raise, count and auto-clear alarms.
 //
-// Prepare once: Rules & alerts -> "Add from template" -> add these four pairs (each adds an alarm rule and its recovery rule), then Save rules:
+// Prepare once: Alarm configuration -> "Add from template" -> add these four pairs (each adds an alarm rule and its recovery rule), then Save rules:
 //   Alarm: link down - cleared by link up | Alarm: mains failure - cleared when restored
 //   Alarm: routing neighbour down - cleared when up | Alarm: communication lost - cleared when restored
 //

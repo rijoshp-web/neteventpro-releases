@@ -54,6 +54,19 @@ function applyLocale(info) {
 const ago = (sec) => sec < 5 ? 'just now' : sec < 90 ? `${Math.round(sec)}s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : sec < 172800 ? `${Math.round(sec / 3600)} h ago` : `${Math.round(sec / 86400)} d ago`;
 const uptime = (s) => s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m` : `${Math.floor(s / 86400)}d ${Math.floor(s % 86400 / 3600)}h`;
 
+// 1.99.3 screen size: the whole interface is scaled to the screen, so a 4K or 8K screen at 100 % scaling, a wall display or an
+// ultrawide is readable: about 1x up to 1920 x 1080, 1.25x at 2560 x 1440 and 3440 x 1440, 2x at 3840 x 2160, 4x at 7680 x 4320.
+// The smaller of width and height decides (an ultrawide is not made taller than its height). Appearance has a manual choice.
+// zf() is the scale; positions read from the screen (mouse, element boxes) are divided by it before they are used as page pixels.
+function zf() { return window.NEP_ZOOM || 1; }
+function applyZoom() {
+  let pref = 'auto'; try { pref = localStorage.getItem('sp.uiZoom') || 'auto'; } catch { /* default */ }
+  const auto = Math.min(innerWidth / 1920, innerHeight / 1080);
+  const z = pref === 'auto' ? (auto < 1.2 ? 1 : Math.min(4, Math.round(auto * 4) / 4)) : Math.min(4, Math.max(0.75, +pref || 1));
+  if (z === window.NEP_ZOOM) return; window.NEP_ZOOM = z; document.documentElement.style.zoom = z === 1 ? '' : String(z);
+  window.dispatchEvent(new Event('nep-zoom'));
+}
+applyZoom(); { let zt; addEventListener('resize', () => { clearTimeout(zt); zt = setTimeout(applyZoom, 150); }); }
 async function api(path, opts = {}) {
   const init = { method: opts.method || 'GET', headers: { 'X-Requested-With': 'NetEventPro' } };
   if (opts.body !== undefined) { init.headers['content-type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
@@ -283,7 +296,7 @@ function sevPopover(anchor, value, onChange) {
   pop.addEventListener('change', (e) => { const i = e.target.dataset.s; if (i === undefined) return; if (e.target.checked) cur.add(+i); else cur.delete(+i); commit(); });
   pop.addEventListener('click', (e) => { const q = e.target.dataset.q; if (!q) return; cur = new Set(q === 'all' ? [...SEVORD] : q === 'none' ? [] : q === 'err' ? [0, 1, 2, 3] : [0, 1, 2, 3, 8, 4]); draw(); commit(); });
   draw(); document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 260)) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.left = Math.max(8, Math.min(r.left / z, innerWidth / z - 260)) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 /** rules saved with the old "at least / no more than" pair become a list of severities */
@@ -505,7 +518,7 @@ function openViewColumns(view, anchor, onChange) {
   pop.addEventListener('change', (e) => { if (e.target.id === 'popMsg') { view.message = e.target.checked; return commit(); } const row = e.target.closest('.pop-row'); if (!row) return; view.cols[+row.dataset.i].hide = !e.target.checked; if (!view.cols[+row.dataset.i].hide) delete view.cols[+row.dataset.i].hide; commit(); });
   pop.addEventListener('click', (e) => { if (e.target.id === 'popDone') return closePopovers(); const b = e.target.closest('button[data-mv]'); if (!b) return; const i = +b.closest('.pop-row').dataset.i, j = i + +b.dataset.mv; if (j < 0 || j >= view.cols.length) return; [view.cols[i], view.cols[j]] = [view.cols[j], view.cols[i]]; commit(); });
   render(); document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 function trapViewCols(view) {
@@ -530,14 +543,14 @@ function savePrefs() {
 let colDrag = false;
 function enableColResize(table, key, redraw) {
   const head = table?.tHead?.rows[0]; if (!head) return; const ths = [...head.cells], W = ((S.colw ||= {})[key] ||= {}), saved = S.prefs.colw?.[key] || {};
-  if (ths.some((th, i) => W[i] === undefined)) { table.style.tableLayout = 'auto'; table.style.width = ''; ths.forEach((th, i) => { if (W[i] === undefined) W[i] = saved[i] ?? Math.ceil(th.getBoundingClientRect().width); }); }
+  if (ths.some((th, i) => W[i] === undefined)) { table.style.tableLayout = 'auto'; table.style.width = ''; ths.forEach((th, i) => { if (W[i] === undefined) W[i] = saved[i] ?? Math.ceil(th.getBoundingClientRect().width / zf()); }); }
   const apply = () => { let cg = table.querySelector('colgroup'); if (!cg) { cg = document.createElement('colgroup'); table.prepend(cg); } cg.innerHTML = ths.map((th, i) => `<col style="width:${W[i]}px">`).join(''); table.style.tableLayout = 'fixed'; table.style.width = ths.reduce((n, th, i) => n + W[i], 0) + 'px'; };
   apply();
   ths.forEach((th, i) => {
     if (!th.textContent.trim() && !th.querySelector('input')) { /* narrow buttons column: still resizable */ }
     if (getComputedStyle(th).position === 'static') th.style.position = 'relative'; const h = document.createElement('span'); h.className = 'colrz'; h.title = 'Drag to resize · double-click to reset all columns'; th.appendChild(h);
     h.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); colDrag = true; const x0 = e.clientX, w0 = W[i]; document.body.classList.add('resizing');
-      const move = (ev) => { W[i] = Math.max(30, Math.min(1200, Math.round(w0 + ev.clientX - x0))); apply(); };
+      const move = (ev) => { W[i] = Math.max(30, Math.min(1200, Math.round(w0 + (ev.clientX - x0) / zf()))); apply(); };
       const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('resizing'); setTimeout(() => { colDrag = false; }, 100); S.prefs.colw = { ...(S.prefs.colw || {}), [key]: { ...W } }; savePrefs(); };
       document.addEventListener('mousemove', move); document.addEventListener('mouseup', up); });
     h.addEventListener('dblclick', () => { delete S.colw[key]; if (S.prefs.colw) delete S.prefs.colw[key]; savePrefs(); redraw?.(); });
@@ -572,7 +585,7 @@ function openColumnPicker(view, anchor, onChange) {
     [list[i], list[j]] = [list[j], list[i]]; commit(list);
   });
   render(); document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 
@@ -667,7 +680,7 @@ function openLookPopover(anchor) {
   const pop = document.createElement('div'); pop.className = 'popover wide'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Log appearance');
   pop.innerHTML = '<div class="pop-title">Log appearance</div><div id="lookBox"></div><div class="toolbar" style="margin:10px 0 0"><span class="spacer"></span><button class="primary" id="lookDone">Done</button></div>';
   document.body.appendChild(pop); lookEditor($('#lookBox', pop)); $('#lookDone', pop).onclick = closePopovers;
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 
@@ -698,7 +711,7 @@ function openViewsPopover(anchor) {
     }
   });
   render(); document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 
@@ -814,7 +827,7 @@ function menuPopover(anchor, items) {
   pop.innerHTML = items.map((it, i) => `<button role="menuitem" data-i="${i}" class="ib ghost">${ico(it.icon)}<span>${esc(it.label)}</span></button>`).join('');
   pop.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; closePopovers(); items[+b.dataset.i].fn(); });
   document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+  const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.left = Math.max(8, Math.min(r.left / z, innerWidth / z - pop.offsetWidth - 8)) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && !anchor.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 
@@ -1004,9 +1017,9 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
   $('#th').addEventListener('dblclick', (e) => { const h = e.target.closest('.rz'); if (!h) return; if (S.prefs.widths) delete S.prefs.widths[h.dataset.col]; savePrefs(); drawHead(); });
   $('#th').addEventListener('mousedown', (e) => {
     const h = e.target.closest('.rz'); if (!h || e.button !== 0) return; e.preventDefault();
-    const id = h.dataset.col, col = $(`#cg col[data-col="${id}"]`), x0 = e.clientX, w0 = h.parentElement.getBoundingClientRect().width;
+    const id = h.dataset.col, col = $(`#cg col[data-col="${id}"]`), x0 = e.clientX, w0 = h.parentElement.getBoundingClientRect().width / zf();
     document.body.classList.add('resizing');
-    const move = (ev) => { const w = Math.max(40, Math.min(1200, Math.round(w0 + ev.clientX - x0))); col.style.width = w + 'px'; S.prefs.widths = { ...(S.prefs.widths || {}), [id]: w }; fitTable(); };
+    const move = (ev) => { const w = Math.max(40, Math.min(1200, Math.round(w0 + (ev.clientX - x0) / zf()))); col.style.width = w + 'px'; S.prefs.widths = { ...(S.prefs.widths || {}), [id]: w }; fitTable(); };
     const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('resizing'); resizedAt = Date.now(); savePrefs(); };
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
   });
@@ -1028,7 +1041,7 @@ function openSimpleColumns(anchor, title, labels, getList, setList, onChange) {
   const commit = (list) => { setList(list); onChange(); render(); };
   pop.addEventListener('change', (e) => { const row = e.target.closest('.pop-row'); if (row) commit(getList().map((c) => (c.id === row.dataset.id ? { ...c, visible: e.target.checked } : c))); });
   pop.addEventListener('click', (e) => { if (e.target.id === 'popDone') return closePopovers(); if (e.target.id === 'popReset') return commit(null); const b = e.target.closest('button[data-mv]'); if (!b) return; const list = getList(), i = list.findIndex((c) => c.id === b.closest('.pop-row').dataset.id), j = i + +b.dataset.mv; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; commit(list); });
-  render(); document.body.appendChild(pop); const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  render(); document.body.appendChild(pop); const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 views.devices = (el) => {
@@ -1235,7 +1248,7 @@ views.rules = (el) => {
     const cnt = { syslog: rules.filter((r) => srcOf(r) === 'syslog').length, snmp: rules.filter((r) => srcOf(r) === 'snmp').length };
     const mine = rules.map((r, i) => [r, i]).filter(([r]) => srcOf(r) === tab);
     const first = rules.findIndex((x) => srcOf(x) === tab), last = rules.findLastIndex((x) => srcOf(x) === tab);
-    el.innerHTML = `<div class="stickyhead"><div class="page-head"><h1>Rules &amp; alerts</h1><span class="muted">${tab === 'snmp' ? 'These rules run on SNMP traps only.' : 'These rules run on syslog messages only.'} Rules run top to bottom.</span></div>
+    el.innerHTML = `<div class="stickyhead"><div class="page-head"><h1>Alarm configuration</h1><span class="muted">${tab === 'snmp' ? 'These rules run on SNMP traps only.' : 'These rules run on syslog messages only.'} Rules run top to bottom.</span></div>
       <div class="rulebar"><div class="tabs" role="tablist" style="margin:0"><button role="tab" class="tab ${tab === 'syslog' ? 'on' : ''}" data-tab="syslog">Syslog rules <span class="muted">${cnt.syslog}</span></button><button role="tab" class="tab ${tab === 'snmp' ? 'on' : ''}" data-tab="snmp">SNMP trap rules <span class="muted">${cnt.snmp}</span></button></div><span class="spacer"></span>
         <button id="addRule" class="ib">${ico('plus')}<span class="bt">New rule</span></button><select id="tpl" aria-label="Add a rule from a template"><option value="">From a template…</option>${tpls().map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
         <button id="impRules" class="ib ghost" title="Add rules from an exported file">${ico('upload')}<span class="bt">Import</span></button><button id="expRules" class="ib ghost" title="Download all rules as a file to copy to another PC">${ico('download')}<span class="bt">Export</span></button><input type="file" id="impFile" accept=".json,application/json" hidden><button class="primary ib" id="saveRules">${ico('check')}<span class="bt">Save rules</span></button></div></div>
@@ -1434,17 +1447,17 @@ views.replace = (el, _main, embedded) => {
 
 // ---------- Settings ------------------------------------------------------------------------------------------------------------------------
 const EMBED_TAB = { users: 'users', backup: 'backup', maintenance: 'maint', rules: 'rules', notifications: 'notify', sqlcopy: 'sqlcopy', reports: 'reports' };   // page -> its tab inside Settings
-const SETTINGS_TABS = [['syslog', 'Syslog'], ['snmp', 'SNMP & MIBs'], ['trapcols', 'Trap columns'], ['replace', 'Text replacement'], ['storage', 'Storage & time'], ['access', 'Access & updates'], ['look', 'Look & sound'], ['rules', 'Rules & alerts', 'rules'], ['notify', 'Notifications', 'settings'], ['sqlcopy', 'SQL Server', 'settings'], ['reports', 'Reports', 'reports'], ['probe', 'Remote probes', 'settings'], ['users', 'Users', 'users'], ['backup', 'Backup', 'backup'], ['maint', 'Maintenance', 'rules'], ['about', 'About']];
+const SETTINGS_TABS = [['syslog', 'Syslog'], ['snmp', 'SNMP & MIBs'], ['trapcols', 'Trap columns'], ['replace', 'Text replacement'], ['storage', 'Storage & time'], ['access', 'Access & updates'], ['look', 'Look & sound'], ['rules', 'Alarm configuration', 'rules'], ['notify', 'Notifications', 'settings'], ['sqlcopy', 'SQL Server', 'settings'], ['reports', 'Reports', 'reports'], ['probe', 'Remote probes', 'settings'], ['users', 'Users', 'users'], ['backup', 'Backup', 'backup'], ['maint', 'Maintenance', 'rules'], ['about', 'About']];
 const TAB_OF = { 'sec-ha': 'storage', 'sec-security': 'access', 'sec-inputs': 'syslog', 'sec-replace': 'replace', 'sec-sysmsg': 'syslog', 'sec-fwd': 'syslog', 'sec-snmp': 'snmp', 'sec-trapfwd': 'snmp', 'sec-trapviews': 'trapcols', 'sec-storage': 'storage', 'sec-time': 'storage', 'sec-data': 'storage', 'sec-access': 'access', 'sec-update': 'access', 'sec-tools': 'access', 'sec-sendtest': 'syslog', 'sec-sessions': 'access', 'sec-appearance': 'look', 'sec-glass': 'look', 'sec-motion': 'look', 'sec-sound': 'look', 'sec-rules': 'rules', 'sec-notifs': 'notify', 'sec-sqlcopy': 'sqlcopy', 'sec-reports': 'reports', 'sec-probe': 'probe', 'sec-users': 'users', 'sec-backup': 'backup', 'sec-maint': 'maint', 'sec-about': 'about' };
 const SETUP_DESC = { 'Receiving': 'Which ports listen, forwarding to other systems, remote sites', 'Alerts': 'Rules and planned downtime', 'Notifications': 'E-mail, SMS and chat messages', 'Reports': 'Scheduled and on-demand reports', 'Users and security': 'Who can sign in and what they can do', 'Storage and backup': 'How long data is kept, clock, backups', 'Appearance': 'Theme, columns, alert sounds', 'Updates and licence': 'Version, updates, licence, restart', 'Advanced': 'Text replacement and SQL Server copy' };
 const SETUP_MENU = [   // the Settings start page: groups of links to one page each (id, name, extra search words)
   { n: 'Receiving', ic: 'download', items: [['sec-inputs', 'Syslog inputs', 'udp tcp tls port buffer 514 listen'], ['sec-snmp', 'SNMP & MIBs', 'trap community v3 engine mib 162 usm'], ['sec-fwd', 'Forwarding', 'forward syslog snmp traps relay collector siem manager northbound'], ['sec-probe', 'Remote probes', 'site distant network branch']] },
-  { n: 'Alerts', ic: 'check', items: [['sec-rules', 'Rules & alerts', 'rule match alarm action sound'], ['sec-maint', 'Maintenance windows', 'planned downtime suppress']] },
+  { n: 'Alerts', ic: 'check', items: [['sec-rules', 'Alarm configuration', 'rule match alarm action sound'], ['sec-maint', 'Maintenance windows', 'planned downtime suppress']] },
   { n: 'Notifications', ic: 'layers', items: [['sec-notifs', 'Notifications', 'email smtp smpp sms teams webhook profile recipients']] },
   { n: 'Reports', ic: 'file', items: [['sec-reports', 'Reports', 'daily weekly schedule pdf csv excel']] },
   { n: 'Users and security', ic: 'users', items: [['sec-users', 'Users, roles and groups', 'permission password account ldap'], ['sec-security', 'Security', 'password two-factor 2fa allow ip audit https tls certificate'], ['sec-access', 'Dashboard access', 'web port https bind address'], ['sec-sessions', 'Login sessions', 'logged in who signed']] },
   { n: 'Storage and backup', ic: 'db', items: [['sec-storage', 'Storage, time and data folder', 'keep days retention disk size prune old logs clock timezone ntp server time format folder path directory system messages own audit health'], ['sec-ha', 'High availability', 'standby primary failover redundancy second server takeover cluster'], ['sec-backup', 'Backup and restore', 'export import nepbak']] },
-  { n: 'Appearance', ic: 'look', items: [['sec-appearance', 'Appearance', 'theme colour dark light font glass background date time format clock 12 24 hour severity names colours rename'], ['sec-trapviews', 'SNMP trap columns', 'columns traps table logs alarms views'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
+  { n: 'Appearance', ic: 'look', items: [['sec-appearance', 'Appearance', 'screen size zoom scale bigger smaller 4k 8k resolution theme colour dark light font glass background date time format clock 12 24 hour severity names colours rename'], ['sec-trapviews', 'SNMP trap columns', 'columns traps table logs alarms views'], ['sec-sound', 'Sound and desktop alerts', 'beep volume notification']] },
   { n: 'Updates and licence', ic: 'tool', items: [['sec-update', 'Updates', 'upgrade version install automatic'], ['sec-about', 'About and licence', 'version licence activation key machine code copyright support'], ['sec-tools', 'Service and test message', 'restart stop start send test syslog']] },
   { n: 'Advanced', ic: 'filter', items: [['sec-replace', 'Text replacement', 'rewrite mask regex names instead of addresses'], ['sec-sqlcopy', 'SQL Server copy', 'database copy mssql export']] }
 ];
@@ -1595,6 +1608,9 @@ views.settings = (el) => {
       </div></fieldset>
     <fieldset id="sec-appearance"><legend>Colour theme</legend><div class="form"><div class="field"><label for="themeSel">Pick a theme</label><div><div id="themeGrid" class="themegrid" role="radiogroup" aria-label="Colour theme">${['Dark', 'Palette', 'Light', 'Template', 'Special'].map((g) => `<div class="tgroup"><div class="tgname">${g === 'Special' ? 'Special looks' : g === 'Template' ? 'Admin-template looks' : g + ' themes'}</div><div class="tcards">${window.NEP.THEMES.filter(([id]) => window.NEP.THEME_META[id][4] === g).map(([id, n]) => { const m = window.NEP.THEME_META[id]; return `<button type="button" class="tcard" role="radio" aria-checked="${document.documentElement.dataset.theme === id}" data-theme-pick="${id}" title="${esc(m[5])}"><span class="tprev" style="background:${m[0]}"><i style="background:${m[1]}"></i><b style="background:${m[2]}"></b><u style="background:${m[3]}"></u></span><span class="tname">${esc(n)}</span></button>`; }).join('')}</div></div>`).join('')}</div> <span class="muted">Applies at once. Saved in this browser.</span></div></div></div></fieldset>
     <fieldset id="sec-glass" ${['neumorphism', 'skeuomorphic'].includes(document.documentElement.dataset.theme) ? 'data-off="1"' : ''}><legend>Glass and background picture</legend><p class="muted secoff">The Neumorphism and Skeuomorphic themes have their own look, so glass and pictures are not used with them. Choose another theme to use them.</p><div class="form glassform"><div class="field"><label for="glassOn">Glass effect</label><div><label class="chk"><input type="checkbox" id="glassOn" ${store.get('sp.glass', '0') === '1' ? 'checked' : ''}> Frosted glass on every panel and tile</label> <span class="muted">Works with every theme except Neumorphism and Skeuomorphic. It shows a built-in picture until you choose your own below; picking a picture turns the glass on by itself.</span></div></div><div class="field"><label>Background picture</label><div id="bgBox"><div class="bgpre">${bgTilesHtml()}</div><div class="muted" id="hwNote" ${['neumorphism', 'skeuomorphic'].includes(document.documentElement.dataset.theme) ? '' : 'hidden'}>The Neumorphism and Skeuomorphic themes have their own look, so glass, picture and the sliders below have no effect. Choose another theme to use them.</div><div class="bgsl" id="bgSliders" ${glassInUse() ? '' : 'hidden'}><label>Dim <input type="range" id="bgDim" min="0" max="85" value="${window.NEP.bgGet().dim}"></label><label>Background glass blur <input type="range" id="bgBlur" min="0" max="40" value="${window.NEP.bgGet().blur}"></label><label>Tile frost <input type="range" id="bgFrost" min="0" max="40" value="${window.NEP.bgGet().frost}"></label></div><span class="muted">A picture behind the dashboard turns the panels into real frosted glass: one glass layer for the page, one for every tile. Saved in this browser only; the picture is resized to 1920 px.</span></div></div></div></fieldset>
+    <fieldset id="sec-zoom"><legend>Screen size</legend><div class="form">
+      <label>Size of everything</label><div><select id="uiZoom">${[['auto', 'Automatic (fits the screen)'], ['0.75', '75 %'], ['0.9', '90 %'], ['1', '100 %'], ['1.1', '110 %'], ['1.25', '125 %'], ['1.5', '150 %'], ['1.75', '175 %'], ['2', '200 %'], ['2.5', '250 %'], ['3', '300 %'], ['4', '400 %']].map(([v, n]) => `<option value="${v}" ${(() => { try { return (localStorage.getItem('sp.uiZoom') || 'auto') === v; } catch { return v === 'auto'; } })() ? 'selected' : ''}>${n}</option>`).join('')}</select><div class="hint">Automatic makes text and buttons bigger on large screens (2560 × 1440 and up, 4K, 8K, wall displays) and keeps 100 % up to 1920 × 1080. Kept for this browser.</div></div>
+    </div></fieldset>
     <fieldset id="sec-format"><legend>Date and time</legend><div class="form">
       <div class="field"><label for="fmtDate">Date</label><div><select id="fmtDate">${[['ymd', 'Year-month-day', '2026-11-19'], ['dmy', 'Day/month/year', '19/11/2026'], ['mdy', 'Month/day/year', '11/19/2026']].map(([k, l, x]) => `<option value="${k}" ${(c.format?.date || 'ymd') === k ? 'selected' : ''}>${l} (${x})</option>`).join('')}</select></div></div>
       <div class="field"><label for="fmtClock">Clock</label><div><select id="fmtClock"><option value="24" ${c.format?.clock !== '12' ? 'selected' : ''}>24 hour (14:05)</option><option value="12" ${c.format?.clock === '12' ? 'selected' : ''}>12 hour (2:05 PM)</option></select>
@@ -1609,7 +1625,7 @@ views.settings = (el) => {
       <div class="field"><label for="sndCrit">Critical (Emergency, Alert, Critical)</label><div><select id="sndCrit">${Object.entries(SOUNDS).map(([k, v]) => `<option value="${k}" ${SOUND_PREF().crit === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>
       <div class="field"><label for="sndVol">Volume</label><div><input type="range" id="sndVol" min="5" max="100" value="${Math.round(SOUND_PREF().vol * 100)}"></div></div></div>
       <div class="hint" style="max-width:700px">Saved in this browser only, and the dashboard page must stay open. Turning it on also lets rules show desktop notifications: the browser asks for permission once.</div></fieldset>
-    <fieldset id="sec-rules"><legend>Rules &amp; alerts</legend><div id="rulesHost" class="embed"></div></fieldset>
+    <fieldset id="sec-rules"><legend>Alarm configuration</legend><div id="rulesHost" class="embed"></div></fieldset>
     <fieldset id="sec-notifs"><legend>Notifications</legend><div id="notifHost" class="embed"></div></fieldset>
     <fieldset id="sec-sqlcopy"><legend>SQL Server</legend><div id="sqlHost" class="embed"></div></fieldset>
     <fieldset id="sec-reports"><legend>Reports</legend><div id="reportsHost" class="embed"></div></fieldset>
@@ -1772,6 +1788,7 @@ views.settings = (el) => {
     if (e.target.closest?.('[data-bgdel]')) { e.preventDefault(); e.stopPropagation(); window.NEP.bgPick('none'); store.set('sp.bgimg', ''); window.NEP.bgApply(); bgRefresh(); return; }
     if (e.target.closest?.('[data-bgown]')) return;   // your picture is already in use
     const b = e.target.closest?.('[data-bgp]'); if (!b) return; window.NEP.bgPick(b.dataset.bgp); if (b.dataset.bgp !== 'none') store.set('sp.glass', '1'); window.NEP.bgApply(); bgRefresh(); });
+  el.addEventListener('change', (e) => { if (e.target.id !== 'uiZoom') return; try { localStorage.setItem('sp.uiZoom', e.target.value); } catch { /* this page only */ } applyZoom(); });
   el.addEventListener('change', (e) => { if (e.target.id !== 'bgFile' || !e.target.files?.[0]) return; const f = e.target.files[0]; const fr = new FileReader(); fr.onerror = () => toast('The file could not be read.', true); fr.onload = () => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1920 / im.width), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); let q = 0.84, du = c.toDataURL('image/jpeg', q); while (du.length > 3500000 && q > 0.45) { q -= 0.1; du = c.toDataURL('image/jpeg', q); } window.NEP.bgPick(du); store.set('sp.glass', '1'); window.NEP.bgApply(); bgRefresh(); }; im.onerror = () => toast('That file is not a picture the browser can open.', true); im.src = fr.result; }; fr.readAsDataURL(f); e.target.value = ''; });
   el.addEventListener('click', (e) => { const tp = e.target.closest && e.target.closest('[data-theme-pick]'); if (!tp) return; window.NEP.setTheme(tp.dataset.themePick); $$('#themeGrid .tcard').forEach((b) => b.setAttribute('aria-checked', String(b === tp))); const hn = $('#hwNote'); if (hn) hn.hidden = !['neumorphism', 'skeuomorphic'].includes(tp.dataset.themePick); bgRefresh(); });
   el.addEventListener('change', (e) => { if (e.target.dataset?.f === 'version') { const cell = e.target.closest('tr')?.querySelector('.v3cell'); if (cell) { const on = e.target.value === 'v3'; cell.hidden = !on; cell.style.display = on ? 'flex' : 'none'; } } if (e.target.id === 'retSel') { const cu = e.target.value === 'custom'; $('#retentionDays').hidden = !cu; $('#retDaysLbl').hidden = !cu; } if (e.target.id === 'themeSel') { window.NEP.setTheme(e.target.value); const hn = $('#hwNote'); if (hn) hn.hidden = !['neumorphism', 'skeuomorphic'].includes(e.target.value); } if (e.target.id === 'glassOn') { store.set('sp.glass', e.target.checked ? '1' : '0'); window.NEP.bgApply(); bgRefresh(); } if (e.target.id === 'dashSel') window.NEP.setDash(e.target.value); if (e.target.id === 'soundOn') setSound(e.target.checked); if (e.target.id === 'sndNormal' || e.target.id === 'sndCrit') { store.set(e.target.id === 'sndNormal' ? 'sp.soundName' : 'sp.soundCrit', e.target.value); if (!S.sound) setSound(true); wakeAudio(); beep.last = 0; beep(e.target.id === 'sndNormal' ? 4 : 1, true); } if (e.target.id === 'sndVol') { store.set('sp.soundVol', String(e.target.value / 100)); if (!S.sound) setSound(true); wakeAudio(); beep.last = 0; beep(4, true); } });
@@ -1788,6 +1805,7 @@ function profMenu(attr, profs, chosen) {
 }
 
 // ---------- router ---------------------------------------------------------------------------------------------------------------------------------
+addEventListener('nep-zoom', () => { if (document.querySelector('.modal-back')) return; try { route(); } catch { /* not ready yet */ } });   // 1.99.3 redraw (sharp charts) at the new size
 function route() {
   const rawHash = location.hash.slice(1) || 'dashboard'; let name = rawHash.split('?')[0]; S.hq = new URLSearchParams(rawHash.split('?')[1] || '');
   if (name === 'live' || name === 'search') name = 'logs';                                   // old bookmarks
@@ -1854,7 +1872,9 @@ document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail 
   const BAR = '.pop-title, h1, h2, h3, h4, .modal-title';
   const grab = (win) => {
     if (win.dataset.drag) return; win.dataset.drag = '1';
-    const barOf = () => win.querySelector(BAR) || win.firstElementChild;   // looked up when needed: some windows redraw their contents
+    // looked up when needed (some windows redraw their contents). 1.99.3: a small menu without a title has no drag bar: its first
+    // item was taken as the bar, so "Export as CSV" showed the move cursor and "Drag to move this window"
+    const barOf = () => win.querySelector(BAR) || (win.classList.contains('modal') && !win.querySelector('[role=menuitem], .menu-item') ? win.firstElementChild : null);
     const mark = () => { const b = barOf(); if (b) { b.classList.add('drag-bar'); b.title ||= 'Drag to move this window'; } };
     mark(); new MutationObserver(mark).observe(win, { childList: true });
     win.addEventListener('pointerdown', (e) => {
@@ -1865,7 +1885,7 @@ document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail 
       e.preventDefault();
       const move = (ev) => {
         const dx = Math.min(innerWidth - 40 - r.left, Math.max(40 - r.right, ev.clientX - x0)), dy = Math.min(innerHeight - 30 - r.top, Math.max(-r.top, ev.clientY - y0));   // keep the title bar on screen
-        if (fixed) { win.style.left = (r.left + dx) + 'px'; win.style.top = (r.top + dy) + 'px'; } else win.style.transform = `translate(${tx0 + dx}px, ${ty0 + dy}px)`;
+        const z = zf(); if (fixed) { win.style.left = (r.left + dx) / z + 'px'; win.style.top = (r.top + dy) / z + 'px'; } else win.style.transform = `translate(${tx0 + dx / z}px, ${ty0 + dy / z}px)`;
       };
       const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up); };
       document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
@@ -1876,12 +1896,12 @@ document.addEventListener('click', (e) => { const a = e.target.closest?.('#rail 
   const fitPop = (n) => {
     if (!n.isConnected) return;
     const vh = innerHeight, vw = innerWidth;
-    n.style.maxHeight = (vh - 20) + 'px';
+    const z = zf(); n.style.maxHeight = (vh - 20) / z + 'px';
     const h = Math.min(n.scrollHeight + (n.offsetHeight - n.clientHeight), vh - 20), r = n.getBoundingClientRect();
     let top = r.top; if (top + h > vh - 10) top = vh - 10 - h; if (top < 10) top = 10;
-    if (Math.abs(top - r.top) > 1) { n.style.bottom = 'auto'; n.style.top = top + 'px'; }
+    if (Math.abs(top - r.top) > 1) { n.style.bottom = 'auto'; n.style.top = top / z + 'px'; }
     const r2 = n.getBoundingClientRect();
-    if (r2.right > vw - 8 || r2.left < 8) { const left = Math.max(8, Math.min(r2.left, vw - r2.width - 8)); n.style.right = 'auto'; n.style.left = left + 'px'; }
+    if (r2.right > vw - 8 || r2.left < 8) { const left = Math.max(8, Math.min(r2.left, vw - r2.width - 8)); n.style.right = 'auto'; n.style.left = left / z + 'px'; }
   };
   const watchPop = (n) => { if (n.nodeType !== 1) return; const els = n.matches('.popover') ? [n] : [...(n.querySelectorAll?.('.popover') || [])]; els.forEach((p) => { fitPop(p); new ResizeObserver(() => fitPop(p)).observe(p); }); };
   window.addEventListener('resize', () => document.querySelectorAll('.popover').forEach(fitPop));

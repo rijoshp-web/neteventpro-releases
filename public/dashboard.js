@@ -971,7 +971,7 @@ views.dashboard = (el) => {
 
   // ----- charts (sized to their tile) -----
   function canvasOf(t) { const wb = wbOf(t.id); return wb && $('canvas', wb); }
-  function fit(cv) { const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 300, h = cv.clientHeight || 120; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = '11px ' + css('--ui'); return { g, w, h }; }
+  function fit(cv) { const dpr = (window.devicePixelRatio || 1) * (window.NEP_ZOOM || 1), w = cv.clientWidth || 300, h = cv.clientHeight || 120; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = '11px ' + css('--ui'); return { g, w, h }; }
   function drawRate(t) {
     const cv = canvasOf(t), st = S.stats; if (!cv || !st) return; const { g, w, h } = fit(cv), data = st.rate; const padL = 34, padB = 16, padT = 6, max = Math.max(5, ...data) * 1.15;
     const x = (i) => padL + (i / (data.length - 1)) * (w - padL - 4), y = (v) => padT + (1 - v / max) * (h - padT - padB);
@@ -1018,7 +1018,7 @@ views.dashboard = (el) => {
     let lastEv = null, raf2 = 0; node.style.left = r0.left + 'px'; node.style.top = r0.top + 'px'; node.style.willChange = 'transform';
     const move = (ev) => { lastEv = ev; if (!raf2) raf2 = requestAnimationFrame(() => { raf2 = 0; step(lastEv); }); };
     const step = (ev) => {
-      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      const dx = (ev.clientX - x0) / zf(), dy = (ev.clientY - y0) / zf();   // 1.99.3 in page pixels when the interface is scaled
       let nx = t.x, ny = t.y, nw = t.w, nh = t.h;
       if (mode === 'move') { nx = Math.min(GRID.cols - t.w, Math.max(0, Math.round(o.x + dx / g.cellW))); ny = Math.max(0, Math.round(o.y + dy / g.cellH)); node.style.transform = `translate(${dx}px, ${Math.max(-r0.top, dy)}px)`; }
       else {
@@ -1573,7 +1573,7 @@ views.dashboard = (el) => {
   }
   function showBar() {
     if (document.hidden || bar.classList.contains('none')) return;
-    let r = el.getBoundingClientRect(); if (r.width < 50 && el.parentElement) r = el.parentElement.getBoundingClientRect(); bar.style.left = Math.round(r.width >= 50 ? r.left + r.width / 2 : innerWidth / 2) + 'px'; bar.classList.add('show');
+    let r = el.getBoundingClientRect(); if (r.width < 50 && el.parentElement) r = el.parentElement.getBoundingClientRect(); bar.style.left = Math.round((r.width >= 50 ? r.left + r.width / 2 : innerWidth / 2) / zf()) + 'px'; bar.classList.add('show');
     clearTimeout(barTimer); barTimer = setTimeout(() => { if (!barHover && !bar.contains(document.activeElement)) bar.classList.remove('show'); }, 2600);
   }
   const host = el.parentElement || el;

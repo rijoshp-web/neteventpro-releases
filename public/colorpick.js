@@ -53,7 +53,7 @@
     document.body.appendChild(p);
     const r = btn.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
     let left = Math.min(Math.max(8, r.left), innerWidth - pw - 8), top = r.bottom + 6; if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6);
-    p.style.left = left + 'px'; p.style.top = top + 'px';
+    const z = window.zf ? zf() : 1; p.style.left = left / z + 'px'; p.style.top = top / z + 'px';   // 1.99.3 screen positions in page pixels when the interface is scaled
     p.addEventListener('mousedown', (e) => e.stopPropagation());   // clicks in here never close the window or popover that holds the colour field
     p.addEventListener('click', (e) => {
       const s = e.target.closest('.cx-sw'); if (s) { set(inp, s.dataset.v); close(); btn.focus({ preventScroll: true }); return; }

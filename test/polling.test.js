@@ -7,7 +7,7 @@ const { DEFAULTS } = require('../src/config');
 
 const MIB = [
   ['1.3.6.1.2.1.1.1.0', 'octets', 'Cisco IOS test'], ['1.3.6.1.2.1.1.2.0', 'oid', '1.3.6.1.4.1.9.1.1208'], ['1.3.6.1.2.1.1.3.0', 'timeticks', 360000], ['1.3.6.1.2.1.1.5.0', 'octets', 'sw-test'],
-  ['1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge32', 65],
+  ['1.3.6.1.2.1.25.3.3.1.2.1', 'gauge32', 65],
   ['1.3.6.1.2.1.25.2.3.1.2.1', 'oid', '1.3.6.1.2.1.25.2.1.2'], ['1.3.6.1.2.1.25.2.3.1.5.1', 'integer', 1000], ['1.3.6.1.2.1.25.2.3.1.6.1', 'integer', 500],
   ['1.3.6.1.2.1.31.1.1.1.1.1', 'octets', 'Gi1/0/1'], ['1.3.6.1.2.1.31.1.1.1.1.2', 'octets', 'Gi1/0/2'], ['1.3.6.1.2.1.31.1.1.1.1.3', 'octets', 'Vlan1'],
   ['1.3.6.1.2.1.2.2.1.3.1', 'integer', 6], ['1.3.6.1.2.1.2.2.1.3.2', 'integer', 6], ['1.3.6.1.2.1.2.2.1.3.3', 'integer', 53],
@@ -27,7 +27,7 @@ test('poll a Cisco-like device: profile detection, readings, auto interfaces, ra
   const a = await startAgent({ mib: MIB }), { pl, msgs, db } = setup();
   try {
     const t = await pl.testDevice({ name: 'x', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500 });
-    assert.equal(t.ok, true); assert.equal(t.profile, 'cisco'); assert.equal(t.interfaces, 3); assert.equal(t.uptimeSec, 3600);
+    assert.equal(t.ok, true); assert.equal(t.profile, 'generic'); assert.equal(t.interfaces, 3); assert.equal(t.uptimeSec, 3600);
     const bad = await pl.testDevice({ name: 'x', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'wrong', timeoutMs: 300, retries: 0 }); assert.equal(bad.ok, false); assert.equal(bad.code, 'timeout');
 
     const d = pl.saveDevice({ name: 'SW-Test', host: '127.0.0.1', port: a.port, version: 'v2c', community: 'public', timeoutMs: 500, retries: 0, profile: 'auto', ifMode: 'auto' });
@@ -39,7 +39,7 @@ test('poll a Cisco-like device: profile detection, readings, auto interfaces, ra
     assert.ok(msgs.some((m) => /CPU high/.test(m.message) && m.tags.includes('poll-' + pl.cfg.thresholds[0].id) && m.devKey === 'sw-test'), 'cpu threshold raised');
     assert.equal(msgs.filter((m) => /CPU high/.test(m.message)).length, 1);
     a.set('1.3.6.1.2.1.31.1.1.1.6.1', 1000 + 125000 * 5);      // 5 s later (we fake the clock by waiting): rate must be about 125000 B/s
-    await wait(1100); a.set('1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 20); a.set('1.3.6.1.2.1.31.1.1.1.6.1', 1000 + 125000);
+    await wait(1100); a.set('1.3.6.1.2.1.25.3.3.1.2.1', 20); a.set('1.3.6.1.2.1.31.1.1.1.6.1', 1000 + 125000);
     await pl.pollDevice(dd);
     const rin = get('if.in', 'Gi1/0/1'); assert.ok(rin > 0 && rin < 1.1e6 * 1.2, 'rate ' + rin);
     assert.ok(msgs.some((m) => /CLEARED: CPU high/.test(m.message)), 'cpu threshold cleared'); assert.equal(get('cpu'), 20);
@@ -87,7 +87,7 @@ test('discovery: ranges, finding a device, adding it with the credentials that w
     assert.throws(() => pl.startDiscovery({ ranges: '127.0.0.1', version: 'v2c', communities: '' }), /community/);
     const id = pl.startDiscovery({ ranges: '127.0.0.1 127.0.0.2', version: 'v2c', port: a.port, communities: 'wrong public' });
     for (let i = 0; i < 100 && pl.discoveryStatus(id).running; i++) await wait(100);
-    const st = pl.discoveryStatus(id); assert.equal(st.done, 2); assert.equal(st.found.length, 1); assert.equal(st.found[0].host, '127.0.0.1'); assert.equal(st.found[0].profile, 'cisco'); assert.equal(st.found[0].vendor, 'Cisco'); assert.equal(st.found[0].cred, undefined);
+    const st = pl.discoveryStatus(id); assert.equal(st.done, 2); assert.equal(st.found.length, 1); assert.equal(st.found[0].host, '127.0.0.1'); assert.equal(st.found[0].profile, 'generic'); assert.equal(st.found[0].vendor, 'Cisco'); assert.equal(st.found[0].cred, undefined);
     assert.equal(pl.addDiscovered(id, ['127.0.0.1', '9.9.9.9'], { site: 'HQ' }), 1); assert.equal(pl.addDiscovered(id, ['127.0.0.1']), 0);
     const d = pl.devices()[0]; assert.equal(d.name, 'sw-test'); assert.equal(d.community, 'public'); assert.equal(d.site, 'HQ'); assert.equal(d.port, a.port);
   } finally { a.close(); }

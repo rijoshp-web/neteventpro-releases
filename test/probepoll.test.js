@@ -7,7 +7,7 @@ const { startAgent } = require('./fake-snmp-agent');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const H = { 'X-Requested-With': 'NetEventPro', 'content-type': 'application/json' };
 const MIB = [['1.3.6.1.2.1.1.1.0', 'octets', 'Probe-side switch'], ['1.3.6.1.2.1.1.2.0', 'oid', '1.3.6.1.4.1.9.1.1'], ['1.3.6.1.2.1.1.3.0', 'timeticks', 500000], ['1.3.6.1.2.1.1.5.0', 'octets', 'far-sw'],
-  ['1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge32', 77], ['1.3.6.1.2.1.31.1.1.1.1.1', 'octets', 'Gi1'], ['1.3.6.1.2.1.2.2.1.3.1', 'integer', 6], ['1.3.6.1.2.1.2.2.1.8.1', 'integer', 1], ['1.3.6.1.2.1.31.1.1.1.6.1', 'counter64', 0]];
+  ['1.3.6.1.2.1.25.3.3.1.2.1', 'gauge32', 77], ['1.3.6.1.2.1.31.1.1.1.1.1', 'octets', 'Gi1'], ['1.3.6.1.2.1.2.2.1.3.1', 'integer', 6], ['1.3.6.1.2.1.2.2.1.8.1', 'integer', 1], ['1.3.6.1.2.1.31.1.1.1.6.1', 'counter64', 0]];
 
 test('a probe polls a device for the server: test, readings, interfaces, no-answer alarm', { timeout: 150000 }, async (t) => {
   const agent = await startAgent({ mib: MIB });
@@ -32,11 +32,11 @@ test('a probe polls a device for the server: test, readings, interfaces, no-answ
 
   // Test connection runs on the probe (it asks the server every 10 seconds)
   const test1 = await api('/api/poll/test', { name: 'x', host: '127.0.0.1', port: agent.port, version: 'v2c', community: 'public', timeoutMs: 800, via: pr.json.id });
-  assert.equal(test1.json?.ok, true, test1.text); assert.equal(test1.json.profile, 'cisco'); assert.equal(test1.json.sysName, 'far-sw');
+  assert.equal(test1.json?.ok, true, test1.text); assert.equal(test1.json.profile, 'generic'); assert.equal(test1.json.sysName, 'far-sw');
 
   // readings arrive through the probe
   let dev = null; for (let i = 0; i < 60; i++) { ov = await api('/api/poll/overview'); dev = ov.json.devices[0]; if (dev.state === 'up' && dev.cpu !== null) break; await sleep(1000); }
-  assert.equal(dev.state, 'up', JSON.stringify(dev)); assert.equal(dev.cpu, 77); assert.equal(dev.via, 'SiteP'); assert.equal(dev.profile, 'cisco');
+  assert.equal(dev.state, 'up', JSON.stringify(dev)); assert.equal(dev.cpu, 77); assert.equal(dev.via, 'SiteP'); assert.equal(dev.profile, 'generic');
   const det = await api('/api/poll/device?id=' + add.json.id); assert.equal(det.json.ifaces.length, 1); assert.equal(det.json.device.ifSelected?.[0] ?? 'Gi1', 'Gi1');
   const ser = await api(`/api/poll/series?id=${add.json.id}&k=cpu&hours=1`); assert.ok(ser.json.points.length >= 1 && ser.json.points[0].v === 77);
 
@@ -62,6 +62,6 @@ test('probe poller keeps results while the link is down and sends them in order 
     for (let i = 0; i < 3; i++) { pp.out.push({ dev: 'd1', res: await pp.collector.collect(pp.cfg.devices[0], pp.cfg.profiles) }); await sleep(20); }
     await pp.flush(); assert.equal(pp.out.length, 3, 'nothing lost while down'); assert.ok(pp.nextSend > Date.now(), 'backs off');
     down = false; pp.nextSend = 0; await pp.flush(); assert.equal(pp.out.length, 0); assert.equal(sent.length, 3); assert.ok(sent[0].res.ts <= sent[2].res.ts && sent[0].res.ok === true);
-    pp.dirty = true; pp.save(); assert.ok(!fs.readFileSync(path.join(dir, 'probe-poll-queue.json'), 'utf8').includes('far-sw'), 'queue file is encrypted');
+    pp.dirty = true; await pp.save(); assert.ok(!fs.readFileSync(path.join(dir, 'probe-poll-queue.json'), 'utf8').includes('far-sw'), 'queue file is encrypted');
   } finally { pp.shutdown(); agent.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

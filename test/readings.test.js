@@ -52,7 +52,7 @@ test('readings: copy from a device, templates, built-in sets, removing a device'
     assert.equal(cfg.polling.thresholds.filter((t) => t.owner === d2.id).length, 1);
     const tid = pl.saveTemplate('Room sensor', d1.id); assert.equal(pl.templates()[0].count, 1);
     const d3 = dev(pl, a.port, 'C'); pl.copyReadings(d3.id, 'tpl:' + tid, true); assert.equal(pl.readingsOf(d3.id)[0].label, 'Temp');
-    const d4 = dev(pl, a.port, 'D'); const b = pl.copyReadings(d4.id, 'builtin:apc', true); assert.ok(b.count > 0, 'a built-in set can be the start');
+    const d4 = dev(pl, a.port, 'D'); const b = pl.copyReadings(d4.id, 'builtin:generic', true); assert.ok(b.count > 0, 'the standard set can be the start');
     assert.throws(() => pl.saveReadings(d1.id, [{ label: 'x', oid: 'nope' }]), /OID/);
     pl.deleteDevice(d2.id); assert.equal(cfg.polling.thresholds.filter((t) => t.owner === d2.id).length, 0); assert.equal(pl.readingsOf(d2.id).length, 0);
     pl.saveReadings(d1.id, []); assert.equal(pl.devices().find((x) => x.id === d1.id).profile, 'basic'); assert.equal(cfg.polling.thresholds.filter((t) => t.owner === d1.id).length, 0);

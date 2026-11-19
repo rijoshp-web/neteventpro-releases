@@ -3,7 +3,7 @@
 /* Chart helper: small canvas line/area chart with a hover read-out. series = [{name,color,key,fmt}] over samples [{t,...}] */
 function sysChart(cv, samples, series, o = {}) {
   const css = getComputedStyle(document.documentElement), txt = css.getPropertyValue('--muted').trim() || '#8b97a8', grid = css.getPropertyValue('--line').trim() || '#2a3444';
-  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
+  const dpr = (window.devicePixelRatio || 1) * (window.NEP_ZOOM || 1), W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); g.font = '11px system-ui, sans-serif';
   const L = 44, R = 8, T = 8, B = 20, w = W - L - R, h = H - T - B;
   const pts = samples.filter((x) => series.some((sr) => x[sr.key] !== null && x[sr.key] !== undefined));
@@ -25,7 +25,7 @@ function sysChart(cv, samples, series, o = {}) {
     if (si === 0 || o.fillAll) { g.lineTo(X(pts[pts.length - 1].t), T + h); g.lineTo(X(pts[0].t), T + h); g.closePath(); const gr = g.createLinearGradient(0, T, 0, T + h); gr.addColorStop(0, sr.color + '55'); gr.addColorStop(1, sr.color + '05'); g.fillStyle = gr; g.fill(); g.fillStyle = txt; }
   }
   cv._pts = { pts, X, Y, L, R, T, h, w, series, fmt };
-  cv.onmousemove = (e) => { const c = cv._pts; if (!c) return; const r = cv.getBoundingClientRect(), mx = e.clientX - r.left; let best = null, bd = 1e9; for (const x of c.pts) { const d = Math.abs(c.X(x.t) - mx); if (d < bd) { bd = d; best = x; } }
+  cv.onmousemove = (e) => { const c = cv._pts; if (!c) return; const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) / (window.zf ? zf() : 1); let best = null, bd = 1e9; for (const x of c.pts) { const d = Math.abs(c.X(x.t) - mx); if (d < bd) { bd = d; best = x; } }
     cv.title = best ? `${new Date(best.t).toLocaleTimeString([], { hour12: false })}\n` + c.series.map((sr) => `${sr.name}: ${best[sr.key] === null || best[sr.key] === undefined ? '–' : c.fmt(best[sr.key])}`).join('\n') : ''; };
 }
 

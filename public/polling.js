@@ -16,6 +16,18 @@
   views.polling = (el) => {
     let tab = 'overview', ov = null, timer = 0, alive = true, filter = '', range = 24, grp = null, grpView = true;
     const devId = () => S.hq?.get('d') || '';
+    // 1.99.3 the timed refresh rebuilds the page: never while a button is being pressed, just after a click, or while typing
+    // in a field (a click that landed during a refresh was lost, and the search box lost what was typed)
+    let ptrDown = false, ptrAt = 0;
+    el.addEventListener('pointerdown', () => { ptrDown = true; ptrAt = Date.now(); }, true);
+    el.addEventListener('pointerup', () => { ptrDown = false; ptrAt = Date.now(); }, true);
+    const uiBusy = () => { const ae = document.activeElement; return ptrDown || Date.now() - ptrAt < 2500 || !!(ae && el.contains(ae) && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'checkbox'); };
+    // 1.99.3 graph data is gathered for a moment and asked for in one request per device (one request per graph kept the server busy)
+    const SQ = new Map();
+    const seriesOf = (id, k, inst, hours) => new Promise((ok) => {
+      let q = SQ.get(id); if (!q) { q = []; SQ.set(id, q); setTimeout(async () => { SQ.delete(id); try { const r = await api('/api/poll/series-many', { method: 'POST', body: { id, items: q.map((x) => ({ k: x.k, inst: x.inst, hours: x.hours })) } }); q.forEach((x, i) => x.ok(r.items[i]?.points || [])); } catch { q.forEach((x) => x.ok([])); } }, 0); }
+      q.push({ k, inst, hours, ok });
+    });
     const go = (h) => { location.hash = h; };
     const head = (extra = '') => `<div class="page-head"><h1>SNMP polling</h1>${extra}</div>`;
     const ADV = ['lookups', 'templates', 'profiles'], advOn = () => { try { return localStorage.getItem('ne.pollAdv') === '1'; } catch (e) { return false; } };
@@ -129,7 +141,7 @@
       g('dTestBtn').onclick = async () => {
         const box = g('dTest'); box.hidden = false; box.innerHTML = `<span class="muted">${g('dVia') && g('dVia').value ? 'Asking the probe to ask the device (up to 10 seconds)…' : 'Asking the device…'}</span>`; g('dTestBtn').disabled = true;
         try { const r = await api('/api/poll/test', { method: 'POST', body: body() });
-          box.innerHTML = r.ok && r.noStd ? `<span class="pill ok">Answered in ${r.rtt} ms</span><div style="margin-top:4px">${esc(r.note)}</div>` : r.ok ? `<span class="pill ok">Answered in ${r.rtt} ms</span> <b>${esc(r.sysName || '')}</b><div class="muted" style="margin-top:4px">${esc(r.sysDescr)}</div><div style="margin-top:4px">Uptime ${upt(r.uptimeSec)} · ${r.interfaces} interface${r.interfaces === 1 ? '' : 's'} · matching profile: <b>${esc(r.profileName)}</b>${r.vendor ? ' · vendor: ' + esc(r.vendor) : ''}</div>${['cisco', 'apc'].includes(r.profile) || !r.vendor ? '' : `<div class="muted" style="margin-top:4px">No built-in profile for ${esc(r.vendor)}: it is read with the generic profile (uptime, interfaces, standard CPU and memory if it has them). To read its own values, upload its MIB file (Settings → SNMP & MIBs) and use <b>Pick from MIB</b> in a custom profile.</div>`}`
+          box.innerHTML = r.ok && r.noStd ? `<span class="pill ok">Answered in ${r.rtt} ms</span><div style="margin-top:4px">${esc(r.note)}</div>` : r.ok ? `<span class="pill ok">Answered in ${r.rtt} ms</span> <b>${esc(r.sysName || '')}</b><div class="muted" style="margin-top:4px">${esc(r.sysDescr)}</div><div style="margin-top:4px">Uptime ${upt(r.uptimeSec)} · ${r.interfaces} interface${r.interfaces === 1 ? '' : 's'} · readings: <b>${esc(r.profileName)}</b>${r.vendor ? ' · vendor: ' + esc(r.vendor) : ''}</div><div class="muted" style="margin-top:4px">Read with the standard set (uptime, interfaces, standard CPU and memory where it has them). To read its own values, upload its MIB file (Settings → SNMP & MIBs) and add readings with <b>Pick from MIB</b>.</div>`
             : `<span class="pill bad">No answer</span> ${esc(r.error)}<div class="muted" style="margin-top:4px">${r.code === 'timeout' ? 'Check the address, that SNMP is switched on in the device, the community or user, and that UDP port ' + (+g('dPort').value || 161) + ' is allowed from this computer.' : ''}</div>`; }
         catch (e) { box.innerHTML = `<span class="pill bad">Error</span> ${esc(e.message)}`; } g('dTestBtn').disabled = false;
       };
@@ -288,7 +300,7 @@
         dl.$('#tpOk').onclick = async () => { try { await api('/api/poll/templates', { method: 'POST', body: { name: dl.$('#tpN').value, from: d.id } }); dl.close(); toast('Template saved (SNMP polling → Settings → Advanced → Templates)'); } catch (e) { toast(e.message, true); } }; });
 
       /* the tiles above the table, and the small trend lines: need the last hours of each value */
-      const sp = {}; await Promise.all(list.filter((r) => !isTbl(r) && r.dtype !== 'text').map(async (r) => { try { sp[r.k] = (await api(`/api/poll/series?id=${encodeURIComponent(d.id)}&k=${encodeURIComponent(r.k)}&inst=&hours=6`)).points; } catch { sp[r.k] = []; } })); if (!alive) return;
+      const sp = {}; await Promise.all(list.filter((r) => !isTbl(r) && r.dtype !== 'text').map(async (r) => { sp[r.k] = await seriesOf(d.id, r.k, '', 6); })); if (!alive) return;
       $$('.rdt-sp', box).forEach((c) => { const r = list.find((x) => x.k === c.dataset.sp); if (r && !isTbl(r)) c.innerHTML = spark(sp[r.k], SC[worst(r)] || SC.unk); });
       const lim = (r) => { const its = itemsOf(r).flatMap((x) => [x.v, x.op === 'between' ? x.v2 : null]).filter((x) => Number.isFinite(x)), v = valOf(r), u = r.unit === '%' ? 100 : null, lo = r.disp && Number.isFinite(r.disp.min) ? r.disp.min : Math.min(0, ...its, Number.isFinite(v) ? v : 0);
         const hi = r.disp && Number.isFinite(r.disp.max) ? r.disp.max : u !== null ? u : niceMax(Math.max(...its, Number.isFinite(v) ? v : 0, lo + 1) * 1.2); return [lo, hi]; };
@@ -362,7 +374,7 @@
           const o = draft.order.filter((k) => k !== dragK), at = o.indexOf(n.dataset.key), before = draft.order.indexOf(dragK) > draft.order.indexOf(n.dataset.key); o.splice(before ? at : at + 1, 0, dragK); draft.order = o; applyBoard(); });
         board.addEventListener('pointerdown', (e) => { const rz = e.target.closest && e.target.closest('.rz'); if (!editing || !rz) return; e.preventDefault(); e.stopPropagation();
           const n = rz.parentElement, k = n.dataset.key, g = k[0] === 'g', cv = g ? n.querySelector('canvas') : null, x0 = e.clientX, y0 = e.clientY, w0 = wOf(k, n.classList.contains('vz-wide')), colW = (board.clientWidth + 10) / 12, h0 = g ? cv.offsetHeight : n.offsetHeight;
-          const mv = (ev) => { draft.w[k] = Math.max(2, Math.min(12, Math.round(w0 + (ev.clientX - x0) / colW))); draft.h[k] = Math.max(100, Math.min(700, Math.round(h0 + (ev.clientY - y0)))); applyBoard(); };
+          const mv = (ev) => { draft.w[k] = Math.max(2, Math.min(12, Math.round(w0 + (ev.clientX - x0) / zf() / colW))); draft.h[k] = Math.max(100, Math.min(700, Math.round(h0 + (ev.clientY - y0) / zf()))); applyBoard(); };
           const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); });
       }
       const chk = $$('.ifw', el), saveBtn = $('#ifSave', el), dirty = () => { if (saveBtn) saveBtn.hidden = false; };
@@ -375,7 +387,7 @@
       readingsPanel($('#rdPanel', el), d, dv, { lkv, rowSum });
       charts();
     };
-    const series = async (k, inst, hours) => { try { return (await api(`/api/poll/series?id=${encodeURIComponent(devId())}&k=${encodeURIComponent(k)}&inst=${encodeURIComponent(inst || '')}&hours=${hours || range}`)).points; } catch { return []; } };
+    const series = (k, inst, hours) => seriesOf(devId(), k, inst || '', hours || range);
     /* what is shown on a device page, how big and in which order is kept per device (dv.layout); every graph has its own options */
     const layItems = () => (dv && dv.layout && dv.layout.items) || {};
     const lay = (key) => ({ show: true, span: 1, h: 150, style: '', hours: null, color: '', max: null, min: null, ...(layItems()[key] || {}) });
@@ -499,7 +511,7 @@
     const G3 = [
       ['thresholds', 'Alarm limits', 'Raise an alarm when a number is too high or too low, on many devices at once.', 'CPU above 85 % for 5 minutes → Error, on every device.', 'For one reading on one device, set the alarm inside that reading instead (device page → Readings → Edit → Alarms).'],
       ['lookups', 'Value meanings', 'Turn a status number into words and an alarm state.', '1 = OK, 2 = Fault. Or: above 25 °C = Critical.', 'Used inside a reading (Words for numbers). Readings picked from a MIB get theirs automatically, so you rarely need this page.'],
-      ['templates', 'Templates', 'A saved copy of the readings of one device, to put on other devices.', 'Set up one APC UPS well, save it, apply it to the other 20.', 'Save from a device page (Readings → Save as template). Apply with Use a template.'],
+      ['templates', 'Templates', 'A saved copy of the readings of one device, to put on other devices.', 'Set up one UPS well, save it, apply it to the other 20.', 'Save from a device page (Readings → Save as template). Apply with Use a template.'],
     ];
     const guide3 = (cur) => `<div class="g3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;max-width:1000px;margin:0 0 12px">${G3.map(([k, n, what, ex, how]) => `<div class="panel" style="margin:0;${k === cur ? 'border-color:var(--accent);' : ''}"><div style="display:flex;align-items:center;gap:8px"><b>${n}</b>${k === cur ? '<span class="pill ok">this page</span>' : `<button class="linkish" data-t="${k}">Open</button>`}</div><div style="margin:4px 0">${what}</div><div class="muted" style="font-size:12.5px"><b>Example:</b> ${ex}</div><div class="muted" style="font-size:12.5px;margin-top:4px">${how}</div></div>`).join('')}</div><p class="muted" style="max-width:1000px;margin:0 0 12px">Order of work: <b>1</b> add the device, <b>2</b> add its readings (device page), <b>3</b> add alarms inside each reading, or one shared limit here for many devices, <b>4</b> save the finished readings as a template to reuse them.</p>`;
     const tellBoxes = (cls, profs, sel, dis) => profs.length ? profs.map((x) => `<label class="chk" style="display:block;margin:0"><input type="checkbox" class="${cls}" value="${esc(x.id)}" ${(sel || []).includes(x.id) ? 'checked' : ''} ${dis}> ${esc(x.name)}</label>`).join('') : '<span class="muted">No notification profiles yet (Notifications page)</span>';
@@ -619,15 +631,15 @@
       try { const w = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(w) && w.length === ths.length) apply(w); } catch { /* none */ }
       ths.slice(0, -1).forEach((th, i) => { const h = document.createElement('span'); h.className = 'colr'; h.title = 'Drag to resize the column. Double-click to reset all.'; th.style.position = 'relative'; th.appendChild(h);
         h.onpointerdown = (e) => { e.preventDefault(); h.setPointerCapture(e.pointerId); const w = ths.map((x) => x.offsetWidth), x0 = e.clientX, w0 = w[i];
-          h.onpointermove = (m) => { w[i] = Math.max(40, w0 + m.clientX - x0); apply(w); }; h.onpointerup = () => { h.onpointermove = h.onpointerup = null; try { localStorage.setItem(key, JSON.stringify(w)); } catch { /* ignore */ } }; };
+          h.onpointermove = (m) => { w[i] = Math.max(40, w0 + (m.clientX - x0) / zf()); apply(w); }; h.onpointerup = () => { h.onpointermove = h.onpointerup = null; try { localStorage.setItem(key, JSON.stringify(w)); } catch { /* ignore */ } }; };
         h.ondblclick = () => { try { localStorage.removeItem(key); } catch { /* ignore */ } t.style.tableLayout = t.style.width = ''; ths.forEach((x) => { x.style.width = ''; }); }; }); });
     let crT = 0; const crObs = new MutationObserver(() => { clearTimeout(crT); crT = setTimeout(colResize, 60); }); crObs.observe(el, { childList: true, subtree: true });
 
     // ---------------- routing inside the page ----------------
     const render = () => {
       stop(); const hasDev = !!devId();
-      if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !editing && !(sb && !sb.hidden)) detail(); }, 30000); return; }
-      if (tab === 'overview') { overview(); every(() => { if (!document.querySelector('.modal-back') && tab === 'overview' && !devId()) overview(); }, 15000); }
+      if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !editing && !(sb && !sb.hidden) && !uiBusy()) detail(); }, 30000); return; }
+      if (tab === 'overview') { overview(); every(() => { if (!document.querySelector('.modal-back') && tab === 'overview' && !devId() && !uiBusy()) overview(); }, 15000); }
       else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
     };
     render();

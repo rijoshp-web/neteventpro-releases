@@ -7,7 +7,7 @@
 //       & "C:\Program Files\NetEventPro\node\node.exe" send-trap-test.js --target 127.0.0.1 --delay 5
 //
 // Upload test/NETEVENTPRO-TEST-MIB.mib on the SNMP page first for scenarios 3 and 4 (otherwise those show numbers, which is also a useful test).
-// For scenarios 1 and 2 to raise/clear alarms add the "link down / link up" template pair in Rules & alerts. Traps carry the tags
+// For scenarios 1 and 2 to raise/clear alarms add the "link down / link up" template pair in Alarm configuration. Traps carry the tags
 // link-down / link-up, so the same rules that work for syslog work for traps.
 const dgram = require('node:dgram');
 const { buildV1, buildV2, decodeMessage } = require('../src/ber');

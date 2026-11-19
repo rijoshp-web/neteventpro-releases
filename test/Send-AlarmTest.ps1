@@ -1,6 +1,6 @@
 <#
  Alarm test generator for NetEventPro (PowerShell, no Node needed).
- Prepare once: Rules & alerts -> "Add from template": link down/up, mains failure/restored,
+ Prepare once: Alarm configuration -> "Add from template": link down/up, mains failure/restored,
  routing neighbour down/up, communication lost/restored -> Save rules.
  Run:  powershell -ExecutionPolicy Bypass -File .\Send-AlarmTest.ps1 -Target 127.0.0.1 -Port 514 -DelaySec 6
        add  -Scenario 1,2   to run only some scenarios (default: all)

@@ -2,6 +2,23 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.3
+No vendor profiles, a faster SNMP polling page, sharper probe answer times, glass everywhere, every screen size, and a device simulator.
+- **No built-in vendor profiles**: the Cisco and APC sets are removed. Every device starts from the standard set (uptime, interfaces, standard CPU and memory where it has them); equipment-specific values are added as readings from its MIB. Devices that used the removed sets move to the standard set by themselves.
+- **SNMP polling page responds at once**:
+  - The Reports tab read every stored reading of the period: 270 ms with a week of readings for 20 devices, holding up the server meanwhile. Now one indexed lookup per device: 6 ms (15 ms for 7 days).
+  - A device page asks for all its graphs in one request instead of about 30.
+  - The timed refresh no longer rebuilds the page while a button is being pressed, just after a click, or while typing in a field (such clicks were lost).
+- **Probe answer times**: probes poll on their own thread, as the server does since 1.99.1, and save their queue in the background. Forwarding syslog and saving the queue no longer delay reading the answers, which made a probe's answer times longer than the server's for the same device.
+- **Scaled values without noise**: 85.3, not 85.30000000000001.
+- **Glass**: role and rule cards, the log table, alarm chips, health cards, progress bars, code, red buttons, the reports list and the Settings header band are see-through too (they stayed solid dark).
+- **Every screen size**: checked on every page from 320 × 240 to 7680 × 4320, 4:3, 5:4, 16:9, 16:10 and 21:9.
+  - Large screens: everything is scaled to the screen (1.25× at 2560 × 1440 and 3440 × 1440, 2× at 4K, 4× at 8K; 100 % up to 1920 × 1080). Settings → Appearance → Screen size sets it by hand (75 % to 400 %). Charts stay sharp; menus, the colour chooser, dragging and resizing follow the scale.
+  - Short screens (up to 620 px high): compact top bar and status bar.
+- **Export menu**: no "Drag to move this window" cursor on its items.
+- **"Rules & alerts" is now "Alarm configuration"**.
+- **Device simulator** (tools/snmpsim): 20 simulated devices (switch, router, firewall, servers, rectifier plant, UPS, multiplexer, PDU, generator, environment sensor, time server, audio processor, microwave link, air conditioner, NAS, Wi-Fi controller, an SNMPv1-only device, a device without standard values, a slow flaky site) with changing values; it can add itself with all readings, alarm limits and value meanings.
+
 ## 1.99.2
 Faster everywhere, smooth dashboard editing, SNMP polling that copes with any device, polled readings in every visual, a stepped tile editor and tile icons.
 - **Much lighter on the computer**: found and fixed what kept the browser busy even when nothing happened.

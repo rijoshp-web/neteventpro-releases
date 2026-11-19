@@ -13,7 +13,10 @@ const MAX_RESULTS = 10000, BATCH = 100, SYNC_MS = 10000;
 class ProbePoller {
   /** probe: the Probe object (for the link: probe.cfg(), probe.post(), probe.box) */
   constructor(probe, dir) {
-    this.probe = probe; this.collector = new Collector(new SnmpClient()); this.file = path.join(dir, 'probe-poll-queue.json'); this.cfgFile = path.join(dir, 'probe-poll-config.json');
+    this.probe = probe; this.collector = new Collector(new SnmpClient());
+    // 1.99.3 polls on their own thread, as on the server: forwarding syslog and saving the queue on this thread no longer delays
+    // reading the answers (the answer times measured by a probe came out longer than the server's for the same device)
+    this.pw = process.env.NETEVENTPRO_POLL_THREAD === '0' ? null : new (require('./pollworker').PollWorker)((d, profiles) => this.collector.collect(d, profiles)); this.file = path.join(dir, 'probe-poll-queue.json'); this.cfgFile = path.join(dir, 'probe-poll-config.json');
     this.cfg = { devices: [], profiles: [], workers: 5, enabled: true }; this.next = new Map(); this.fails = new Map(); this.busy = new Set(); this.out = []; this.taskOut = []; this.running = 0; this.syncing = false; this.sending = false; this.nextSync = 0; this.backoff = 0; this.nextSend = 0; this.dirty = false;
     this.s = { devices: 0, polls: 0, sent: 0, lastSync: 0, lastError: '', jobs: 0 };
     try { const raw = fs.readFileSync(this.file), dec = probe.box.openFile(raw), j = JSON.parse(dec ? dec.toString('utf8') : raw.toString('utf8')); if (Array.isArray(j)) this.out = j.slice(-MAX_RESULTS); } catch { /* no queue yet */ }
@@ -23,8 +26,9 @@ class ProbePoller {
   }
   get on() { return this.probe.on; }
   save() {
-    if (!this.dirty) return; this.dirty = false;
-    try { fs.writeFileSync(this.file + '.tmp', this.probe.box.sealFile(Buffer.from(JSON.stringify(this.out)))); fs.renameSync(this.file + '.tmp', this.file); } catch { /* best effort */ }
+    if (!this.dirty || this.saving) return this.saving || Promise.resolve(); this.dirty = false;   // 1.99.3 written in the background, not blocking the thread
+    let buf; try { buf = this.probe.box.sealFile(Buffer.from(JSON.stringify(this.out))); } catch { return Promise.resolve(); }
+    return (this.saving = fs.promises.writeFile(this.file + '.tmp', buf).then(() => fs.promises.rename(this.file + '.tmp', this.file)).catch(() => {}).finally(() => { this.saving = null; }));
   }
   saveCfg() { try { fs.writeFileSync(this.cfgFile + '.tmp', this.probe.box.sealFile(Buffer.from(JSON.stringify(this.cfg)))); fs.renameSync(this.cfgFile + '.tmp', this.cfgFile); } catch { /* best effort */ } }
   status() { return { ...this.s, queued: this.out.length }; }
@@ -42,7 +46,7 @@ class ProbePoller {
       if (now < at) continue;
       const step = (d.intervalSec || 60) * 1000, f = this.fails.get(d.id) || 0, back = f >= 3 ? Math.min(step * 2 ** Math.min(f - 2, 5), Math.max(step, 600000)) : step;   // an unanswering device is asked less often (up to 10 min)
       this.next.set(d.id, now + back); this.busy.add(d.id); this.running++;
-      this.collector.collect(d, this.cfg.profiles).then((res) => {
+      (this.pw ? this.pw.collect(d, this.cfg.profiles, this.collector.client.gapMs) : this.collector.collect(d, this.cfg.profiles)).then((res) => {
         this.s.polls++; this.fails.set(d.id, res && res.ok ? 0 : (this.fails.get(d.id) || 0) + 1); this.out.push({ dev: d.id, res }); if (this.out.length > MAX_RESULTS) this.out.splice(0, this.out.length - MAX_RESULTS); this.dirty = true;
       }).catch(() => {}).finally(() => { this.busy.delete(d.id); this.running--; });
     }
@@ -85,7 +89,8 @@ class ProbePoller {
     } catch (e) { this.s.lastError = e.message; this.backoff = Math.min(30000, (this.backoff || 1000) * 2); this.nextSend = Date.now() + this.backoff; }
     finally { this.sending = false; }
   }
-  shutdown() { clearInterval(this.timer); clearInterval(this.saver); this.dirty = true; this.save(); }
+  /** on exit the queue is written at once (synchronously), so nothing waits in a background write that never finishes */
+  shutdown() { clearInterval(this.timer); clearInterval(this.saver); this.pw?.stop(); try { fs.writeFileSync(this.file + '.tmp', this.probe.box.sealFile(Buffer.from(JSON.stringify(this.out)))); fs.renameSync(this.file + '.tmp', this.file); } catch { /* best effort */ } }
 }
 
 module.exports = { ProbePoller };

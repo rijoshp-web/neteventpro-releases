@@ -5,6 +5,7 @@ const net = require('node:net');
 const { execFile } = require('node:child_process');
 const { SnmpClient, SnmpError, toNumber, toText, oidStr, isMissing } = require('./snmpclient');
 /** a number from a value; a device that sends its numbers as text ("12.4", "12.4 V") is read too (1.51) */
+const fix6 = (x) => Math.round(x * 1e6) / 1e6;   // 1.99.3 scaled values without floating-point noise (85.3, not 85.30000000000001)
 const numOf = (vb) => { const n = toNumber(vb); if (n !== null) return n; if (vb && !isMissing(vb) && (Buffer.isBuffer(vb.value) || typeof vb.value === 'string')) { const tx = toText(vb); const m = /^\s*([-+]?\d+(?:[.,]\d+)?)/.exec(tx) || /(?:^|[\s:=])([-+]?\d+(?:\.\d+)?)\s*[A-Za-z%°]*\s*$/.exec(tx); if (m) return Number(m[1].replace(',', '.')); } return null; };   // 1.99.2 also "Temp: 23.5 C"
 const ENT = require('./enterprises');
 
@@ -21,22 +22,7 @@ const BUILTIN = [
   { id: 'generic', name: 'Generic (standard MIB-II / HOST-RESOURCES)', builtin: true, metrics: [
     { k: 'uptime', label: 'Uptime', unit: 's', srcs: [w(OID.sysUpTime, { scale: 0.01 })] },
     { k: 'cpu', label: 'CPU load', unit: '%', srcs: [{ t: 'walk', oid: '1.3.6.1.2.1.25.3.3.1.2', agg: 'avg' }] },
-    { k: 'memory', label: 'Memory used', unit: '%', srcs: [{ t: 'hrram' }] }] },
-  { id: 'cisco', name: 'Cisco switch / router', builtin: true, metrics: [
-    { k: 'uptime', label: 'Uptime', unit: 's', srcs: [w(OID.sysUpTime, { scale: 0.01 })] },
-    { k: 'cpu', label: 'CPU load (5 min)', unit: '%', srcs: [{ t: 'walk', oid: '1.3.6.1.4.1.9.9.109.1.1.1.1.8', agg: 'max' }, { t: 'walk', oid: '1.3.6.1.4.1.9.2.1.58', agg: 'max' }, { t: 'walk', oid: '1.3.6.1.2.1.25.3.3.1.2', agg: 'avg' }] },
-    { k: 'memory', label: 'Memory used', unit: '%', srcs: [{ t: 'pct', used: '1.3.6.1.4.1.9.9.48.1.1.1.5', free: '1.3.6.1.4.1.9.9.48.1.1.1.6' }, { t: 'hrram' }] },
-    { k: 'temperature', label: 'Temperature', unit: '°C', srcs: [{ t: 'walk', oid: '1.3.6.1.4.1.9.9.13.1.3.1.3', agg: 'max' }] }] },
-  { id: 'apc', name: 'APC UPS', builtin: true, metrics: [
-    { k: 'uptime', label: 'Uptime', unit: 's', srcs: [w(OID.sysUpTime, { scale: 0.01 })] },
-    { k: 'battery', label: 'Battery charge', unit: '%', srcs: [w('1.3.6.1.4.1.318.1.1.1.2.2.1.0')] },
-    { k: 'temperature', label: 'Battery temperature', unit: '°C', srcs: [w('1.3.6.1.4.1.318.1.1.1.2.2.2.0')] },
-    { k: 'runtime', label: 'Runtime left', unit: 'min', srcs: [w('1.3.6.1.4.1.318.1.1.1.2.2.3.0', { scale: 1 / 6000 })] },
-    { k: 'replace', label: 'Battery needs replacing (2 = yes)', unit: '', srcs: [w('1.3.6.1.4.1.318.1.1.1.2.2.4.0')] },
-    { k: 'vin', label: 'Input voltage', unit: 'V', srcs: [w('1.3.6.1.4.1.318.1.1.1.3.2.1.0')] },
-    { k: 'vout', label: 'Output voltage', unit: 'V', srcs: [w('1.3.6.1.4.1.318.1.1.1.4.2.1.0')] },
-    { k: 'load', label: 'Output load', unit: '%', srcs: [w('1.3.6.1.4.1.318.1.1.1.4.2.3.0')] },
-    { k: 'upsstatus', label: 'Output status (2 = online, 3 = on battery)', unit: '', srcs: [w('1.3.6.1.4.1.318.1.1.1.4.1.1.0')] }] }
+    { k: 'memory', label: 'Memory used', unit: '%', srcs: [{ t: 'hrram' }] }] }
 ];
 const IF_KEYS = [{ k: 'if.status', label: 'Interface status (1 = up, 0 = down)', unit: '', inst: true }, { k: 'if.in', label: 'Interface traffic in', unit: 'bit/s', inst: true },
   { k: 'if.out', label: 'Interface traffic out', unit: 'bit/s', inst: true }, { k: 'if.err', label: 'Interface errors', unit: '/min', inst: true }];
@@ -44,7 +30,8 @@ const BASE_KEYS = [{ k: 'poll.ok', label: 'Poll answered (1 = yes)', unit: '' },
 
 const HOSTRE = /^[A-Za-z0-9]([A-Za-z0-9.\-_]{0,251}[A-Za-z0-9])?$|^[0-9A-Fa-f:]+$/;
 
-const detectProfile = (objectId) => { const o = String(objectId || ''); if (o.startsWith('1.3.6.1.4.1.9.')) return 'cisco'; if (o.startsWith('1.3.6.1.4.1.318.')) return 'apc'; return 'generic'; };
+// 1.99.3 no vendor profiles: every device starts from the standard MIBs; equipment-specific values are added as readings (from its MIB)
+const detectProfile = () => 'generic';
 const vendorOf = (objectId) => { const n = ENT.numberOf(objectId); return n ? ENT.nameOf(n) : ''; };
 const target = (d) => ({ host: d.host, port: d.port || 161, version: d.version || 'v2c', community: d.community, user: d.user, level: d.level, authProto: d.authProto, authPass: d.authPass, privProto: d.privProto, privPass: d.privPass,
   timeoutMs: d.timeoutMs || 3000, retries: d.retries === undefined ? 1 : d.retries });
@@ -73,11 +60,11 @@ class Collector {
     }
   }
   async evalSrc(t, s) {
-    if (s.t === 'oid') { const r = await this.one(t, s.oid); const n = numOf(r.vbs[0]); return n === null ? null : n * (s.scale ?? 1) + (s.offset || 0); }
+    if (s.t === 'oid') { const r = await this.one(t, s.oid); const n = numOf(r.vbs[0]); return n === null ? null : fix6(n * (s.scale ?? 1) + (s.offset || 0)); }
     if (s.t === 'walk') {
       const r = await this.client.walk(t, s.oid, { maxRows: 400 }); const v = r.vbs.map(numOf).filter((x) => x !== null); if (!v.length) return null;
       const agg = s.agg === 'max' ? Math.max(...v) : s.agg === 'min' ? Math.min(...v) : s.agg === 'sum' ? v.reduce((a, b) => a + b, 0) : v.reduce((a, b) => a + b, 0) / v.length;
-      return agg * (s.scale ?? 1) + (s.offset || 0);
+      return fix6(agg * (s.scale ?? 1) + (s.offset || 0));
     }
     if (s.t === 'pct') {
       const [a, b] = await Promise.all([this.client.walk(t, s.used, { maxRows: 200 }), this.client.walk(t, s.free, { maxRows: 200 })]);
@@ -112,7 +99,7 @@ class Collector {
           if (s.nameOid) { try { names = new Map(); for (const vb of (await this.client.walk(t, s.nameOid, { maxRows: 200 })).vbs) names.set(vb.oid.slice(String(s.nameOid).split('.').length).join('.'), toText(vb)); } catch (e) { if (e.code === 'timeout') throw e; names = null; } }
           const seen = new Set();
           for (const vb of r.vbs) {
-            let v = numOf(vb); if (v === null || !Number.isFinite(v)) continue; v = v * (s.scale ?? 1) + (s.offset || 0);
+            let v = numOf(vb); if (v === null || !Number.isFinite(v)) continue; v = fix6(v * (s.scale ?? 1) + (s.offset || 0));
             const idx = vb.oid.slice(base).join('.'); let inst = String((names && names.get(idx)) || idx).trim().slice(0, 60) || idx; if (seen.has(inst)) inst = idx; seen.add(inst);
             if (s.rate) { const q = this.rate(`${dev.id}|${m.k}|${inst}`, v, ts, 4294967296); if (q === null) continue; v = q; }
             out.push({ k: m.k, inst, v });

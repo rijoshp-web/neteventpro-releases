@@ -53,7 +53,7 @@ class Polling {
     for (const p of this.ownProfiles()) out.push(p);
     return out;
   }
-  profile(id) { return this.profiles().find((p) => p.id === id) || this.profiles()[0]; }
+  profile(id) { return this.profiles().find((p) => p.id === id) || (id === 'cisco' || id === 'apc' ? this.profiles().find((p) => p.id === 'generic') : null) || this.profiles()[0]; }
   metricInfo(k) {
     if (String(k).startsWith('L:')) { const s2 = String(k).slice(2), i = s2.lastIndexOf('|'); return { label: s2.slice(0, i), unit: s2.slice(i + 1) }; }
     for (const p of this.profiles()) for (const m of p.metrics) if (m.k === k) return { label: m.label || k, unit: m.unit || '', lookup: m.lookup || '', text: m.dtype === 'text' };
@@ -285,7 +285,12 @@ class Polling {
   }
 
   // ---------- devices ----------
-  devices() { return (this.cfg.devices || []); }
+  devices() {
+    const l = this.cfg.devices || [];
+    // 1.99.3 the Cisco and APC sets were removed (no vendor profiles): devices that used them use the standard set, saved once
+    if (l.some((d) => d.profile === 'cisco' || d.profile === 'apc') && !this._migrating) { this._migrating = true; try { this.config.update({ polling: { ...this.cfg, devices: l.map((d) => (d.profile === 'cisco' || d.profile === 'apc' ? { ...d, profile: 'generic' } : d)) } }); } finally { this._migrating = false; } return this.cfg.devices || []; }
+    return l;
+  }
   mask(d) { return { ...d, community: d.community ? MASK : '', authPass: d.authPass ? MASK : '', privPass: d.privPass ? MASK : '' }; }
   patchDevice(id, patch) {
     const c = this.cfg; const list = (c.devices || []).map((d) => (d.id === id ? { ...d, ...patch } : d));
@@ -468,9 +473,15 @@ class Polling {
   summary(hours, toTs) {
     hours = num(hours, 24, 1, 8760); const to = toTs || Date.now(), from = to - hours * 3600000, m = this.db.prepare("SELECT v FROM poll_meta WHERE k = 'rolledTo'").get(), rolled = m ? +m.v : 0;
     const acc = new Map(); const add = (dev, k, sum, n, mx) => { const key = dev + '|' + k, a = acc.get(key) || { sum: 0, n: 0, max: -Infinity }; a.sum += sum; a.n += n; a.max = Math.max(a.max, mx); acc.set(key, a); };
-    const keys = "('poll.ok','cpu','memory','temperature','rtt')";
-    for (const r of this.db.prepare(`SELECT dev, k, SUM(v) AS s, COUNT(*) AS n, MAX(v) AS mx FROM poll_readings WHERE ts >= ? AND ts <= ? AND inst = '' AND k IN ${keys} GROUP BY dev, k`).all(Math.max(from, rolled), to)) add(r.dev, r.k, r.s, r.n, r.mx);
-    if (from < rolled) for (const r of this.db.prepare(`SELECT dev, k, SUM(avg * n) AS s, SUM(n) AS n, MAX(max) AS mx FROM poll_avg WHERE t >= ? AND t < ? AND inst = '' AND k IN ${keys} GROUP BY dev, k`).all(from, rolled)) add(r.dev, r.k, r.s, r.n, r.mx);
+    // 1.99.3 one indexed lookup per device and value (dev, k, inst, ts): the single query over all devices read every stored
+    // reading of the period (270 ms with a week of readings for 20 devices, and it held up the server meanwhile); now about 10 ms
+    const KEYS = ['poll.ok', 'cpu', 'memory', 'temperature', 'rtt'];
+    const qr = this.db.prepare("SELECT SUM(v) AS s, COUNT(*) AS n, MAX(v) AS mx FROM poll_readings WHERE dev = ? AND k = ? AND inst = '' AND ts >= ? AND ts <= ?");
+    const qa = from < rolled ? this.db.prepare("SELECT SUM(avg * n) AS s, SUM(n) AS n, MAX(max) AS mx FROM poll_avg WHERE dev = ? AND k = ? AND inst = '' AND t >= ? AND t < ?") : null;
+    for (const d of this.devices()) for (const k of KEYS) {
+      const r = qr.get(d.id, k, Math.max(from, rolled), to); if (r && r.n) add(d.id, k, r.s, r.n, r.mx);
+      if (qa) { const a = qa.get(d.id, k, from, rolled); if (a && a.n) add(d.id, k, a.s, a.n, a.mx); }
+    }
     const alarms = new Map(); try { for (const r of (this.engine.alarms?.db || this.db).prepare("SELECT dev, COUNT(*) AS n FROM alarms WHERE rule_id LIKE 'poll-%' AND first_ts >= ? GROUP BY dev").all(from)) alarms.set(r.dev, r.n); } catch { /* no alarms table */ }
     const get = (dev, k) => acc.get(dev + '|' + k), avg = (a) => (a && a.n ? a.sum / a.n : null), mx = (a) => (a && a.n ? a.max : null);
     const rows = this.devices().map((d) => { const ok = get(d.id, 'poll.ok'), cpu = get(d.id, 'cpu'), mem = get(d.id, 'memory'), tp = get(d.id, 'temperature'), rt = get(d.id, 'rtt');

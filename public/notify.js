@@ -1,6 +1,6 @@
 'use strict';
 // Notifications page (1.37): profiles (who is told and how), the e-mail server, the SMS gateway (SMPP) and the delivery log.
-// Rules (Rules & alerts) only pick profiles; the text, severity and cooldown stay in the rules. Loaded after admin.js (shares $, $$, esc, api, toast, dialog, S ...).
+// Rules (Alarm configuration) only pick profiles; the text, severity and cooldown stay in the rules. Loaded after admin.js (shares $, $$, esc, api, toast, dialog, S ...).
 (() => {
   const TABS = [['profiles', 'Profiles'], ['email', 'E-mail server'], ['sms', 'SMS gateway (SMPP)'], ['log', 'Delivery log']];
   const FORMATS = [['generic', 'Generic JSON (n8n, Node-RED, own tools)'], ['teams', 'Microsoft Teams (Workflows flow)'], ['slack', 'Slack / Mattermost style ({"text": …})']];
@@ -15,7 +15,7 @@
     const save = async (patch) => { const r = await api('/api/config', { method: 'PUT', body: patch }); c = r.config; S.info.config = { ...S.info.config, notifProfiles: c.notifProfiles, smpp: c.smpp, smtp: c.smtp, rules: c.rules }; return c; };
 
     const head = () => `<div class="page-head"><h1>Notifications</h1></div>
-      <p class="muted" style="margin:0 0 10px">Set up <b>how</b> and <b>to whom</b> alerts are sent: e-mail addresses, SMS numbers and webhook addresses, grouped into <b>profiles</b>. On <a href="#rules">Rules &amp; alerts</a> each rule picks one or more profiles. The text, the severity and the pause between alerts stay in the rule.</p>
+      <p class="muted" style="margin:0 0 10px">Set up <b>how</b> and <b>to whom</b> alerts are sent: e-mail addresses, SMS numbers and webhook addresses, grouped into <b>profiles</b>. On <a href="#rules">Alarm configuration</a> each rule picks one or more profiles. The text, the severity and the pause between alerts stay in the rule.</p>
       <div class="tabs" role="tablist">${TABS.map(([k, n]) => `<button role="tab" class="tab ${tab === k ? 'on' : ''}" data-tab="${k}" aria-selected="${tab === k}">${n}</button>`).join('')}</div><div id="nBody"></div>`;
 
     // ---------------- profiles ----------------

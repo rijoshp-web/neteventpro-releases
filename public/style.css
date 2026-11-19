@@ -2064,3 +2064,28 @@ h4.ogsub:first-child { margin-top: 2px; }
 .widget.has-ico > .wb, .widget.has-ico > .whead { position: relative; z-index: 1; }
 .widget.ico-corner > .whead { padding-right: calc(var(--icz, 22px) + 24px); }
 .widget.ico-corner > .whead { padding-right: calc(var(--icz, 22px) + 24px); }
+
+/* 1.99.3 glass: the parts that stayed solid dark (role and rule cards, the log table background, alarm chips, health cards,
+   progress bars, code, red buttons, the sticky page header). Inner parts get the light inner glass, without their own blur. */
+:root[data-glass] :is(.rule, .hcard, .altabs, .bar, code, kbd, .replist):not(#_) { background: var(--g-inner); border-color: var(--g-inner-line); }
+:root[data-glass] :is(.rule, .hcard):not(#_) { box-shadow: inset 0 1px 0 var(--g-hi); }
+:root[data-glass] .logwrap:not(#_) { background: transparent; }
+:root[data-glass] :is(button.danger, .btn.danger):not(#_) { background: var(--g-inner); border: 1px solid color-mix(in srgb, var(--bad) 55%, var(--g-inner-line)); border-radius: 12px; color: var(--bad); box-shadow: inset 0 1px 0 var(--g-hi); }
+:root[data-glass] :is(button.danger, .btn.danger):not(#_):hover { background: color-mix(in srgb, var(--bad) 18%, transparent); }
+:root[data-glass] .stickyhead:not(#_) { background: linear-gradient(135deg, var(--g-a) 0%, var(--g-b) 80%); }
+
+/* 1.99.3 short screens (320 x 240, 640 x 480, 800 x 600, a small window): compact top bar and status bar, more room to work */
+@media (max-height: 620px) {
+  .shell:not(#_) { padding: 6px; gap: 6px; }
+  .status:not(#_) { padding: 4px 12px; min-height: 0; }
+  .status .clock:not(#_), .status .clock .ctime:not(#_), .status .clock #ctime:not(#_) { font-size: 18px; }
+  .status .clock .cdate, .status .clock .cnote { display: none; }
+  .page-head:not(#_) { margin-bottom: 6px; }
+  .page-head h1:not(#_) { font-size: 18px; }
+}
+@media (max-height: 620px) and (max-width: 860px) {
+  .rail:not(#_) { padding: 4px 8px; min-height: 0; }
+  .rail a:not(#_) { padding: 5px 8px; }
+  .brand:not(#_) { font-size: 14px; }
+}
+@media (max-height: 300px) { .status-items { display: none !important; } }

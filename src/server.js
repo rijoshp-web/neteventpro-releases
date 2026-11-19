@@ -426,6 +426,12 @@ async function main() {
       if (p === '/api/poll/device' && req.method === 'GET') { need('polling'); const d = polling.detail(url.searchParams.get('id') || ''); if (!d) throw new HttpError(404, 'No such device.'); return json(res, d); }
       if (p === '/api/poll/catalog' && req.method === 'GET') { need('polling'); return json(res, polling.pollCatalog()); }
       if (p === '/api/poll/tile' && req.method === 'POST') { need('polling'); const b = await readJson(req); return json(res, polling.pollTile(b)); }
+      if (p === '/api/poll/series-many' && POST) {   // 1.99.3 the graphs of a device page in one request (it sent one request per graph, about 30 at once)
+        need('polling'); const b = await readJson(req), id = String(b.id || ''), to = Date.now();
+        if (!polling.devices().some((d) => d.id === id)) throw new HttpError(404, 'No such device.');
+        const items = (Array.isArray(b.items) ? b.items : []).slice(0, 200).map((x) => { const k = str(x.k, 40), inst = str(x.inst, 200), hours = Math.min(24 * 365, Math.max(1, +x.hours || 24)); return { k, inst, hours, points: polling.series(id, k, inst, to - hours * 3600000, to, 300) }; });
+        return json(res, { to, items });
+      }
       if (p === '/api/poll/series' && req.method === 'GET') {
         need('polling'); const id = url.searchParams.get('id') || '', k = str(url.searchParams.get('k'), 40), inst = str(url.searchParams.get('inst'), 200), hours = Math.min(24 * 365, Math.max(1, +url.searchParams.get('hours') || 24)), to = Date.now();
         if (!polling.devices().some((d) => d.id === id)) throw new HttpError(404, 'No such device.');
