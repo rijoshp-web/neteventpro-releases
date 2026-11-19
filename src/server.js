@@ -290,7 +290,8 @@ async function main() {
     audit({ name: 'activation' }, `licence activated for ${r.status.customer || 'customer'} (${r.status.licenseId || ''})`);
     return json(res, { ok: true, status: r.status });
   }
-  const handler = async (req, res) => {
+  const handler = (req, res) => require('./busy').run(`answering the web page (${String(req.url || '').split('?')[0].slice(0, 60)})`, () => handler0(req, res));
+  const handler0 = async (req, res) => {
     try {
       const cfg = config.get();
       const url = new URL(req.url, 'http://localhost');
@@ -755,7 +756,7 @@ async function main() {
 
     if (p === '/api/export') need('export');
     if (p === '/api/db/download') need('backup');
-    if (['/api/test-message', '/api/test-webhook', '/api/test-email', '/api/test-replace', '/api/device/forget', '/api/clear', '/api/restart'].includes(p)) need('settings');
+    if (['/api/test-message', '/api/test-webhook', '/api/test-email', '/api/test-replace', '/api/device/forget', '/api/devices/forget', '/api/clear', '/api/restart'].includes(p)) need('settings');
 
     if (p === '/api/stream' && req.method === 'GET') {
       if (clients.size >= MAX_SSE_CLIENTS) return send(res, 503, 'Too many open dashboards');
@@ -924,6 +925,17 @@ async function main() {
       const msg = { host: String(b.host ?? '').slice(0, 200), app: String(b.app ?? '').slice(0, 100), message: String(b.message ?? '').slice(0, 2000) };
       rep.apply(msg);
       return json(res, { host: msg.host, app: msg.app, message: msg.message, active: rep.size });
+    }
+    if (p === '/api/devices/forget' && req.method === 'POST') {   // 1.99.1: forget the selected devices, or all of them, and optionally their names, groups and notes
+      const b = await readJson(req); const keys = b.all === true ? [...engine.devices.keys()] : (Array.isArray(b.keys) ? b.keys.slice(0, 100000).map(String) : []);
+      const gone = engine.forgetDevices(keys);
+      if (b.wipeInfo === true && gone.length) {
+        const c = config.get(), ids = new Set(gone.flatMap((d) => [d.key, ...(d.srcIps || [])]));
+        const drop = (o) => Object.fromEntries(Object.entries(o || {}).filter(([k]) => !ids.has(k)));
+        config.update({ deviceInfo: b.all === true ? {} : drop(c.deviceInfo), deviceAliases: b.all === true ? {} : drop(c.deviceAliases), mutedDevices: b.all === true ? [] : (c.mutedDevices || []).filter((k) => !ids.has(k)) });
+      }
+      audit(who, b.all === true ? `forgot all ${gone.length} devices${b.wipeInfo ? ' with their names, groups and notes' : ''}` : `forgot ${gone.length} device${gone.length === 1 ? '' : 's'}${b.wipeInfo ? ' with their names, groups and notes' : ''}`);
+      return json(res, { ok: true, removed: gone.length });
     }
     if (p === '/api/device/forget' && req.method === 'POST') { const b = await readJson(req); engine.forgetDevice(String(b.key ?? b.srcIp)); return json(res, { ok: true }); }
     if (p === '/api/clear' && req.method === 'POST') { store.clearAll(); engine.live.length = 0; return json(res, { ok: true }); }

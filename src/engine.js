@@ -45,10 +45,10 @@ class Engine extends EventEmitter {
     config.onChange((c) => this.applyConfig(c));
 
     this.timers = [
-      setInterval(() => this.flushPending(), 40),
-      setInterval(() => this.checkSilent(), 30000),
-      setInterval(() => this.persistDevices(), 30000),
-      setInterval(() => this.maintenance(), 3600000)
+      setInterval(() => require('./busy').run('checking messages against the rules', () => this.flushPending()), 40),
+      setInterval(() => require('./busy').run('checking for silent devices', () => this.checkSilent()), 30000),
+      setInterval(() => require('./busy').run('saving devices to the database', () => this.persistDevices()), 30000),
+      setInterval(() => require('./busy').run('hourly maintenance (deleting old messages)', () => this.maintenance()), 3600000)
     ];
     for (const t of this.timers) t.unref?.();
     setTimeout(() => this.maintenance(), 15000).unref?.();
@@ -310,7 +310,13 @@ class Engine extends EventEmitter {
     return list;
   }
 
-  forgetDevice(key) { this.devices.delete(key); this.store.deleteDevice(key); }
+  forgetDevice(key) { this.forgetDevices([key]); }
+  /** 1.99.1: forget many devices at once (or all of them): one database transaction instead of one per device */
+  forgetDevices(keys) {
+    const gone = [];
+    for (const k of keys) { const d = this.devices.get(k); if (!d) continue; this.devices.delete(k); this.dirtyDevices.delete(k); gone.push(d); }
+    this.store.deleteDevices(gone.map((d) => d.key)); this._devList = null; return gone;
+  }
 
   // ---- webhooks ---------------------------------------------------------
   async callWebhook(w, msg) {

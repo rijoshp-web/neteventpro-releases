@@ -56,7 +56,7 @@ class AlarmStore {
     for (const r of this.db.prepare("SELECT * FROM alarms WHERE state != 'cleared'").all()) this.open.set(r.id, r);
     this.flapEv = new Map(); this.flapOn = new Map(); this.flapCfg = new Map();   // flap detection (1.40): events per alarm key, keys that are flapping now, settings per rule
     for (const r of this.open.values()) if (/ \(flapping\)$/.test(r.rule_name)) this.flapOn.set(r.rule_id + '|' + r.dev + '|' + r.inst, { id: r.id, last: r.last_ts, quiet: 15 });
-    this.timers = [setInterval(() => this.flush(), 2000), setInterval(() => this.escalate(), 30000), ];
+    this.timers = [setInterval(() => require('./busy').run('saving alarms', () => this.flush()), 2000), setInterval(() => require('./busy').run('escalating alarms', () => this.escalate()), 30000), ];
     for (const t of this.timers) t.unref?.();
   }
   stop() { for (const t of this.timers) clearInterval(t); this.flush(); }

@@ -21,10 +21,9 @@ test('every text key used by the pages is in the language file', () => {
 });
 
 test('T fills in values and leaves unknown keys visible', () => {
-  assert.equal(T('ops.updated', { t: '10:00' }), 'Updated 10:00');
-  assert.equal(T('ops.head.crit', { n: 3 }), '3 critical alarms need attention');
+  assert.equal(T('setup.time.bad', { z: 'Mars/Base' }), '"Mars/Base" is not a time zone name. Pick one from the list, such as Europe/London.');
   assert.equal(T('no.such.key'), 'no.such.key');
-  assert.equal(T('ops.updated'), 'Updated {t}');
+  assert.match(T('setup.time.bad'), /^"\{z\}" is not/);
 });
 
 test('the Help page text is in the language file, one entry per section', () => {

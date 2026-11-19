@@ -1,4 +1,6 @@
 'use strict';
+const BUSY = require('./busy');
+const { performance } = require('node:perf_hooks');
 const { packRaw } = require('./query');
 const SUM = require('./summary');
 const path = require('node:path');
@@ -95,7 +97,7 @@ class Store {
     );
     this.initSummary();
     this.queue = [];
-    this.timer = setInterval(() => this.flush(), 250);
+    this.timer = setInterval(() => require('./busy').run('saving messages to the database', () => this.flush()), 250);
     this.timer.unref?.();
     this.droppedOnOverflow = 0; this.peak = 0; this.peakAt = Date.now(); this.lastPeak = 0;   // 1.60: the longest the write queue was, in the last hour
     this.search = new Reader(this.file);                     // searches, exports, backups
@@ -106,11 +108,11 @@ class Store {
   async deleteLogs({ ids, q }) {
     this.flush(); let n = 0;
     if (Array.isArray(ids)) {
-      for (let i = 0; i < ids.length; i += 500) { n += this.deleteWhere('SELECT value FROM json_each(?)', [JSON.stringify(ids.slice(i, i + 500))]); this._rows = undefined; await new Promise((r) => setImmediate(r)); }
+      for (let i = 0; i < ids.length; i += 500) { const bt = performance.now(); n += this.deleteWhere('SELECT value FROM json_each(?)', [JSON.stringify(ids.slice(i, i + 500))]); BUSY.done('deleting messages', bt); this._rows = undefined; await new Promise((r) => setImmediate(r)); }
       return n;
     }
     const { buildWhere } = require('./query'); const { sql, args } = buildWhere(q || {});
-    for (;;) { const c = this.deleteWhere(`SELECT id FROM logs ${sql} LIMIT 5000`, args); n += c; this._rows = undefined; if (c < 5000) break; await new Promise((r) => setImmediate(r)); }
+    for (;;) { const bt = performance.now(); const c = this.deleteWhere(`SELECT id FROM logs ${sql} LIMIT 5000`, args); BUSY.done('deleting messages', bt); n += c; this._rows = undefined; if (c < 5000) break; await new Promise((r) => setImmediate(r)); }
     return n;
   }
   maxSeq() { const o = { syslog: 0, snmp: 0 }; for (const r of this.db.prepare('SELECT source, MAX(seq) AS m FROM logs GROUP BY source').all()) o[r.source === 'snmp' ? 'snmp' : 'syslog'] = r.m || 0; return o; }
@@ -184,10 +186,11 @@ class Store {
       const st = this.db.prepare('SELECT ts, host, app, severity, facility, source, n FROM (SELECT CAST(ts / 60000 AS INTEGER) * 60000 AS ts, host, app, severity, facility, source, COUNT(*) AS n FROM logs WHERE ts >= ? AND ts < ? GROUP BY 1, host, app, severity, facility, source)');
       let started = Date.now(), done = 0;
       while (!this.closed && first !== null && this.sumCov > Math.floor(first / 60000) * 60000) {
-        this.flush();
+        const bt = performance.now(); this.flush();
         const to = this.sumCov, from = to - 60000;
         this.db.exec('BEGIN');
         try { SUM.apply(this.db, SUM.tally({}, st.all(from, to)), this.sumStmts); this.setMeta('cov', from); this.db.exec('COMMIT'); this.sumCov = from; } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+        BUSY.done('filling the dashboard summaries', bt);
         if (++done % 60 === 0 && Date.now() - started > 60000) { console.log(`[store] summaries filled back to ${new Date(from).toISOString()}`); started = Date.now(); }
         await new Promise((r) => (done % 25 ? setImmediate(r) : setTimeout(r, 5)));
       }
@@ -234,7 +237,8 @@ class Store {
         const from = this.db.prepare("SELECT v FROM sum_meta WHERE k = 'fts_from'").get()?.v ?? 0, rows = sel.all(from);
         if (!rows.length) { this.setMeta('fts_from', 0); break; }
         this.db.exec('BEGIN');
-        try { for (const r of rows) this.ftsIns.run(r.id, r.message || '', r.host || '', r.app || ''); this.setMeta('fts_from', rows[rows.length - 1].id); this.db.exec('COMMIT'); } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* */ } throw e; }
+        const bt = performance.now(); try { for (const r of rows) this.ftsIns.run(r.id, r.message || '', r.host || '', r.app || ''); this.setMeta('fts_from', rows[rows.length - 1].id); this.db.exec('COMMIT'); } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* */ } throw e; }
+        BUSY.done('filling the word index', bt);
         await new Promise((r) => setTimeout(r, 10));
       }
     } finally { this.ftsBusy = false; }
@@ -285,7 +289,11 @@ class Store {
       this.db.exec('COMMIT');
     } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } console.error('[store] saveDevices', e.message); }
   }
-  deleteDevice(srcIp) { this.db.prepare('DELETE FROM devices WHERE src_ip = ?').run(srcIp); }
+  deleteDevice(srcIp) { this.deleteDevices([srcIp]); }
+  deleteDevices(keys) {
+    if (!keys.length) return; const st = this.db.prepare('DELETE FROM devices WHERE src_ip = ?');
+    this.db.exec('BEGIN'); try { for (const k of keys) st.run(String(k)); this.db.exec('COMMIT'); } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
 
   // ---- maintenance ------------------------------------------------------
   /** size of the files on disk (database + write-ahead log) */

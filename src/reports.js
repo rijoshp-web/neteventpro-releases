@@ -56,7 +56,7 @@ class Reports {
   constructor({ config, store, dir }) {
     this.config = config; this.store = store; this.alarms = null; this.file = path.join(dir, 'reports-state.json'); this.running = new Set(); this.state = {};
     try { this.state = JSON.parse(fs.readFileSync(this.file, 'utf8')) || {}; } catch { /* none yet */ }
-    this.timer = setInterval(() => this.tick().catch((e) => console.error('[reports]', e.message)), 30000); this.timer.unref?.();
+    this.timer = setInterval(() => require('./busy').run('scheduled reports', () => this.tick()).catch((e) => console.error('[reports]', e.message)), 30000); this.timer.unref?.();
   }
   close() { clearInterval(this.timer); }
   saveState() { try { fs.writeFileSync(this.file, JSON.stringify(this.state, null, 1)); } catch (e) { console.error('[reports] state', e.message); } }

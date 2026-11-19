@@ -12,7 +12,7 @@ class RawLog {
   constructor(dataDir) {
     this.dir = path.join(dataDir, 'raw');
     this.enabled = false; this.buf = new Map(); this.count = 0; this.lastError = '';
-    this.timer = setInterval(() => this.flush(), 1000);
+    this.timer = setInterval(() => require('./busy').run('writing the raw message log', () => this.flush()), 1000);
     this.timer.unref?.();
   }
   configure(enabled) {

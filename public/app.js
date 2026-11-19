@@ -64,14 +64,15 @@ async function api(path, opts = {}) {
 }
 let toastTimer;
 /** In-app yes/no box (replaces the browser's confirm(), which steals focus and can need several clicks). Resolves true / false. */
-function askConfirm(message, okLabel) {
+function askConfirm(message, okLabel, checkLabel) {    // with checkLabel: resolves false, or { checked } when confirmed
   return new Promise((resolve) => {
     const back = document.createElement('div'); back.className = 'modal-back';
-    const danger = !okLabel || /delete|remove|restart|reset|wipe|clear/i.test(message + ' ' + (okLabel || ''));
-    back.innerHTML = `<div class="modal" role="alertdialog" aria-modal="true" aria-label="${tx('common.confirm')}"><p class="confirm-msg"></p><div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">${tx('common.cancel')}</button><button type="button" data-a="yes" class="${danger ? 'danger' : 'primary'}"></button></div></div>`;
+    const danger = !okLabel || /delete|remove|restart|reset|wipe|clear|forget/i.test(message + ' ' + (okLabel || ''));
+    back.innerHTML = `<div class="modal" role="alertdialog" aria-modal="true" aria-label="${tx('common.confirm')}"><p class="confirm-msg"></p>${checkLabel ? '<label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" data-c="1"><span class="chk-t"></span></label>' : ''}<div class="toolbar" style="margin:16px 0 0;justify-content:flex-end"><button type="button" data-a="no">${tx('common.cancel')}</button><button type="button" data-a="yes" class="${danger ? 'danger' : 'primary'}"></button></div></div>`;
     $('.confirm-msg', back).textContent = message; const yes = $('[data-a="yes"]', back); yes.textContent = okLabel || tx('common.yes');
+    if (checkLabel) $('.chk-t', back).textContent = checkLabel;
     const prev = document.activeElement; let done = false;
-    const end = (v) => { if (done) return; done = true; back.remove(); document.removeEventListener('keydown', key, true); try { prev && prev.focus && prev.focus(); } catch { /* */ } resolve(v); };
+    const end = (v0) => { if (done) return; done = true; const v = checkLabel && v0 ? { checked: !!$('[data-c]', back).checked } : v0; back.remove(); document.removeEventListener('keydown', key, true); try { prev && prev.focus && prev.focus(); } catch { /* */ } resolve(v); };
     const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(false); } else if (e.key === 'Enter' && e.target.dataset?.a !== 'no') { e.preventDefault(); e.stopPropagation(); end(true); } };
     document.addEventListener('keydown', key, true);
     back.addEventListener('click', (e) => { const a = e.target.dataset?.a; if (a) end(a === 'yes'); else if (e.target === back) end(false); });
@@ -1013,84 +1014,143 @@ function openSimpleColumns(anchor, title, labels, getList, setList, onChange) {
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 views.devices = (el) => {
-  el.innerHTML = `<div class="page-head"><h1>Devices</h1><span class="muted" id="devInfo"></span><span class="spacer"></span><button id="devCols" class="ib">${ico('columns')}<span class="bt">Columns</span></button><button id="devCsv" class="ib">${ico('download')}<span class="bt">Export</span></button></div>
+  // 1.99.1: built for tens of thousands of devices. Only one page of rows is drawn (it drew every device every 5 s before, which
+  // froze the browser at about 20 000), columns sort, and devices can be selected for group, mute and forget in one step.
+  const edit = can('settings');
+  el.innerHTML = `<div class="page-head"><h1>Devices</h1><span class="muted" id="devInfo"></span><span class="spacer"></span><button id="devCols" class="ib">${ico('columns')}<span class="bt">Columns</span></button><button id="devCsv" class="ib">${ico('download')}<span class="bt">Export</span></button>${edit ? '<button id="devForgetAll" class="danger" title="Remove every device from this list. Stored messages are kept.">Forget all…</button>' : ''}</div>
     <div class="chips" id="devChips"></div>
     <div class="toolbar filterbar"><input type="search" id="devQ" class="grow" placeholder="Search name, address, vendor, group or note" value="${esc(S.devQ || '')}">
       <select id="devStatus"><option value="">All states</option><option value="ok">Reporting now</option><option value="quiet">Quiet</option><option value="overdue">Overdue</option><option value="alarm">With open alarms</option><option value="muted">Alerts muted</option></select>
       <select id="devSrc"><option value="">Syslog and traps</option><option value="sys">Sends syslog</option><option value="trap">Sends SNMP traps</option></select>
       <select id="devGroup"><option value="">All groups</option></select><select id="devVendor"><option value="">All vendors</option></select></div>
+    <div class="devbulk" id="devBulk" hidden></div>
     <div class="panel" style="padding:0;overflow:auto" id="devWrap"></div>
+    <div class="pager" id="devPager"></div>
     <p class="muted" style="max-width:900px">Devices are added when they first send a syslog message or trap. <b>Reporting</b>: heard in the last 15 minutes. <b>Quiet</b>: not heard for a while. <b>Overdue</b>: missed its “Expect every” time. <span class="info" tabindex="0" title="Set “Expect every … min” on a device that must report regularly (a UPS heartbeat, an NTP server), or use the global limit in Settings, Storage, for devices that normally talk a lot.">ⓘ</span></p>`;
-  let list = [];
+  let list = [], byKey = new Map(), page = 0, lastHtml = '', loading = false;
+  const sel = new Set();
+  const per = () => [50, 100, 250, 500].includes(+S.prefs.devPer) ? +S.prefs.devPer : 100;
+  const sort = S.devSort || (S.devSort = { k: 'last', dir: -1 });
   const state = (d) => (d.silent || d.overdue ? 'overdue' : d.ageSec < 900 ? 'ok' : 'quiet');
+  const SORTS = { state: (d) => ({ overdue: 0, quiet: 1, ok: 2 })[state(d)], device: (d) => (d.alias || d.host).toLowerCase(), vendor: (d) => d.vendor.toLowerCase(), group: (d) => d.group.toLowerCase(), sys: (d) => d.sys, traps: (d) => d.traps, last: (d) => d.lastSeen, alarms: (d) => d.openAlarms, expect: (d) => d.expectMin };
+  let visCache = null;
   const vis = () => {
+    if (visCache) return visCache;
     const q = $('#devQ').value.trim().toLowerCase(), st = $('#devStatus').value, sr = $('#devSrc').value, g = $('#devGroup').value, v = $('#devVendor').value;
-    return list.filter((d) => (!q || [d.host, d.srcIp, d.alias, d.vendor, d.group, d.note].join(' ').toLowerCase().includes(q)) && (!st || (st === 'alarm' ? d.openAlarms > 0 : st === 'muted' ? d.muted : state(d) === st)) && (!sr || (sr === 'sys' ? d.sys > 0 : d.traps > 0)) && (!g || d.group === g) && (!v || d.vendor === v));
+    const out = list.filter((d) => (!q || (d._q ||= [d.host, d.srcIps.join(' '), d.alias, d.vendor, d.group, d.note].join(' ').toLowerCase()).includes(q)) && (!st || (st === 'alarm' ? d.openAlarms > 0 : st === 'muted' ? d.muted : state(d) === st)) && (!sr || (sr === 'sys' ? d.sys > 0 : d.traps > 0)) && (!g || d.group === g) && (!v || d.vendor === v));
+    const f = SORTS[sort.k] || SORTS.last, dir = sort.dir;
+    out.sort((a, b) => { const x = f(a), y = f(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || b.lastSeen - a.lastSeen; });
+    return (visCache = out);
   };
   const options = () => {
-    for (const [id, key, all] of [['devGroup', 'group', 'All groups'], ['devVendor', 'vendor', 'All vendors']]) { const sel = $('#' + id), cur = sel.value; const vals = [...new Set(list.map((d) => d[key]).filter(Boolean))].sort(); const sig = vals.join('\u0001'); if (sel.dataset.sig === sig) continue; sel.dataset.sig = sig; sel.innerHTML = `<option value="">${all}</option>` + vals.map((x) => `<option>${esc(x)}</option>`).join(''); sel.value = vals.includes(cur) ? cur : ''; }
+    for (const [id, key, all] of [['devGroup', 'group', 'All groups'], ['devVendor', 'vendor', 'All vendors']]) { const sel2 = $('#' + id), cur = sel2.value; const vals = [...new Set(list.map((d) => d[key]).filter(Boolean))].sort(); const sig = vals.join('\u0001'); if (sel2.dataset.sig === sig) continue; sel2.dataset.sig = sig; sel2.innerHTML = `<option value="">${all}</option>` + vals.map((x) => `<option>${esc(x)}</option>`).join(''); sel2.value = vals.includes(cur) ? cur : ''; }
   };
-  let lastHtml = '';
+  const HEAD = { state: 'State', device: 'Device', vendor: 'Vendor', group: 'Group', sys: 'Syslog', traps: 'Traps', last: 'Last heard', alarms: 'Open alarms', mix: 'Severity mix', expect: 'Expect every', actions: '' };
+  const NUM = new Set(['sys', 'traps', 'alarms']);
+  const CELL = {
+    state: (d) => { const stt = state(d); return (stt === 'overdue' ? `<span class="pill bad" title="${d.silent ? 'It sent messages before and then stopped.' : 'It missed the expected interval.'}">Overdue</span>` : stt === 'ok' ? '<span class="pill ok">Reporting</span>' : '<span class="pill" title="Nothing heard for more than 15 minutes">Quiet</span>') + (d.muted ? ' <span class="muted small" title="alerts muted">🔕</span>' : ''); },
+    device: (d) => `<b>${esc(d.host)}</b> <span class="muted" title="${esc(d.srcIps.join(', '))}">${esc(d.srcIps.length > 1 ? d.srcIp + ' +' + (d.srcIps.length - 1) : d.srcIp)}</span> <input type="text" class="alias" style="width:110px" value="${esc(d.alias)}" placeholder="Add a name" aria-label="Display name for ${esc(d.host)}"${edit ? '' : ' disabled'}>`,
+    vendor: (d) => esc(d.vendor) || '<span class="muted">—</span>',
+    group: (d) => `<input type="text" class="grp" style="width:110px" list="grpList" value="${esc(d.group)}" placeholder="Add group" aria-label="Group"${edit ? '' : ' disabled'}>`,
+    sys: (d) => fmtN(d.sys), traps: (d) => fmtN(d.traps),
+    last: (d) => ago(d.ageSec),
+    alarms: (d) => (d.openAlarms ? `<a href="#alarms" data-act="alarms">${d.openAlarms}</a>` : '0'),
+    mix: (d) => { const tot = d.sev.reduce((a, b) => a + b, 0) || 1; return `<div class="minibar">${d.sev.map((n, i) => (n ? `<i style="width:${(n / tot) * 100}%;background:var(--s${i})" title="${SEV[i]}: ${fmtN(n)}"></i>` : '')).join('')}</div>`; },
+    expect: (d) => `<input type="number" class="expect" style="width:64px" min="0" max="525600" value="${d.expectMin || ''}" placeholder="off" title="Raise a ‘no messages’ alert when nothing is heard from this device for this many minutes. Empty = use the global limit." aria-label="Expect a message every minutes"${edit ? '' : ' disabled'}> <span class="muted">min</span>`,
+    actions: (d) => `<div style="display:flex;flex-wrap:nowrap;gap:4px">${d.sys ? '<button data-act="logs">Logs</button>' : ''}${d.traps ? '<button data-act="traps">Traps</button>' : ''}${edit ? `<button data-act="note" class="ibtn" title="${esc(d.note || 'Add a note')}" aria-label="${d.note ? 'Edit note' : 'Add a note'}">${d.note ? '✎' : '＋'}</button><button data-act="mute" class="ibtn" title="${d.muted ? 'Alerts are muted. Click to unmute' : 'Mute alerts for this device'}" aria-label="${d.muted ? 'Unmute' : 'Mute'}">${d.muted ? '🔔' : '🔕'}</button><button data-act="forget" class="ibtn danger" title="Forget this device" aria-label="Forget">✕</button>` : ''}</div>`
+  };
+  const TITLE = { last: (d) => new Date(d.lastSeen).toLocaleString(), sys: (d) => (d.lastSyslog ? 'Last syslog ' + new Date(d.lastSyslog).toLocaleString() : 'No syslog since the service started'), traps: (d) => (d.lastTrap ? 'Last trap ' + new Date(d.lastTrap).toLocaleString() : 'No trap since the service started') };
+  const bulk = () => {
+    const box = $('#devBulk'); if (!edit || !sel.size) { box.hidden = true; return; }
+    const sh = vis(), allShown = sh.length > 0 && sh.every((d) => sel.has(d.key));
+    box.hidden = false;
+    box.innerHTML = `<b>${fmtN(sel.size)} selected</b>${!allShown && sh.length > sel.size ? ` <button data-b="all" class="linkish">Select all ${fmtN(sh.length)} shown</button>` : ''}<span class="spacer"></span><button data-b="group">Set group…</button><button data-b="mute">Mute alerts</button><button data-b="unmute">Unmute</button><button data-b="forget" class="danger">Forget…</button><button data-b="none">Clear selection</button>`;
+  };
   const draw = (force) => {
     const ae = document.activeElement;
-    if (!force && (colDrag || (ae && $('#devWrap').contains(ae) && ['INPUT', 'SELECT'].includes(ae.tagName)))) return;   // do not disturb typing in a cell or a column drag
-    const sh = vis(), n = (f) => list.filter(f).length;
-    $('#devInfo').textContent = `${sh.length} of ${list.length} devices`;
-    $('#devChips').innerHTML = `<span class="chip on"><b>${list.length}</b> devices</span><span class="chip"><b>${n((d) => state(d) === 'ok')}</b> reporting now</span><span class="chip ${n((d) => state(d) === 'overdue') ? 'bad' : ''}"><b>${n((d) => state(d) === 'overdue')}</b> overdue</span><span class="chip ${n((d) => d.openAlarms) ? 'warn' : ''}"><b>${n((d) => d.openAlarms)}</b> with open alarms</span><span class="chip"><b>${n((d) => d.traps > 0)}</b> send traps</span>`;
-    if (!sh.length) { lastHtml = ''; $('#devWrap').innerHTML = list.length ? '<div class="empty"><b>No device matches</b>Change the filters above.</div>' : '<div class="empty"><b>No devices yet</b>Devices appear automatically when they send their first syslog message or SNMP trap.</div>'; return; }
-    const html = `<table class="data compact devtbl" id="devTable"><thead><tr><th>State</th><th>Device</th><th>Vendor</th><th>Group</th><th class="num-r">Syslog</th><th class="num-r">Traps</th><th>Last heard</th><th class="num-r">Open alarms</th><th>Severity mix</th><th>Expect every</th><th></th></tr></thead><tbody>` +
-      sh.map((d) => { const tot = d.sev.reduce((a, b) => a + b, 0) || 1, stt = state(d);
-        const pill = stt === 'overdue' ? `<span class="pill bad" title="${d.silent ? 'It sent messages before and then stopped.' : 'It missed the expected interval.'}">Overdue</span>` : stt === 'ok' ? '<span class="pill ok">Reporting</span>' : '<span class="pill" title="Nothing heard for more than 15 minutes">Quiet</span>';
-        return `<tr data-ip="${esc(d.key)}"><td>${pill}${d.muted ? ' <span class="muted small" title="alerts muted">🔕</span>' : ''}</td>
-        <td><b>${esc(d.host)}</b> <span class="muted" title="${esc(d.srcIps.join(', '))}">${esc(d.srcIps.length > 1 ? d.srcIp + ' +' + (d.srcIps.length - 1) : d.srcIp)}</span> <input type="text" class="alias" style="width:110px" value="${esc(d.alias)}" placeholder="Add a name" aria-label="Display name for ${esc(d.host)}"></td>
-        <td>${esc(d.vendor) || '<span class="muted">—</span>'}</td>
-        <td><input type="text" class="grp" style="width:110px" list="grpList" value="${esc(d.group)}" placeholder="Add group" aria-label="Group"></td>
-        <td class="num-r" title="${d.lastSyslog ? 'Last syslog ' + esc(new Date(d.lastSyslog).toLocaleString()) : 'No syslog since the service started'}">${fmtN(d.sys)}</td>
-        <td class="num-r" title="${d.lastTrap ? 'Last trap ' + esc(new Date(d.lastTrap).toLocaleString()) : 'No trap since the service started'}">${fmtN(d.traps)}</td>
-        <td class="muted" title="${esc(new Date(d.lastSeen).toLocaleString())}">${ago(d.ageSec)}</td>
-        <td class="num-r">${d.openAlarms ? `<a href="#alarms" data-act="alarms">${d.openAlarms}</a>` : '0'}</td>
-        <td><div class="minibar">${d.sev.map((n, i) => (n ? `<i style="width:${(n / tot) * 100}%;background:var(--s${i})" title="${SEV[i]}: ${fmtN(n)}"></i>` : '')).join('')}</div></td>
-        <td><input type="number" class="expect" style="width:64px" min="0" max="525600" value="${d.expectMin || ''}" placeholder="off" title="Raise a ‘no messages’ alert when nothing is heard from this device for this many minutes. Empty = use the global limit." aria-label="Expect a message every minutes"> <span class="muted">min</span></td>
-        <td><div style="display:flex;flex-wrap:nowrap;gap:4px">${d.sys ? '<button data-act="logs">Logs</button> ' : ''}${d.traps ? '<button data-act="traps">Traps</button> ' : ''}<button data-act="note" class="ibtn" title="${esc(d.note || 'Add a note')}" aria-label="${d.note ? 'Edit note' : 'Add a note'}">${d.note ? '✎' : '＋'}</button> <button data-act="mute" class="ibtn" title="${d.muted ? 'Alerts are muted. Click to unmute' : 'Mute alerts for this device'}" aria-label="${d.muted ? 'Unmute' : 'Mute'}">${d.muted ? '🔔' : '🔕'}</button> <button data-act="forget" class="ibtn danger" title="Forget this device" aria-label="Forget">✕</button></div></td></tr>`; }).join('') + `</tbody></table><datalist id="grpList">${[...new Set(list.map((d) => d.group).filter(Boolean))].map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
-    if (html === lastHtml && !force) return; lastHtml = html; $('#devWrap').innerHTML = html;
-    { const order = devColList().filter((c) => c.visible).map((c) => DEV_COLS.findIndex((d) => d[0] === c.id)); $$('#devTable tr').forEach((tr) => { const cells = [...tr.children]; if (cells.length === DEV_COLS.length) tr.replaceChildren(...order.map((i) => cells[i])); }); }
-    if (!can('settings')) { $$('#devTable input').forEach((x) => { x.disabled = true; }); $$('#devTable button[data-act="note"], #devTable button[data-act="mute"], #devTable button[data-act="forget"]').forEach((x) => x.remove()); }   // viewing only: names, groups, notes, mute and forget change settings
-    enableColResize($('#devTable'), 'dev', () => { lastHtml = ''; draw(true); });
+    if (!force && (colDrag || (ae && $('#devWrap').contains(ae) && ['INPUT', 'SELECT'].includes(ae.tagName) && ae.type !== 'checkbox'))) return;   // do not disturb typing in a cell or a column drag
+    const sh = vis(), n = (f) => { let c = 0; for (const d of list) if (f(d)) c++; return c; };
+    const pages = Math.max(1, Math.ceil(sh.length / per())); if (page >= pages) page = pages - 1; if (page < 0) page = 0;
+    $('#devInfo').textContent = sh.length === list.length ? `${fmtN(list.length)} devices` : `${fmtN(sh.length)} of ${fmtN(list.length)} devices`;
+    const nOver = n((d) => state(d) === 'overdue'), nAl = n((d) => d.openAlarms);
+    const chips = `<span class="chip on"><b>${fmtN(list.length)}</b> devices</span><span class="chip"><b>${fmtN(n((d) => state(d) === 'ok'))}</b> reporting now</span><span class="chip ${nOver ? 'bad' : ''}"><b>${fmtN(nOver)}</b> overdue</span><span class="chip ${nAl ? 'warn' : ''}"><b>${fmtN(nAl)}</b> with open alarms</span><span class="chip"><b>${fmtN(n((d) => d.traps > 0))}</b> send traps</span>`;
+    if ($('#devChips').innerHTML !== chips) $('#devChips').innerHTML = chips;
+    bulk();
+    if (!sh.length) { lastHtml = ''; $('#devPager').innerHTML = ''; $('#devWrap').innerHTML = list.length ? '<div class="empty"><b>No device matches</b>Change the filters above.</div>' : '<div class="empty"><b>No devices yet</b>Devices appear automatically when they send their first syslog message or SNMP trap.</div>'; return; }
+    const cols = devColList().filter((c) => c.visible).map((c) => c.id), rows = sh.slice(page * per(), (page + 1) * per());
+    const allOnPage = rows.every((d) => sel.has(d.key));
+    const th = (id) => SORTS[id] ? `<th data-sort="${id}" class="sortable${NUM.has(id) ? ' num-r' : ''}" aria-sort="${sort.k === id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${HEAD[id]}${sort.k === id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>` : `<th>${HEAD[id]}</th>`;
+    const html = `<table class="data compact devtbl" id="devTable"><thead><tr>${edit ? `<th class="selc"><input type="checkbox" id="devAll" aria-label="Select all on this page"${allOnPage ? ' checked' : ''}></th>` : ''}${cols.map(th).join('')}</tr></thead><tbody>` +
+      rows.map((d) => `<tr data-ip="${esc(d.key)}"${sel.has(d.key) ? ' class="sel"' : ''}>${edit ? `<td class="selc"><input type="checkbox" class="pick" aria-label="Select ${esc(d.host)}"${sel.has(d.key) ? ' checked' : ''}></td>` : ''}${cols.map((id) => `<td${NUM.has(id) ? ' class="num-r"' : id === 'last' ? ' class="muted"' : ''}${TITLE[id] ? ` title="${esc(TITLE[id](d))}"` : ''}>${CELL[id](d)}</td>`).join('')}</tr>`).join('') +
+      `</tbody></table><datalist id="grpList">${[...new Set(list.map((d) => d.group).filter(Boolean))].slice(0, 500).map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
+    if (html !== lastHtml || force) { lastHtml = html; $('#devWrap').innerHTML = html; enableColResize($('#devTable'), edit ? 'dev2' : 'dev', () => { lastHtml = ''; draw(true); }); }
+    const from = page * per() + 1, to = Math.min(sh.length, (page + 1) * per());
+    const pg = `<span class="muted">${fmtN(from)}–${fmtN(to)} of ${fmtN(sh.length)}</span><button data-pg="first" ${page ? '' : 'disabled'} aria-label="First page">«</button><button data-pg="prev" ${page ? '' : 'disabled'}>‹ Previous</button><span>Page ${page + 1} of ${pages}</span><button data-pg="next" ${page < pages - 1 ? '' : 'disabled'}>Next ›</button><button data-pg="last" ${page < pages - 1 ? '' : 'disabled'} aria-label="Last page">»</button><span class="spacer"></span><label class="muted">Rows per page <select id="devPer">${[50, 100, 250, 500].map((x) => `<option${x === per() ? ' selected' : ''}>${x}</option>`).join('')}</select></label>`;
+    if ($('#devPager').innerHTML !== pg) $('#devPager').innerHTML = pg;
   };
-  $('#devCols').onclick = () => openSimpleColumns($('#devCols'), 'Device columns', Object.fromEntries(DEV_COLS), devColList, (l) => { if (l) S.prefs.columns = { ...(S.prefs.columns || {}), devices: l }; else if (S.prefs.columns) delete S.prefs.columns.devices; delete S.colw?.dev; if (S.prefs.colw) delete S.prefs.colw.dev; savePrefs(); }, () => { lastHtml = ''; draw(true); });
-  const load = async () => { try { list = await api('/api/devices'); options(); draw(); } catch { /* ignore */ } };
-  const saveInfo = async (key, patch) => {
-    const cfg = await api('/api/config'), info = cfg.deviceInfo || {}; info[key] = { ...(info[key] || {}), ...patch };
-    await api('/api/config', { method: 'PUT', body: { deviceInfo: info } }); await load();
+  const refilter = () => { visCache = null; page = 0; draw(true); };
+  $('#devCols').onclick = () => openSimpleColumns($('#devCols'), 'Device columns', Object.fromEntries(DEV_COLS), devColList, (l) => { if (l) S.prefs.columns = { ...(S.prefs.columns || {}), devices: l }; else if (S.prefs.columns) delete S.prefs.columns.devices; for (const k of ['dev', 'dev2']) { delete S.colw?.[k]; if (S.prefs.colw) delete S.prefs.colw[k]; } savePrefs(); }, () => { lastHtml = ''; draw(true); });
+  const load = async () => {
+    if (loading) return; loading = true;
+    try { list = await api('/api/devices'); byKey = new Map(list.map((d) => [d.key, d])); for (const k of [...sel]) if (!byKey.has(k)) sel.delete(k); visCache = null; options(); draw(); } catch { /* ignore */ } finally { loading = false; }
   };
-  let qT; el.addEventListener('input', (e) => { if (e.target.id === 'devQ') { S.devQ = e.target.value; clearTimeout(qT); qT = setTimeout(() => draw(true), 120); } });
+  const putCfg = async (body) => { await api('/api/config', { method: 'PUT', body }); await load(); };
+  const saveInfo = async (keys, patch) => { const cfg = await api('/api/config'), info = cfg.deviceInfo || {}; for (const k of keys) info[k] = { ...(info[k] || {}), ...patch }; await putCfg({ deviceInfo: info }); };
+  const setMuted = async (keys, on) => { const cur = new Set((await api('/api/config')).mutedDevices || []); for (const k of keys) { const d = byKey.get(k); for (const x of [k, ...(d ? d.srcIps : [])]) cur.delete(x); if (on) cur.add(k); } await putCfg({ mutedDevices: [...cur] }); };
+  const forget = async (body) => { const r = await api('/api/devices/forget', { method: 'POST', body }); sel.clear(); toast(`${fmtN(r.removed)} device${r.removed === 1 ? '' : 's'} forgotten`); lastHtml = ''; await load(); };
+  let qT; el.addEventListener('input', (e) => { if (e.target.id === 'devQ') { S.devQ = e.target.value; clearTimeout(qT); qT = setTimeout(refilter, 150); } });
   el.addEventListener('change', async (e) => {
-    const t = e.target; if (['devStatus', 'devSrc', 'devGroup', 'devVendor'].includes(t.id)) return draw(true);
-    const tr = t.closest('tr[data-ip]'); if (!tr) return; const ip = tr.dataset.ip; const dv = list.find((x) => x.key === ip);
+    const t = e.target; if (['devStatus', 'devSrc', 'devGroup', 'devVendor'].includes(t.id)) return refilter();
+    if (t.id === 'devPer') { S.prefs.devPer = +t.value; savePrefs(); page = 0; return draw(true); }
+    if (t.id === 'devAll') { const rows = vis().slice(page * per(), (page + 1) * per()); for (const d of rows) t.checked ? sel.add(d.key) : sel.delete(d.key); return draw(true); }
+    const tr = t.closest('tr[data-ip]'); if (!tr) return; const ip = tr.dataset.ip; const dv = byKey.get(ip);
+    if (t.classList.contains('pick')) { t.checked ? sel.add(ip) : sel.delete(ip); tr.classList.toggle('sel', t.checked); return draw(true); }
     try {
       if (t.classList.contains('alias')) {
         const cfg = (await api('/api/config')).deviceAliases || {}; for (const k of dv ? dv.srcIps : []) delete cfg[k];
         if (t.value.trim()) cfg[ip] = t.value.trim(); else delete cfg[ip];
-        await api('/api/config', { method: 'PUT', body: { deviceAliases: cfg } }); toast('Saved — new messages will use this name'); load();
-      } else if (t.classList.contains('grp')) { await saveInfo(ip, { group: t.value.trim() }); toast('Group saved'); }
-      else if (t.classList.contains('expect')) { await saveInfo(ip, { expectMin: +t.value || 0 }); toast(+t.value ? `An alert is raised when nothing is heard for ${+t.value} min` : 'Using the global limit'); }
+        await putCfg({ deviceAliases: cfg }); toast('Saved — new messages will use this name');
+      } else if (t.classList.contains('grp')) { await saveInfo([ip], { group: t.value.trim() }); toast('Group saved'); }
+      else if (t.classList.contains('expect')) { await saveInfo([ip], { expectMin: +t.value || 0 }); toast(+t.value ? `An alert is raised when nothing is heard for ${+t.value} min` : 'Using the global limit'); }
     } catch (err) { toast(err.message, true); }
   });
   el.addEventListener('click', async (e) => {
+    const sortTh = e.target.closest('th[data-sort]'); if (sortTh && !e.target.closest('.colrz') && !colDrag) { const k = sortTh.dataset.sort; if (sort.k === k) sort.dir = -sort.dir; else { sort.k = k; sort.dir = ['sys', 'traps', 'last', 'alarms', 'expect'].includes(k) ? -1 : 1; } visCache = null; page = 0; return draw(true); }
+    const pg = e.target.closest('button[data-pg]'); if (pg) { const pages = Math.ceil(vis().length / per()); page = { first: 0, prev: page - 1, next: page + 1, last: pages - 1 }[pg.dataset.pg]; $('#devWrap').scrollTop = 0; return draw(true); }
     if (e.target.closest('#devCsv')) {
       const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"', h = ['Device', 'Display name', 'Address', 'Vendor', 'Group', 'State', 'Syslog since start', 'Traps since start', 'Last heard', 'Open alarms', 'Expect every (min)', 'Note'];
       const rows = vis().map((d) => [d.host, d.alias, d.srcIp, d.vendor, d.group, state(d), d.sys, d.traps, new Date(d.lastSeen).toLocaleString(), d.openAlarms, d.expectMin || '', d.note]);
       const blob = new Blob(['﻿' + [h, ...rows].map((r) => r.map(q2).join(',')).join('\r\n')], { type: 'text/csv' }), u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = 'devices.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000); return;
     }
-    const b = e.target.closest('[data-act]'); if (!b) return; const tr = b.closest('tr[data-ip]'); if (!tr) return; const ip = tr.dataset.ip; const d = list.find((x) => x.key === ip);
+    if (e.target.closest('#devForgetAll')) {
+      if (!list.length) return toast('There are no devices to forget');
+      const r = await askConfirm(`Forget all ${fmtN(list.length)} devices? They are removed from this list. Stored messages, traps and alarms are kept, and a device comes back as soon as it sends again.`, 'Forget all', 'Also remove their display names, groups, notes and muted state');
+      if (r) { try { await forget({ all: true, wipeInfo: r.checked }); } catch (err) { toast(err.message, true); } }
+      return;
+    }
+    const bb = e.target.closest('button[data-b]');
+    if (bb) {
+      const keys = [...sel];
+      try {
+        if (bb.dataset.b === 'all') { for (const d of vis()) sel.add(d.key); return draw(true); }
+        if (bb.dataset.b === 'none') { sel.clear(); return draw(true); }
+        if (bb.dataset.b === 'group') { const v = await askText(`Group for ${fmtN(keys.length)} device${keys.length === 1 ? '' : 's'} (empty removes the group)`, ''); if (v !== null && v !== undefined) { await saveInfo(keys, { group: v.trim().slice(0, 80) }); toast('Group saved'); } return; }
+        if (bb.dataset.b === 'mute' || bb.dataset.b === 'unmute') { await setMuted(keys, bb.dataset.b === 'mute'); toast(bb.dataset.b === 'mute' ? `Alerts muted for ${fmtN(keys.length)} devices` : `Alerts unmuted for ${fmtN(keys.length)} devices`); return; }
+        if (bb.dataset.b === 'forget') { const r = await askConfirm(`Forget ${fmtN(keys.length)} selected device${keys.length === 1 ? '' : 's'}? Stored messages are kept, and a device comes back when it sends again.`, 'Forget', 'Also remove their display names, groups, notes and muted state'); if (r) await forget({ keys, wipeInfo: r.checked }); return; }
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+    const b = e.target.closest('[data-act]'); if (!b) return; const tr = b.closest('tr[data-ip]'); if (!tr) return; const ip = tr.dataset.ip; const d = byKey.get(ip); if (!d) return;
     if (b.dataset.act === 'logs') { sessionStorage.setItem('sp.search', JSON.stringify({ host: d.host })); location.hash = '#logs'; }
     if (b.dataset.act === 'traps') { sessionStorage.setItem('sp.search', JSON.stringify({ host: d.host })); location.hash = '#traps'; }
     if (b.dataset.act === 'alarms') { e.preventDefault(); S.alarmState = 'active'; S.alarmSrc = ''; sessionStorage.setItem('sp.alarmQ', d.host); location.hash = '#alarms'; }
-    if (b.dataset.act === 'note') { const v = await askText(`Note for ${d.host}`, d.note || ''); if (v !== null && v !== undefined) { try { await saveInfo(ip, { note: v.trim() }); } catch (err) { toast(err.message, true); } } }
-    if (b.dataset.act === 'mute') { const cfg = (await api('/api/config')).mutedDevices || []; const nx = d.muted ? cfg.filter((x) => x !== ip && !d.srcIps.includes(x)) : [...cfg, ip]; await api('/api/config', { method: 'PUT', body: { mutedDevices: nx } }); load(); }
-    if (b.dataset.act === 'forget' && await askConfirm(`Remove ${d.host} (${ip}) from the device list? Stored messages are kept, and the device returns if it sends again.`)) { await api('/api/device/forget', { method: 'POST', body: { key: ip } }); load(); }
+    if (b.dataset.act === 'note') { const v = await askText(`Note for ${d.host}`, d.note || ''); if (v !== null && v !== undefined) { try { await saveInfo([ip], { note: v.trim() }); } catch (err) { toast(err.message, true); } } }
+    if (b.dataset.act === 'mute') { try { await setMuted([ip], !d.muted); } catch (err) { toast(err.message, true); } }
+    if (b.dataset.act === 'forget' && await askConfirm(`Forget ${d.host} (${ip})? Stored messages are kept, and the device returns if it sends again.`, 'Forget')) { try { await forget({ keys: [ip] }); } catch (err) { toast(err.message, true); } }
   });
-  $('#devStatus').value = ''; load(); const t = setInterval(load, 5000); return () => clearInterval(t);
+  $('#devStatus').value = '';
+  let t = 0; const tick = async () => { await load(); t = setTimeout(tick, list.length > 3000 ? 15000 : 5000); };   // big lists refresh every 15 s
+  tick(); return () => clearTimeout(t);
 };
 
 // ---------- Rules ------------------------------------------------------------------------------------------------------------------------

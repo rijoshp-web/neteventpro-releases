@@ -248,6 +248,16 @@ const logs = async (q = '') => (await api('/api/logs?limit=50' + q)).json.rows;
   await put({ deviceAliases: {} });
   await api('/api/device/forget', { method: 'POST', body: JSON.stringify({ key: 'devb' }) });
   check('forgetting a device removes it by name', !(await api('/api/devices')).json.some((d) => d.key === 'devb'));
+  // 1.99.1 forget many devices at once, with or without their names and groups
+  for (const h of ['bulk-1', 'bulk-2', 'bulk-3']) await sendUdp(`<14>Oct 25 23:00:04 ${h} app: bulk forget e2e`); await sleep(700);
+  await put({ deviceInfo: { 'bulk-1': { group: 'G1' }, 'bulk-3': { group: 'G3' } }, deviceAliases: { 'bulk-1': 'B one' } });   // (Forget all: test/devices-forget.test.js)
+  r = await api('/api/devices/forget', { method: 'POST', body: JSON.stringify({ keys: ['bulk-1', 'bulk-2', 'no-such-device'], wipeInfo: true }) });
+  let dv2 = (await api('/api/devices')).json, cf2 = (await api('/api/config')).json;
+  check('1.99.1: selected devices are forgotten in one step (unknown ones ignored), their names and groups removed on request', r.json?.removed === 2 && !dv2.some((d) => d.key === 'bulk-1' || d.key === 'bulk-2') && dv2.some((d) => d.key === 'bulk-3') && !cf2.deviceInfo?.['bulk-1'] && cf2.deviceInfo?.['bulk-3']?.group === 'G3' && !cf2.deviceAliases?.['bulk-1'], JSON.stringify(r.json));
+  check('1.99.1: the stored messages of forgotten devices are kept', (await logs('&text=' + encodeURIComponent('bulk forget e2e'))).length === 3);
+  await sendUdp('<14>Oct 25 23:00:05 bulk-2 app: back again'); await sleep(700);
+  check('1.99.1: a forgotten device comes back when it sends again', (await api('/api/devices')).json.some((d) => d.key === 'bulk-2'));
+  await put({ deviceInfo: {} });
 
   // ---------- reports ---------------------------------------------------------------------------------------------------------
   const repDir = path.join(dir, 'reports-out');
@@ -667,11 +677,11 @@ END`;
     await sendUdp('<11>Oct 25 22:41:00 core-sw1 app: severity name check e2e'); await sleep(700);
     const ex = await fetch(`http://127.0.0.1:${WEB}/api/export?format=csv&text=${encodeURIComponent('severity name check e2e')}`); const exT = await ex.text();
     check('exports use the own severity name', /,Major,/.test(exT), exT.split('\n').slice(0, 2).join(' | '));
-    for (const f of ['/ops.js', '/setup.js', '/lang-en.js']) { const fr = await fetch(`http://127.0.0.1:${WEB}${f}`); check(`${f} is served`, fr.status === 200 && /javascript/.test(fr.headers.get('content-type') || ''), String(fr.status)); }
+    for (const f of ['/setup.js', '/lang-en.js']) { const fr = await fetch(`http://127.0.0.1:${WEB}${f}`); check(`${f} is served`, fr.status === 200 && /javascript/.test(fr.headers.get('content-type') || ''), String(fr.status)); }
     const ix = await (await fetch(`http://127.0.0.1:${WEB}/`)).text();
-    check('Operations is a tab of the Dashboard page (no separate menu item) and the language file loads before the pages', !/href="#ops"/.test(ix) && /href="#dashboard"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js') && ix.indexOf('dashboard.js') < ix.indexOf('ops.js'));
+    check('1.99.1: the Operations page is gone (one Dashboard page) and the language file loads before the pages', !/ops\.js/.test(ix) && !/href="#ops"/.test(ix) && /href="#dashboard"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js'));
     const dsh = await api('/api/dash', { method: 'POST', body: JSON.stringify({ from: Date.now() - 86400000, to: Date.now(), tiles: [{ id: 'a', kind: 'top', by: 'severity', ds: 'alarms', filter: { astate: 'active' } }, { id: 'b', kind: 'top', by: 'msgid', filter: { source: 'snmp' } }, { id: 'c', kind: 'heatDow', tz: 240 }] }) });
-    check('the Operations sheets\' data requests are answered', dsh.status === 200 && Array.isArray(dsh.json.tiles.a.rows) && Array.isArray(dsh.json.tiles.b.rows) && dsh.json.tiles.c.cells.length === 7, dsh.text.slice(0, 200));
+    check('dashboard data requests for alarms, traps and heatmaps are answered', dsh.status === 200 && Array.isArray(dsh.json.tiles.a.rows) && Array.isArray(dsh.json.tiles.b.rows) && dsh.json.tiles.c.cells.length === 7, dsh.text.slice(0, 200));
     await put({ format: { date: 'ymd', clock: '24' }, sevNames: {}, sevColors: {} });
     st = await api('/api/state'); check('standard severity names come back when the own ones are removed', st.json.sevLabels[3] === 'Error');
   }

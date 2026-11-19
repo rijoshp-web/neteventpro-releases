@@ -1,4 +1,5 @@
 'use strict';
+const fmtMs = (ms) => (ms >= 10000 ? `${Math.round(ms / 1000)} s` : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`);
 // Self-monitoring: is the receiver healthy (disk space, database, listeners, delays, memory, mail)? A snapshot feeds the Health page and the
 // dashboard tile; once a minute the same checks run and a change of state (OK -> warning, warning -> OK ...) is written into the log as a
 // NetEventPro message, so your normal rules (colour, sound, email) can react to it. Rule tip: Device = "NetEventPro".
@@ -35,6 +36,7 @@ class Health {
     /* 1.59: a gap of 15 seconds or more is not "too busy", it is a computer that slept, a paused virtual machine or a frozen process: it is reported as that */
     const late = late0 >= 15000 ? 0 : late0; if (late0 >= 15000) { (this.suspends ||= []).push({ at: prevTick, ms: late0 + 500 }); this.suspends = this.suspends.slice(-20); }
     this.lag.push([now, late]); while (this.lag.length && this.lag[0][0] < now - 60000) this.lag.shift();
+    if (late >= 1000) { const x = require('./busy').explain(prevTick, now); (this.pauses ||= []).push({ at: now, ms: late + 500, cause: x.cause, hint: x.hint || '', jobs: x.jobs }); this.pauses = this.pauses.slice(-30); }   // 1.99.1 what held it up
     const dt = now - this.cpuAt;
     if (dt >= 5000) { const u = process.cpuUsage(this.cpuPrev); this.cpuPct = Math.round(((u.user + u.system) / 1000) / dt * 100 / os.cpus().length * 10) / 10; this.cpuPrev = process.cpuUsage(); this.cpuAt = now; }
   }
@@ -142,7 +144,9 @@ class Health {
         pc.late === 0 ? `${pc.local} devices polled from this computer, all on schedule (a poll takes about ${(pc.avgPollMs / 1000).toFixed(1)} s, ${pc.workersNow} at a time).`
           : `${pc.late} of ${pc.local} devices are behind their schedule (the longest by ${pc.maxLateSec} s). Polling cannot keep up: raise "At the same time" in SNMP polling → Settings, use longer intervals or fewer readings, or poll some devices through a probe.`);
     }
-    add('lag', 'Processing delay', lagMax > 2000 ? 'bad' : lagMax > 500 ? 'warn' : 'ok', `Longest pause in the last minute: ${lagMax} ms. A long pause means the service was too busy to receive messages.`);
+    { const day = (this.pauses || []).filter((x) => x.at > Date.now() - 86400000), last = day[day.length - 1], worst = day.reduce((m, x) => (!m || x.ms > m.ms ? x : m), null);
+      const why = worst ? ` Longest pause in the last 24 hours: ${fmtMs(worst.ms)} at ${new Date(worst.at).toLocaleTimeString()}, caused by ${worst.cause}.${worst.hint ? ' ' + worst.hint : ''}${last && last !== worst ? ` Latest: ${fmtMs(last.ms)}, ${last.cause}.` : ''}` : '';
+      add('lag', 'Processing delay', lagMax > 2000 ? 'bad' : lagMax > 500 ? 'warn' : 'ok', `Longest pause in the last minute: ${lagMax} ms. A long pause means the service was too busy to receive messages.${why}`); }
     add('memory', 'Memory use', mem.rss > 2 * GB ? 'bad' : mem.rss > 1 * GB ? 'warn' : 'ok', `${Math.round(mem.rss / MB)} MB in use by the service.`);
     if (smtp.host) add('email', 'Email delivery', email.lastError && email.failed > 0 ? 'warn' : 'ok', email.lastError || `${email.sent || 0} sent, ${email.failed || 0} failed.`);
     for (const f of fw) {

@@ -2,6 +2,20 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.1
+Fast Devices page for tens of thousands of devices, select and forget many devices, the Operations page removed, a ready-made Aurora dashboard, the cause of long pauses, and SNMP polling on its own thread.
+- **Devices page is fast with many devices**: it drew every device every 5 seconds, which froze the browser at about 20 000 devices (it never finished in 2 minutes). Now one page of rows is drawn (50/100/250/500 per page): with 20 000 devices it opens in about 0.4 s, and search, sort and page changes take about 0.2 s. Big lists refresh every 15 s instead of 5 s.
+- **Sort by any column** (click the heading), **pages** with first / previous / next / last.
+- **Select devices** (tick boxes, all on the page, or all shown): set a group, mute or unmute alerts, or forget them, in one step.
+- **Forget all…** button: removes every device from the list in one step (20 000 in under a second); optionally also their display names, groups, notes and muted state. Stored messages, traps and alarms are kept; a device comes back when it sends again. Written to the audit log.
+- **Operations page removed**: the Dashboard is one page again (no Operations / My dashboards tabs).
+- **Ready-made Aurora dashboard**: Dashboard → ⋮ → New dashboard → Ready-made: Aurora, or import dashboards/NetEventPro-Aurora.json. Gradient numbers and a sheet each for alarms, traffic, SNMP traps and devices; works with every theme; no per-device tiles, so it stays fast with many devices.
+- **System health names the cause of a long pause**: the regular jobs (saving messages, rules, alarms, polling, reports, backups, deletes, web pages, memory clean-up) are timed; the "Processing delay" check now says what was running during the longest pause of the last 24 hours, with advice when it was slow database work (antivirus exclusion for the data folder).
+- **SNMP polling on its own thread**: asking devices and waiting for their answers no longer waits behind heavy syslog traffic, so polls stop timing out and falling behind under load. If the thread stops, polling continues in the main thread and the thread is restarted.
+- **Old Operations links** (#ops) open the Dashboard.
+- Donut charts of alarms and devices say "alarms" / "devices" in the centre instead of "messages".
+- Load test kit: waits until the server has caught up before measuring, cleans up all test messages and devices, works with https and self-signed certificates (--insecure), clearer error messages.
+
 ## 1.99.0
 Dashboard tabs, company directory sign-in, fast word search, high availability, installer signing and a load test kit.
 - **Dashboard page with two tabs**: Operations (the ready-made sheets) and My dashboards (your own boards, unchanged). The separate Operations menu item is gone; old #ops links still work.

@@ -93,7 +93,7 @@ class Backups {
   constructor({ config, store, dir, version }) {
     this.config = config; this.store = store; this.root = dir; this.dir = path.join(dir, 'backups'); this.version = version; this.busy = false; this.status = {};
     fs.mkdirSync(this.dir, { recursive: true });
-    this.timer = setInterval(() => this.tick().catch((e) => console.error('[backup]', e.message)), 60000); this.timer.unref?.();
+    this.timer = setInterval(() => require('./busy').run('scheduled backup', () => this.tick()).catch((e) => console.error('[backup]', e.message)), 60000); this.timer.unref?.();
     try { this.pending = JSON.parse(fs.readFileSync(path.join(dir, 'restore-pending', 'pending.json'), 'utf8')); } catch { this.pending = null; }
   }
   close() { clearInterval(this.timer); }

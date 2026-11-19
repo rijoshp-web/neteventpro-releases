@@ -31,6 +31,8 @@ class Polling {
   constructor(config, store, engine) {
     this.config = config; this.store = store; this.engine = engine; this.db = store.db;
     this.collector = new Collector(new SnmpClient()); this.client = this.collector.client;
+    // 1.99.1 scheduled polls run on their own thread (src/pollworker.js); tests, discovery and the reading builder stay here
+    this.pw = process.env.NETEVENTPRO_POLL_THREAD === '0' ? null : new (require('./pollworker').PollWorker)((d, profiles) => this.collector.collect(d, profiles));
     this.rt = new Map();           // device id -> runtime state
     this.fire = new Map();         // threshold state: thr|dev|inst -> { since, firing }
     this.running = 0; this.recent = []; this.timer = null; this.maintTimer = null;
@@ -73,7 +75,7 @@ class Polling {
   async pollDevice(d) {
     const rt = this.state(d); rt.busy = true;
     const t0 = Date.now();
-    try { return this.apply(d, await this.collector.collect(d, this.profiles())); } finally { rt.busy = false; const ms = Date.now() - t0; this.pollMs = this.pollMs ? this.pollMs * 0.95 + ms * 0.05 : ms; }
+    try { const res = this.pw ? await this.pw.collect(d, this.profiles(), this.client.gapMs) : await this.collector.collect(d, this.profiles()); return require('./busy').run('SNMP polling: storing readings', () => this.apply(d, res)); } finally { rt.busy = false; const ms = Date.now() - t0; this.pollMs = this.pollMs ? this.pollMs * 0.95 + ms * 0.05 : ms; }
   }
   /** takes what a poll found (made here or by a probe) into the state, the stored readings, the thresholds and the no-answer alarm */
   apply(d, res) {
@@ -301,7 +303,7 @@ class Polling {
     if (list.length > 2000) { const e = new Error('At most 2000 polled devices.'); e.status = 400; throw e; }
     if (old && lower(old.name) !== lower(d.name)) this.clearAlarms(null, lower(old.name));
     this.config.update({ polling: { ...c, devices: list } });
-    const rt = this.state(d); rt.nextAt = 0; if (old && (old.host !== d.host || old.port !== d.port || old.version !== d.version)) { rt.misses = 0; this.client.sessions.clear(); }
+    const rt = this.state(d); rt.nextAt = 0; if (old && (old.host !== d.host || old.port !== d.port || old.version !== d.version)) { rt.misses = 0; this.client.sessions.clear(); this.pw?.reset(); }
     return d;
   }
   deleteDevice(id) {
@@ -310,7 +312,7 @@ class Polling {
     this.dropReadings(id); this.clearAlarms(null, lower(d.name)); this.rt.delete(id);
     try { this.db.prepare('DELETE FROM poll_readings WHERE dev = ?').run(id); this.db.prepare('DELETE FROM poll_avg WHERE dev = ?').run(id); } catch (e) { console.error('[polling] delete', e.message); }
     for (const k of [...this.fire.keys()]) if (k.split('|')[1] === id) this.fire.delete(k);
-    this.collector.forget(id);
+    this.collector.forget(id); this.pw?.forget(id);
     return d;
   }
   async testDevice(b) {
@@ -522,16 +524,16 @@ class Polling {
     const now = Date.now(), loc = this.localDevices(); let late = 0, maxLate = 0, probes = 0, reqS = 0;
     for (const d of this.devices()) if (d.enabled !== false && d.via) probes++;
     for (const d of loc) { const rt = this.state(d), step = Math.max(10, d.intervalSec || 60) * 1000; reqS += 4 / (step / 1000); if (!rt.nextAt || rt.busy || (rt.misses || 0) >= 3) continue; const l = now - rt.nextAt; if (l > Math.max(10000, step * 0.5)) { late++; maxLate = Math.max(maxLate, l); } }
-    return { local: loc.length, viaProbe: probes, late, maxLateSec: Math.round(maxLate / 1000), workers: num(this.cfg.workers, 5, 1, 50), workersNow: this.workersNow(), avgPollMs: Math.round(this.pollMs || 0), running: this.running, reqPerSec: Math.round(reqS * 10) / 10 };
+    return { local: loc.length, viaProbe: probes, late, maxLateSec: Math.round(maxLate / 1000), workers: num(this.cfg.workers, 5, 1, 50), workersNow: this.workersNow(), avgPollMs: Math.round(this.pollMs || 0), running: this.running, thread: this.pw ? this.pw.status().thread : false, reqPerSec: Math.round(reqS * 10) / 10 };
   }
 
   // ---------- scheduler ----------
   start() {
     this.recover(); this.rollup();
-    this.timer = setInterval(() => this.tick(), 250); this.timer.unref?.();
-    this.maintTimer = setInterval(() => this.rollup(), 600000); this.maintTimer.unref?.();
+    this.timer = setInterval(() => require('./busy').run('SNMP polling', () => this.tick()), 250); this.timer.unref?.();
+    this.maintTimer = setInterval(() => require('./busy').run('SNMP polling: summarising old readings', () => this.rollup()), 600000); this.maintTimer.unref?.();
   }
-  stop() { clearInterval(this.timer); clearInterval(this.maintTimer); }
+  stop() { clearInterval(this.timer); clearInterval(this.maintTimer); this.pw?.stop(); }
   tick() {
     const c = this.cfg; if (c.enabled === false || this.locked?.()) return; const now = Date.now(), cap = this.workersNow(); this.client.gapMs = num(c.gapMs, 30, 0, 2000);
     const due = [];
