@@ -216,7 +216,7 @@ class Polling {
 
   // ---------- thresholds and alarms ----------
   rules() {
-    const c = this.cfg, out = [], act = (profiles, extra = {}) => ({ alarm: true, profiles: Array.isArray(profiles) ? profiles : [], ...extra });
+    const c = this.cfg, out = [], act = (profiles, extra = {}) => ({ alarm: true, notifyClear: true, profiles: Array.isArray(profiles) ? profiles : [], ...extra });
     out.push({ id: 'poll-noanswer', name: 'No SNMP answer', enabled: true, source: 'syslog', match: { tag: 'poll-noanswer' }, actions: act(c.noAnswerProfiles, { clearText: ['/^CLEARED:/'] }) });
     out.push({ id: 'poll-lookup', name: 'SNMP value state (lookup)', enabled: true, source: 'syslog', match: { tag: 'poll-lookup' }, actions: act(c.lookupProfiles ?? c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
     for (const l of c.lookups || []) {   /* a reading with its own value meanings: warning and critical each have their own rule, so each can tell different people */

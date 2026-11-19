@@ -32,6 +32,7 @@
 //   flapCount / flapMin / flapQuiet  flap detection: flapCount changes of the same alarm key within flapMin minutes = one "(flapping)" alarm, quiet for flapQuiet minutes = it clears (1.40)
 //   alarmAutoClearMin number  the alarm clears itself when it did not repeat for this many minutes
 //   clearsRule string   id of another rule: its alarms for the same device are cleared when this rule matches (link up clears link down)
+//   notifyClear bool     with clearText: the rule's notification profiles are also told when its clear message arrives (1.99.5)
 //   clearText   [text or /regex/, ...] a message of this rule's device that matches ANY of these clears this rule's own alarm (same port when alarmBy is set) instead of raising it: one rule can raise and clear
 //   sevMap      [{ text, severity }] first entry whose text matches sets the message severity (e.g. "Status: Major" -> 3), used by the alarm
 //   cooldownSec number  min seconds between webhook / email alerts for this rule (default 60, or 300 when emailing)
@@ -117,7 +118,10 @@ class RuleEngine {
       const a = c.rule.actions || {};
       const id = c.rule.id;
       if (c.clear && c.clear.some((f) => f(msg.message))) {   // "all clear" message: clear this rule's own alarm (the same port when alarmBy is set) instead of raising one
-        this.hits.set(id, (this.hits.get(id) || 0) + 1); out.clears.push({ id, by: c.rule.name, alarmBy: a.alarmBy || '' }); continue;
+        this.hits.set(id, (this.hits.get(id) || 0) + 1); out.clears.push({ id, by: c.rule.name, alarmBy: a.alarmBy || '' });
+        // 1.99.5 notifyClear: the same notification profiles are told when it clears (SNMP polling alarms promise this); no cooldown, a clear is never swallowed
+        if (a.notifyClear && !quiet && Array.isArray(a.profiles) && a.profiles.length) out.notifs.push({ profiles: a.profiles, rule: c.rule, suppressed: 0, report: false });
+        continue;
       }
       if (c.text && !c.text(msg.message)) continue;
       if (c.textAny && !c.textAny.some((f) => f(msg.message))) continue;

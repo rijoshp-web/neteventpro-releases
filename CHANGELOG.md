@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.5
+- SNMP polling alarms now tell their notification profiles when the alarm clears (an e-mail starting with "CLEARED:"), as the polling page says. Before, only the raise was sent; the clear went out only for escalated alarms. Nothing is sent during a maintenance window.
+- The SNMP polling help text no longer mentions built-in profiles.
+
 ## 1.99.4
 - Audit records of your own changes (for example "admin removed the polled device ...") no longer go through the alarm rules. Before, a broad rule could raise a Critical alarm for every device you removed.
 - The error box "Cannot set properties of null (setting 'textContent')" no longer appears. A Logs search, Alarms refresh or Devices refresh that finishes after you have left the page now stops quietly.
