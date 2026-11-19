@@ -28,6 +28,7 @@ const METRICS = {
   dvAll: { label: 'Devices known to the application', srv: true, k: 'devices', dstate: 'all' }, dvReporting: { label: 'Devices reporting normally', srv: true, k: 'devices', dstate: 'reporting' }, dvSilent: { label: 'Silent devices', srv: true, k: 'devices', dstate: 'silent' },
   dvMuted: { label: 'Muted devices', srv: true, k: 'devices', dstate: 'muted' }, dvOverdue: { label: 'Devices overdue (not heard within their expected time)', srv: true, k: 'devices', dstate: 'overdue' },
   dvAlarms: { label: 'Devices with open alarms', srv: true, k: 'devices', dstate: 'alarms' }, dvSyslog: { label: 'Devices that send syslog', srv: true, k: 'devices', dstate: 'syslog' }, dvTrap: { label: 'Devices that send SNMP traps', srv: true, k: 'devices', dstate: 'trap' },
+  pollv: { label: 'Polled value', srv: true, k: 'poll' },
   received: { label: 'Messages received since the service started', k: 'system' }, eps: { label: 'Messages per second now', k: 'system' }, devices: { label: 'Known devices (from the live counters)', k: 'system' }, silent: { label: 'Silent devices (from the live counters)', k: 'system' },
   stored: { label: 'Messages in the database', k: 'system' }, dbSize: { label: 'Database size on disk', k: 'system' }, dropped: { label: 'Messages dropped by rules since start', k: 'system' }, diskFree: { label: 'Free disk space', k: 'system' }
 };
@@ -38,19 +39,22 @@ const DS = {
   events: { label: 'Syslog + SNMP traps', chip: 'Syslog + traps', short: 'Both', kind: 'events', src: 'all', desc: 'Every received event, syslog and traps together.' },
   alarms: { label: 'Alarms', chip: 'Alarms', short: 'Alarms', kind: 'alarms', desc: 'The alarms raised by your rules: open, acknowledged, escalated, cleared.' },
   devices: { label: 'Devices', chip: 'Devices', short: 'Devices', kind: 'devices', desc: 'The devices that send to the application and their state.' },
-  system: { label: 'System (live)', chip: 'System', short: 'System', kind: 'system', desc: 'The application itself: message rate, database size, disk space.' }
+  system: { label: 'System (live)', chip: 'System', short: 'System', kind: 'system', desc: 'The application itself: message rate, database size, disk space.' },
+  poll: { label: 'SNMP polling (readings)', chip: 'Polling', short: 'Poll', kind: 'poll', desc: 'Values read from polled devices: temperatures, voltages, load, traffic, anything you set up as a reading.' }
 };
 /** ways to rank or group, per kind of data */
 const BYS = {
   events: [['host', 'Device'], ['app', 'Process'], ['severity', 'Severity'], ['facility', 'Facility'], ['msgid', 'Trap name (SNMP)']],
   alarms: [['host', 'Device'], ['rule', 'Alarm rule'], ['severity', 'Severity'], ['state', 'State (open / acknowledged / cleared)'], ['source', 'Source (syslog / trap)']],
-  devices: [['vendor', 'Vendor'], ['status', 'Status (reporting / silent / muted ...)'], ['group', 'Group'], ['kind', 'What it sends (syslog / traps)']]
+  devices: [['vendor', 'Vendor'], ['status', 'Status (reporting / silent / muted ...)'], ['group', 'Group'], ['kind', 'What it sends (syslog / traps)']],
+  poll: [['device', 'One per device'], ['instance', 'One per device and instance (port, sensor, rectifier ...)'], ['all', 'All together']]
 };
 const A_STATES = [['raised', 'Raised in the time range'], ['active', 'Active now (open + acknowledged)'], ['open', 'Open now (not acknowledged)'], ['ack', 'Acknowledged now'], ['esc', 'Escalated now'], ['cleared', 'Cleared in the time range']];
 const D_STATES = [['all', 'All devices'], ['reporting', 'Reporting normally'], ['silent', 'Silent'], ['muted', 'Muted'], ['overdue', 'Overdue'], ['alarms', 'With open alarms'], ['syslog', 'Sending syslog'], ['trap', 'Sending traps']];
 /** which kinds of data each visual can show */
 const VIS_DS = { kpi: ['events', 'alarms', 'devices', 'system'], gauge: ['events', 'alarms', 'devices', 'system'], statspark: ['events', 'alarms'], line: ['events', 'alarms'], trend: ['events', 'alarms'], sevbars: ['events', 'alarms'], heat: ['events'],
   top: ['events', 'alarms', 'devices'], bar: ['events', 'alarms', 'devices'], pie: ['events', 'alarms', 'devices'], treemap: ['events', 'alarms', 'devices'], ...Object.fromEntries(['waffle', 'radial', 'rose', 'cloud', 'bubble', 'funnel', 'podium'].map((k) => [k, ['events', 'alarms', 'devices']])), table: ['events', 'alarms', 'devices'], bargauge: ['events', 'alarms', 'devices'], latest: ['events', 'alarms', 'devices'] };
+for (const v of ['kpi', 'gauge', 'statspark', 'line', 'top', 'bar', 'pie', 'treemap', 'waffle', 'radial', 'rose', 'cloud', 'bubble', 'funnel', 'podium', 'table', 'bargauge']) if (VIS_DS[v] && !VIS_DS[v].includes('poll')) VIS_DS[v].push('poll');   // 1.99.2 polled readings in every visual that fits
 const srcDs = (s) => (s === 'snmp' ? 'snmp' : s === 'all' ? 'events' : 'syslog');
 const dsOf = (t) => { const c = t.cfg || {}; if (c.ds && DS[c.ds]) return c.ds; if (t.type === 'alarm') return 'alarms'; const m = METRICS[c.metric]; if ((t.type === 'kpi' || t.type === 'gauge') && m && m.k !== 'events') return m.k; return srcDs(c.filter?.source); };
 const dsKind = (t) => DS[dsOf(t)].kind;
@@ -153,6 +157,14 @@ const LOOK_PRESETS = [
   ['Neon glow', { bgMode: 'solid', bg: '#0b0b16', bw: 1, bc: '#00f5d4', radius: 10, shadow: 'glow', tc: '#e6fffb' }]
 ];
 /** CSS (inline style, classes) of one tile from its panel options */
+/** 1.99.2 a tile's icon: next to the title, as a badge in the corner, or large and faint in the background */
+function iconBits(t) {
+  const ic = t.cfg?.icon; if (!ic?.name || !window.NEPIcons?.TILE[ic.name]) return { title: '', box: '', cls: '', vars: '' };
+  const pos = ic.pos || 'title', col = /^#[0-9a-f]{6}$/i.test(ic.color || '') ? ic.color : '', st = col ? `style="--ic:${col}"` : '';
+  if (pos === 'title') return { title: `<span class="wicon" ${st}>${NEPIcons.tile(ic.name, Math.min(48, +ic.size || 16))}</span>`, box: '', cls: '', vars: '' };
+  if (pos === 'corner') { const z = Math.min(96, +ic.size || 22); return { title: '', cls: ' ico-corner', vars: `--icz:${z}px;`, box: `<span class="wico-corner" style="${col ? `--ic:${col};` : ''}--icz:${z}px">${NEPIcons.tile(ic.name, z)}</span>` }; }
+  return { title: '', cls: '', vars: '', box: `<span class="wico-mark" style="${col ? `--ic:${col};` : ''}${+ic.size ? `width:${Math.min(400, +ic.size)}px` : ''}">${NEPIcons.svg(NEPIcons.TILE[ic.name][1], 100, 'style="width:100%;height:100%"')}</span>` };
+}
 function lookOf(t) {
   const c = t.cfg || {}, L = c.look || {}, st = [], cls = [], tl = [], hd = [];
   if (c.color) st.push(`border-top:3px solid ${c.color}`);
@@ -326,6 +338,8 @@ const overlaps = (list) => list.some((a, i) => list.some((b, j) => j > i && hit(
 
 /** the last numbers of every dashboard sheet: reopening the page or switching sheets paints these at once while fresh numbers load */
 const DASH_MEMO = new Map();
+/** 1.99.2 the polled readings and devices for the tile editor (loaded when needed, kept for a minute) */
+const POLLMETA = { data: null, at: 0, async load() { if (this.data && Date.now() - this.at < 60000) return this.data; try { const [k, d] = await Promise.all([api('/api/poll/keys?for=dash'), api('/api/poll/devices')]); this.data = { keys: k.keys || [], devices: (d.devices || []).map((x) => ({ id: x.id, name: x.name || x.host })) }; this.at = Date.now(); } catch { this.data = { keys: [], devices: [] }; } return this.data; } };
 
 views.dashboard = (el) => {
   let editing = false, tiles = null, data = null, health = null, devices = null, lastAt = 0, timer = null, fetching = false;
@@ -420,8 +434,8 @@ views.dashboard = (el) => {
     cache.clear();
     grid.classList.toggle('editing', editing && !narrow());
     grid.innerHTML = getTiles().map((t) => { if (t.type === 'section') { const k = lookOfSec(t); return `<div class="dsec" data-id="${t.id}" data-type="section" ${k.style ? `style="${k.style}"` : ''}><b ${k.title ? `style="${k.title}"` : ''}>${esc(t.title)}</b><span class="muted" id="sec_${t.id}"></span>${editing ? `<span class="spacer"></span><button data-a="seccfg" data-sid="${t.id}" title="Rename this section and change its look">Edit</button>` : ''}</div>`; }
-      const k = lookOf(t); return `<section class="widget panel ${k.cls}" data-id="${t.id}" data-type="${t.type}" ${k.style ? `style="${k.style}"` : ''}>
-      <div class="whead ${k.hideTitle && !editing ? 'nohead' : ''}" ${k.head ? `style="${k.head}"` : ''} ${editing ? 'tabindex="0" title="Drag to move. Arrow keys move, Shift+arrows resize."' : ''}>${k.hideTitle ? '' : `<h2 class="wtitle" ${k.title ? `style="${k.title}"` : ''}>${esc(t.title || TYPES[t.type].label)}</h2>${hasDs(t) && t.cfg?.look?.tSrc !== false && !secAbove(t) ? `<span class="srcchip" data-ds="${dsOf(t)}" title="${esc(DS[dsOf(t)].chip + ': ' + DS[dsOf(t)].desc)}">${esc(t.w <= 2 ? DS[dsOf(t)].short : DS[dsOf(t)].chip)}</span>` : ''}`}<span class="spacer"></span>
+      const k = lookOf(t), ib = iconBits(t); return `<section class="widget panel ${k.cls}${ib.box ? ' has-ico' : ''}${ib.cls}" data-id="${t.id}" data-type="${t.type}" ${k.style || ib.vars ? `style="${k.style || ''}${k.style && !/;\s*$/.test(k.style) ? ';' : ''}${ib.vars}"` : ''}>${ib.box}
+      <div class="whead ${k.hideTitle && !editing ? 'nohead' : ''}" ${k.head ? `style="${k.head}"` : ''} ${editing ? 'tabindex="0" title="Drag to move. Arrow keys move, Shift+arrows resize."' : ''}>${k.hideTitle ? '' : `<h2 class="wtitle" ${k.title ? `style="${k.title}"` : ''}>${ib.title}${esc(t.title || TYPES[t.type].label)}</h2>${hasDs(t) && t.cfg?.look?.tSrc !== false && !secAbove(t) ? `<span class="srcchip" data-ds="${dsOf(t)}" title="${esc(DS[dsOf(t)].chip + ': ' + DS[dsOf(t)].desc)}">${esc(t.w <= 2 ? DS[dsOf(t)].short : DS[dsOf(t)].chip)}</span>` : ''}`}<span class="spacer"></span>
       ${editing ? `<button data-a="cfg" aria-label="Edit tile ${esc(t.title)}" title="Edit this tile">Edit</button><button data-a="del" class="danger" aria-label="Remove tile ${esc(t.title)}" title="Remove this tile">✕</button>` : ''}</div>
       <div class="wb" id="wb_${t.id}"></div>
       ${editing && !narrow() ? '<i class="dz dz-e" data-r="e"></i><i class="dz dz-s" data-r="s"></i><i class="dz dz-se" data-r="se"></i>' : ''}</section>`; }).join('')
@@ -442,13 +456,21 @@ views.dashboard = (el) => {
     else { q.ds = 'devices'; f.dstate = M.dstate; }
     return q;
   }
-  const defBy = (t) => { const k = dsKind(t); return t.type === 'pie' ? (k === 'devices' ? 'status' : 'severity') : k === 'devices' ? 'vendor' : 'host'; };
+  const defBy = (t) => { const k = dsKind(t); if (k === 'poll') return 'device'; return t.type === 'pie' ? (k === 'devices' ? 'status' : 'severity') : k === 'devices' ? 'vendor' : 'host'; };
   const byOf = (t) => { const k = dsKind(t), b = t.cfg?.by; return (BYS[k] || BYS.events).some((x) => x[0] === b) ? b : defBy(t); };
   function requestsFor(list) {
     const out = [], slicer = '';   // 1.71 the per-device filter box was removed; a filter saved earlier is ignored
     for (const t of list) {
       if (!hasDs(t)) continue;
       const ds = dsOf(t), kd = DS[ds].kind, c = t.cfg || {}, f = { ...(c.filter || {}) }, n = c.n, dq = kd === 'events' ? {} : { ds: kd };
+      if (kd === 'poll') {   // 1.99.2 polled readings: the same answers as messages (a number, a series, a ranking), read from the polling data
+        const pq = { ds: 'poll', k: c.pk || '', devs: c.pdevs || [], inst: c.pinst || '*', pagg: c.pagg || 'avg', per: byOf(t), n: n || 10 };
+        if (t.type === 'kpi' || t.type === 'gauge') { out.push({ id: t.id, kind: 'count', ...pq }); if (t.type === 'kpi' && c.graph && c.graph !== 'none') out.push({ id: t.id + '_g', kind: 'series', ...pq, per: 'all' }); }
+        else if (t.type === 'statspark') { out.push({ id: t.id, kind: 'series', ...pq, per: 'all' }); out.push({ id: t.id + '_n', kind: 'count', ...pq }); }
+        else if (t.type === 'line') out.push({ id: t.id, kind: 'series', ...pq });
+        else if (t.type === 'pie' || TOPLIKE[t.type] || t.type === 'top') out.push({ id: t.id, kind: 'top', ...pq, n: Math.min(n || 8, t.type === 'pie' ? 12 : 50) });
+        continue;
+      }
       if (kd === 'events') { if (c.ds) f.source = DS[ds].src; if (slicer) f.host = slicer; } else if (kd === 'alarms') { if (slicer) f.host = slicer; }
       if (kd !== 'devices') delete f.dstate; if (kd !== 'alarms') delete f.astate;
       if (t.type === 'kpi' || t.type === 'gauge') {
@@ -459,7 +481,8 @@ views.dashboard = (el) => {
           if (t.type === 'kpi' && c.graph && c.graph !== 'none' && kd !== 'devices') out.push({ id: t.id + '_g', kind: 'series', ...dq, filter: { ...f, ...(m === 'errors' ? { severityMax: 3 } : {}), ...(M.astate ? { astate: M.astate } : {}) } });
         }
       } else if (t.type === 'statspark') {
-        const m = c.metric || 'total', fs = { ...f }; if (kd === 'events') { if (m === 'errors') fs.severityMax = Math.min(fs.severityMax ?? 7, 3); if (m === 'warnings') { fs.severityMax = Math.min(fs.severityMax ?? 7, 4); fs.severityMin = Math.max(fs.severityMin ?? 0, 4); } }
+        const m = c.metric || 'total', fs = { ...f }; if (kd === 'alarms') fs.astate = m === 'alCleared' ? 'cleared' : 'raised';   // 1.99.2 the line follows the chosen alarm number (it always showed raised alarms)
+        if (kd === 'events') { if (m === 'errors') fs.severityMax = Math.min(fs.severityMax ?? 7, 3); if (m === 'warnings') { fs.severityMax = Math.min(fs.severityMax ?? 7, 4); fs.severityMin = Math.max(fs.severityMin ?? 0, 4); } }
         out.push({ id: t.id, kind: 'series', ...dq, filter: fs });
         if (kd === 'events' && (m === 'hosts' || m === 'perMinute')) { const q = metricReq(t.id + '_n', m, f); if (q) out.push(q); }
       } else if (t.type === 'trend' || t.type === 'line') out.push({ id: t.id, kind: 'series', ...dq, filter: f });
@@ -557,10 +580,11 @@ views.dashboard = (el) => {
   const valStyle = (t, col) => { const o = t.cfg?.val || {}, st = []; if (col) st.push(`color:${readable(col)}`); if (o.size && o.size !== 'auto') st.push(`font-size:${VSIZE[o.size]}px`); return st.join(';'); };
   const alignStyle = (t) => { const a = t.cfg?.val?.align; return a ? `text-align:${a};align-items:${a === 'center' ? 'center' : a === 'right' ? 'flex-end' : 'flex-start'}` : ''; };
   function sparkSvg(v, col, mode) {
-    const n = v.length, max = Math.max(1, ...v), pts = v.map((y, i) => `${(n < 2 ? 50 : i / (n - 1) * 100).toFixed(1)},${(34 - y / max * 30).toFixed(1)}`).join(' ');
+    const n = v.length, mx = Math.max(...v), mn = Math.min(...v), lo = mn > 0 && mn > (mx - mn) * 2 ? mn - (mx - mn) * 0.3 : Math.min(0, mn), max = Math.max(lo + 1e-9, mx === lo ? lo + 1 : mx), pts = v.map((y, i) => `${(n < 2 ? 50 : i / (n - 1) * 100).toFixed(1)},${(34 - (y - lo) / (max - lo) * 30).toFixed(1)}`).join(' ');
     return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">${mode === 'line' ? '' : `<polygon points="0,36 ${pts} 100,36" fill="${col}" opacity=".22"/>`}<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
   }
-  const sparkOf = (t, col) => { const mode = t.cfg?.graph; if (!mode || mode === 'none') return ''; const d = data?.tiles?.[t.id + '_g']; if (!d?.series) return ''; return sparkSvg(d.series.map((a) => SEVORD.reduce((s2, k) => s2 + a[k], 0)), col, mode); };
+  const flatSeries = (d) => { let last = null; return d.series.map((a) => { const v = a.filter((x) => x !== null); if (v.length) last = v.reduce((p, q2) => p + q2, 0) / v.length; return last ?? 0; }); };   // 1.99.2 polled: gaps keep the value before
+  const sparkOf = (t, col) => { const mode = t.cfg?.graph; if (!mode || mode === 'none') return ''; const d = data?.tiles?.[t.id + '_g']; if (!d?.series) return ''; return sparkSvg(d.groups ? flatSeries(d) : d.series.map((a) => SEVORD.reduce((s2, k) => s2 + a[k], 0)), col, mode); };
   function alarmHtml(t) {
     const x = alarmInfo(t); if (!x) return '<div class="muted">Loading…</div>'; const c = t.cfg || {}, col = valCol(t);
     return `<a class="kpi alink" href="#alarms" data-al="${x.hash}" style="${alignStyle(t)}"><div class="num" style="${valStyle(t, col)}">${decorate(c, numFmt(c, x.v))}</div>${c.val?.sub === false ? '' : `<div class="sub">${x.sub}</div>`}</a>`;
@@ -573,6 +597,7 @@ views.dashboard = (el) => {
     if (M.srv) {
       if (d && !d.error) {
         const v = metricNumber(t); num = v === null ? '–' : numFmt(c, v); sub = M.ranged ? r.label : DS[dsOf(t)].chip + ' now';
+        if (M.k === 'poll') sub = d.n === null ? 'no value yet' : `${esc(d.label || '')}${d.of > 1 ? ` · ${({ avg: 'average', max: 'highest', min: 'lowest', sum: 'sum', last: 'latest', count: 'number' })[t.cfg?.pagg || 'avg']} of ${d.of}` : ''}`;
         if (calc) sub = calcText(c);
         else if (d.prev !== undefined && m !== 'perMinute') { const p = trend(d.n, d.prev); if (p !== null && d.prev !== d.n) { bad = ['errors', 'warnings', 'alRaised'].includes(m) && d.n > d.prev; sub = `<span class="${bad ? 'up-bad' : 'up-ok'}">${d.n > d.prev ? '▲' : '▼'} ${Math.abs(p)}%</span> vs the period before`; } }
       } else if (d?.error) sub = esc(d.error);
@@ -729,6 +754,7 @@ views.dashboard = (el) => {
   }
   function lineSeries(t) {
     const d = data?.tiles?.[t.id]; if (!d?.series) return null; const all = (t.cfg?.mode || 'severity') === 'total';
+    if (d.groups) return { d, value: true, unit: d.unit, lines: all ? [{ name: d.label || 'Value', color: css('--accent'), v: flatSeries(d) }] : d.groups.map((name, i) => ({ name, color: palc(i), v: d.series.map((a) => a[i]) })) };
     const defs = all ? [{ name: 'All ' + DS[dsOf(t)].chip.toLowerCase(), color: css('--accent'), ks: [...SEVORD] }] : GROUPS.map((ks, i) => ({ name: GNAMES[i], color: [css('--s2'), css('--s3'), css('--s4'), css('--s5')][i], ks }));
     return { d, lines: defs.map((df) => ({ ...df, v: seriesCalc(t, d.series.map((a) => df.ks.reduce((s, k) => s + a[k], 0))) })) };
   }
@@ -742,12 +768,19 @@ views.dashboard = (el) => {
   function drawLines(t, lines, d, dflt = {}) {
     const cv = canvasOf(t); if (!cv || !data) return; const ch = t.cfg?.ch || {}, { g, w, h } = fit(cv), axis = ch.axis !== false, grid2 = ch.grid !== false;
     const padL = axis ? 34 : 6, padB = axis ? 16 : 4, padT = 8, n = d.series.length, stack = ch.stack ?? dflt.stack ?? false, lw = ch.lw ?? 1.8, fillA = ch.fillA ?? (t.cfg?.fill ? 19 : (dflt.fillA ?? 0)), grad = ch.grad !== false;
-    const tops = []; lines.forEach((l, i) => tops.push(l.v.map((v, k) => v + (stack && i ? tops[i - 1][k] : 0))));
-    const max = Math.max(5, ...(stack ? tops[tops.length - 1] : lines.flatMap((l) => l.v))) * 1.1, x = (i) => padL + (n < 2 ? 0.5 : i / (n - 1)) * (w - padL - 8), y = (v) => padT + (1 - v / max) * (h - padT - padB);
+    const isVal = !!d.groups, stk = stack && !isVal;   // 1.99.2 polled values: their own range (54 V does not start at 0), gaps where nothing was read
+    const tops = []; lines.forEach((l, i) => tops.push(l.v.map((v, k) => (v === null ? null : v + (stk && i ? (tops[i - 1][k] || 0) : 0)))));
+    const allV = (stk ? tops[tops.length - 1] : lines.flatMap((l) => l.v)).filter((v) => v !== null && Number.isFinite(v));
+    let lo = 0, max = Math.max(5, ...allV) * 1.1;
+    if (isVal) { const mx = allV.length ? Math.max(...allV) : 1, mn = allV.length ? Math.min(...allV) : 0, sp = (mx - mn) || Math.abs(mx) || 1; lo = mn >= 0 && mn > sp * 2 ? mn - sp * 0.25 : Math.min(0, mn - sp * 0.1); max = mx + sp * 0.12; }
+    const x = (i) => padL + (n < 2 ? 0.5 : i / (n - 1)) * (w - padL - 8), y = (v) => padT + (1 - (v - lo) / (max - lo)) * (h - padT - padB);
     g.strokeStyle = css('--line'); g.fillStyle = css('--faint'); g.textAlign = 'right'; g.lineWidth = 1;
-    for (let i = 0; i <= 3; i++) { const v = (max / 3) * i, yy = y(v); if (grid2) { g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); } if (axis) g.fillText(v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v), padL - 5, yy + 3); }
+    for (let i = 0; i <= 3; i++) { const v = lo + ((max - lo) / 3) * i, yy = y(v); if (grid2) { g.beginPath(); g.moveTo(padL, yy); g.lineTo(w - 4, yy); g.stroke(); } if (axis) g.fillText(Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : (max - lo) < 10 ? +v.toFixed(2) : Math.round(v), padL - 5, yy + 3); }
     for (let i = lines.length - 1; i >= 0; i--) {
-      const l = lines[i], pts = tops[i].map((v, k) => [x(k), y(v)]);
+      const l = lines[i], segs = []; let cur = null; tops[i].forEach((v, k) => { if (v === null) { cur = null; return; } if (!cur) segs.push(cur = []); cur.push([x(k), y(v)]); });
+      if (isVal) { for (const sg of segs) { if (fillA > 0) { g.beginPath(); pathPts(g, sg, !!ch.smooth, true); g.lineTo(sg[sg.length - 1][0], y(lo)); g.lineTo(sg[0][0], y(lo)); g.closePath(); let fs = hexA(l.color, fillA); if (grad && /^#/.test(l.color)) { const gr = g.createLinearGradient(0, padT, 0, h - padB); gr.addColorStop(0, hexA(l.color, fillA)); gr.addColorStop(1, hexA(l.color, 0)); fs = gr; } g.fillStyle = fs; g.fill(); }
+        g.beginPath(); pathPts(g, sg, !!ch.smooth, true); g.strokeStyle = l.color; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); if (ch.pts || sg.length === 1) { g.fillStyle = l.color; for (const [px, py] of sg) { g.beginPath(); g.arc(px, py, Math.max(2, lw + 0.8), 0, 7); g.fill(); } } } continue; }
+      const pts = tops[i].map((v, k) => [x(k), y(v)]);
       if (fillA > 0) {
         g.beginPath(); pathPts(g, pts, !!ch.smooth, true);
         if (stack && i) pathPts(g, tops[i - 1].map((v, k) => [x(k), y(v)]).reverse(), false, false); else { g.lineTo(x(n - 1), y(0)); g.lineTo(x(0), y(0)); }
@@ -758,7 +791,7 @@ views.dashboard = (el) => {
     }
     const t0 = data.firstBucket * data.bucketMs, fmt = (ts) => (data.to - data.from > 20 * 3600000 ? shortDate(ts) + ' ' : '') + hhmm(ts);
     if (axis) { g.fillStyle = css('--faint'); g.textAlign = 'left'; g.fillText(fmt(Math.max(t0, data.from)), padL, h - 3); g.textAlign = 'right'; g.fillText(fmt(data.to), w - 4, h - 3); }
-    cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - padL) / (w - padL - 8)) * (n - 1)); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs; cv.title = `${dateOf(ts)} ${hhmm(ts)}\n` + lines.map((l) => `${l.name}: ${fmtN(l.v[i])}`).join('\n'); };
+    cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - padL) / (w - padL - 8)) * (n - 1)); if (i < 0 || i >= n) { cv.title = ''; return; } const ts = t0 + i * data.bucketMs; cv.title = `${dateOf(ts)} ${hhmm(ts)}\n` + lines.map((l) => `${l.name}: ${l.v[i] === null ? '–' : fmtN(l.v[i])}${isVal && d.unit ? ' ' + d.unit : ''}`).join('\n'); };
     const lg = $('.legend', wbOf(t.id)); if (lg) lg.innerHTML = lines.length > 1 && ch.legend !== 'hide' ? lines.map((l) => `<span class="muted"><span class="dot" style="background:${l.color};margin-right:5px"></span>${l.name}</span>`).join('') : '';
   }
   function drawLine(t) { const ls = lineSeries(t); if (ls) drawLines(t, ls.lines, ls.d, { stack: false }); }
@@ -779,7 +812,7 @@ views.dashboard = (el) => {
   const nOf = (m, d) => { if (!d || d.error) return null; return m === 'perMinute' ? Math.round(d.n / Math.max(1, (data.to - data.from) / 60000) * 10) / 10 : d.n; };
   const calcUnit = (c) => ({ pct: '%', deltaPct: '%', perMin: '/min', perHour: '/h', perDay: '/day' }[c.calc?.op] || '');
   /** a tile's config with the unit that goes with its calculation / metric (the user's own "Unit after" wins) */
-  const vcfg = (t) => { const c = t.cfg || {}, u = c.val?.suffix ? '' : (calcUnit(c) || (c.calc?.op && c.calc.op !== 'none' ? '' : METRICS[c.metric]?.unit ? ' ' + METRICS[c.metric].unit : '')); return u ? { ...c, val: { ...(c.val || {}), suffix: u } } : c; };
+  const vcfg = (t) => { const c = t.cfg || {}, pu = dsKind(t) === 'poll' ? (data?.tiles?.[t.id]?.unit || data?.tiles?.[t.id + '_n']?.unit || '') : '', u = c.val?.suffix ? '' : (calcUnit(c) || (pu ? ' ' + pu : '') || (c.calc?.op && c.calc.op !== 'none' ? '' : METRICS[c.metric]?.unit ? ' ' + METRICS[c.metric].unit : '')); return u ? { ...c, val: { ...(c.val || {}), suffix: u } } : c; };
   function applyCalc(t, v, d) {
     const c = t.cfg?.calc; if (v === null || v === undefined) return v; if (!c) return v;
     const mins = Math.max(1, ((data?.to || 0) - (data?.from || 0)) / 60000); let r = v;
@@ -867,11 +900,11 @@ views.dashboard = (el) => {
     }).join('')}</div>`;
   }
   /** the big number of a "number with trend line": the sum of the line, or (for devices / per minute) the server's own figure */
-  const sparkNum = (t, v) => { const m = t.cfg?.metric; if (dsKind(t) === 'events' && (m === 'hosts' || m === 'perMinute')) { const n = nOf(m, data?.tiles?.[t.id + '_n']); if (n !== null) return n; } return (v || []).reduce((a, b) => a + b, 0); };
+  const sparkNum = (t, v) => { const m = t.cfg?.metric; if (dsKind(t) === 'poll') { const n = data?.tiles?.[t.id + '_n']; return n && !n.error ? n.n : null; } if (dsKind(t) === 'events' && (m === 'hosts' || m === 'perMinute')) { const n = nOf(m, data?.tiles?.[t.id + '_n']); if (n !== null) return n; } return (v || []).reduce((a, b) => a + b, 0); };
   function statsparkHtml(t) {
     const ls = lineSeries({ ...t, cfg: { ...t.cfg, mode: 'total', sc: undefined } }); if (!ls) return '<div class="muted">Loading…</div>';
-    const v = ls.lines[0].v, total = sparkNum(t, v), c = t.cfg || {}, col0 = valCol(t), col = col0 && col0 !== 'inherit' ? col0 : (col0 === 'inherit' ? 'currentColor' : css('--accent'));
-    return `<div class="stat" style="${alignStyle(t)}"><div class="num" style="${valStyle(t, col0 && col0 !== 'inherit' ? col0 : '')}">${decorate(c, numFmt(c, total))}</div>${c.val?.sub === false ? '' : `<div class="sub">${esc(range().label)}</div>`}${sparkSvg(v, col, c.graph === 'line' ? 'line' : 'area')}</div>`;
+    const v = ls.lines[0].v.map((x) => x ?? 0), total = sparkNum(t, v), c = vcfg(t), col0 = valCol(t), col = col0 && col0 !== 'inherit' ? col0 : (col0 === 'inherit' ? 'currentColor' : css('--accent'));
+    return `<div class="stat" style="${alignStyle(t)}"><div class="num" style="${valStyle(t, col0 && col0 !== 'inherit' ? col0 : '')}">${total === null ? '–' : decorate(c, numFmt(c, total))}</div>${c.val?.sub === false ? '' : `<div class="sub">${esc(range().label)}</div>`}${sparkSvg(v, col, c.graph === 'line' ? 'line' : 'area')}</div>`;
   }
   // ----- 1.74 more visuals: waffle, radial bars, rose, word cloud, bubbles, funnel, podium, device wall -----
   const polar = (cx, cy, r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -1037,10 +1070,12 @@ views.dashboard = (el) => {
     if (c.bg && !c.look?.bgMode) c.look = { ...(c.look || {}), bgMode: 'solid', bg: c.bg }; delete c.bg;                       // an old custom background becomes a panel option
     if (!c.th?.steps?.length && (c.warn > 0 || c.crit > 0)) { c.th = { ...(c.th || {}), mode: c.th?.mode || 'value', steps: [{ v: 0, c: '#30a46c' }, ...(c.warn > 0 ? [{ v: c.warn, c: '#f5a524' }] : []), ...(c.crit > 0 ? [{ v: c.crit, c: '#e5484d' }] : [])] }; } delete c.warn; delete c.crit;
     const K = optKit(t);
-    const DEF_METRIC = { events: 'errors', alarms: 'alActive', devices: 'dvAll', system: 'eps' };
+    const DEF_METRIC = { events: 'errors', alarms: 'alActive', devices: 'dvAll', system: 'eps', poll: 'pollv' };
     /** choose the data a tile reads: fixes the metric, the ranking and the filters so they always belong to that data */
     const setDs = (ds) => {
       const k = DS[ds].kind; c.ds = ds; c.filter = { ...(c.filter || {}) };
+      if (k === 'poll') { delete c.filter; if (t.type === 'kpi' || t.type === 'gauge') c.metric = 'pollv'; else delete c.metric; if (!BYS.poll.some((x) => x[0] === c.by)) c.by = 'device'; delete c.calc?.bm; if (c.calc && ['pct', 'ratio', 'diff', 'sum', 'perMin', 'perHour', 'perDay', 'delta', 'deltaPct'].includes(c.calc.op)) delete c.calc.op; return; }
+      delete c.pk; delete c.pdevs; delete c.pinst; delete c.pagg;
       if (k === 'events') c.filter.source = DS[ds].src; else delete c.filter.source;
       if (k !== 'alarms') { delete c.filter.astate; delete c.filter.rule; } if (k !== 'devices') { delete c.filter.dstate; delete c.filter.vendor; delete c.filter.group; }
       if (k === 'devices' || k === 'system') { delete c.filter.sevs; delete c.filter.severityMax; delete c.filter.text; delete c.filter.app; delete c.filter.tag; }
@@ -1073,21 +1108,35 @@ views.dashboard = (el) => {
     const G = (title, body, open = false) => `<details class="og" ${open ? 'open' : ''}><summary>${title}</summary><div class="form">${body}</div></details>`;
     const stepsHtml = () => { const st = c.th?.steps || []; return `<div class="steps" id="thEd">${st.map((x, i) => `<div class="step"><span class="muted">from</span><input type="number" data-si="${i}" data-sf="v" value="${x.v}" class="w-sm" aria-label="Step ${i + 1} starts at"><input type="color" data-si="${i}" data-sf="c" value="${x.c}" aria-label="Step ${i + 1} colour"><button type="button" data-sdel="${i}" class="x" aria-label="Remove step">×</button></div>`).join('') || '<div class="muted">No colour steps yet.</div>'}<div class="toolbar" style="margin:6px 0 0"><button type="button" id="thAdd">Add step</button><select id="thPre"><option value="">Use a ready-made set…</option>${STEP_PRESETS.map(([n], i) => `<option value="${i}">${n}</option>`).join('')}</select></div></div>`; };
     const groups = () => {
-      const kd = dsKind(t), dsOptG = ['events', 'alarms', 'devices', 'system'].map((k2) => { const l = Object.entries(DS).filter(([, v]) => v.kind === k2 && VIS_DS[t.type]?.includes(k2)); return l.length ? `<optgroup label="${{ events: 'Received messages', alarms: 'Alarm list', devices: 'Device list', system: 'The application itself' }[k2]}">${l.map(([k, v]) => `<option value="${k}" ${dsOf(t) === k ? 'selected' : ''}>${v.label}</option>`).join('')}</optgroup>` : ''; }).join('');
+      const kd = dsKind(t), dsOptG = ['events', 'alarms', 'devices', 'poll', 'system'].map((k2) => { const l = Object.entries(DS).filter(([, v]) => v.kind === k2 && VIS_DS[t.type]?.includes(k2)); return l.length ? `<optgroup label="${{ events: 'Received messages', alarms: 'Alarm list', devices: 'Device list', poll: 'Polled devices', system: 'The application itself' }[k2]}">${l.map(([k, v]) => `<option value="${k}" ${dsOf(t) === k ? 'selected' : ''}>${v.label}</option>`).join('')}</optgroup>` : ''; }).join('');
       const visOpts = Object.entries(TYPES).filter(([k]) => VIS_DS[k]?.includes(kd)).map(([k, v]) => `<option value="${k}" ${t.type === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
-      const data = VIS_DS[t.type] ? `${K.fld('Visual', `<select id="peVis">${visOpts}</select>`, 'Switch to another visual for the same data. Your colours and looks are kept.')}${K.fld('Data', `<select id="peDs">${dsOptG}</select>`, esc(DS[dsOf(t)].desc))}` : '';
-      const gen = `${K.txt('Title', 'title', { ph: ty.label })}
-        ${t.type === 'kpi' || t.type === 'gauge' ? K.fld('Show', `<select data-p="cfg.metric">${metricOpts()}</select>`) : ''}
+      // 1.99.2 step 1 Visual: pictures of the visuals; step 2 Data: the source, then the fields that belong to that data
+      const visGrid = VIS_DS[t.type] ? `<div class="visgrid" role="radiogroup" aria-label="Visual">${Object.entries(TYPES).filter(([k]) => VIS_DS[k]).map(([k, v]) => `<button type="button" role="radio" aria-checked="${t.type === k}" class="visb ${t.type === k ? 'on' : ''}" data-vis="${k}" title="${esc(v.desc)}">${window.NEPIcons ? NEPIcons.vis(k, 22) : ''}<span>${esc(v.label)}</span></button>`).join('')}</div><p class="muted" style="margin:6px 0 0">Switching keeps your colours and looks. Data that a visual cannot show is changed to data it can.</p>` : '';
+      const pm = POLLMETA.data, isPoll = kd === 'poll';
+      const pollFields = !isPoll ? '' : !pm ? '<p class="muted">Loading the polled readings…</p>' : !pm.keys.length ? '<p class="muted">No polled readings yet. Add devices and readings on the SNMP polling page first.</p>' : `
+        ${K.fld('Reading', `<select data-p="cfg.pk"><option value="">Choose a reading…</option>${pm.keys.filter((x) => !x.text).map((x) => `<option value="${esc(x.k)}" ${c.pk === x.k ? 'selected' : ''}>${esc(x.label)}${x.unit ? ' (' + esc(x.unit) + ')' : ''}${x.devices > 1 ? ` · ${x.devices} devices` : ''}</option>`).join('')}</select>`, 'Readings with the same name and unit are one choice, whatever the device or vendor: they are combined across devices.')}
+        ${K.fld('Devices', `<div class="pdevs">${pm.devices.length ? pm.devices.map((d) => `<label class="chk"><input type="checkbox" data-pdev="${esc(d.id)}" ${(c.pdevs || []).includes(d.id) ? 'checked' : ''}> ${esc(d.name)}</label>`).join('') : '<span class="muted">No polled devices</span>'}</div>`, 'None ticked: every device that has this reading.')}
+        ${K.txt('Instance', 'cfg.pinst', { ph: 'all (for example Port 1 or Rectifier 2)', max: 120, hint: 'For readings with several values per device (ports, sensors, rectifiers). Empty: all of them.' })}
+        ${K.sel('Combine values', 'cfg.pagg', [['avg', 'Average'], ['max', 'Highest'], ['min', 'Lowest'], ['sum', 'Sum'], ['last', 'Latest'], ['count', 'Number of values']], { def: 'avg' })}
+        ${t.type === 'line' ? K.sel('Lines', 'cfg.by', BYS.poll, { def: 'device' }) : ''}
+        ${isRank || t.type === 'pie' ? K.sel(t.type === 'pie' ? 'Slices' : 'Rank by', 'cfg.by', BYS.poll.filter((x) => x[0] !== 'all'), { def: 'device' }) + K.num(t.type === 'pie' ? 'Number of slices' : 'Rows', 'cfg.n', { min: 1, max: t.type === 'pie' ? 12 : TOPLIKE[t.type] || 50, ph: '8' }) : ''}`;
+      const dsSel = VIS_DS[t.type] ? K.fld('Data', `<select id="peDs">${dsOptG}</select>`, esc(DS[dsOf(t)].desc)) : '';
+      const ICONS = window.NEPIcons, ic = c.icon || {};
+      const iconPick = !ICONS ? '' : `<div class="field"><label>Icon</label><div><div class="icongrid"><button type="button" class="icb ${ic.name ? '' : 'on'}" data-icon="" title="No icon">None</button>${ICONS.list().map((x) => `<button type="button" class="icb ${ic.name === x.k ? 'on' : ''}" data-icon="${x.k}" title="${esc(x.label)}" aria-label="${esc(x.label)}">${ICONS.tile(x.k, 20)}</button>`).join('')}</div></div></div>
+        ${ic.name ? `${K.sel('Icon place', 'cfg.icon.pos', [['title', 'Next to the title'], ['corner', 'Badge in the corner'], ['mark', 'Large, faint, in the background']], { def: 'title' })}${K.num('Icon size', 'cfg.icon.size', { min: 12, max: 160, unit: 'px', ph: 'auto' })}${K.col('Icon colour', 'cfg.icon.color', '#3b82f6', { hint: 'Empty: the theme accent colour' })}` : ''}`;
+      const genData = `${t.type === 'kpi' || t.type === 'gauge' ? K.fld('Show', `<select data-p="cfg.metric">${metricOpts()}</select>`) : ''}
+        ${t.type === 'statspark' && dsKind(t) === 'alarms' ? K.sel('Show', 'cfg.metric', [['alRaised', 'Alarms raised'], ['alCleared', 'Alarms cleared']], { def: 'alRaised' }) : ''}
         ${t.type === 'statspark' && dsKind(t) === 'events' ? K.fld('Show', `<select data-p="cfg.metric">${[['total', 'All messages'], ['errors', 'Errors and worse'], ['warnings', 'Warnings'], ['hosts', 'Devices that sent messages'], ['perMinute', 'Messages per minute']].map(([k, l]) => `<option value="${k}" ${(c.metric || 'total') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`) : ''}
         ${isRank ? K.sel('Rank by', 'cfg.by', BYS[kd] || BYS.events, { def: defBy(t) }) : ''}
-        ${t.type === 'bar' ? K.sel('Direction', 'cfg.orient', [['h', 'Horizontal bars'], ['v', 'Vertical columns']], { def: 'h' }) : ''}
-        ${t.type === 'pie' ? K.sel('Shape', 'cfg.style', [['donut', 'Donut'], ['pie', 'Pie']], { def: 'donut' }) : ''}
         ${t.type === 'line' ? K.sel('Lines', 'cfg.mode', [['severity', 'One line per severity group'], ['total', 'All ' + DS[dsOf(t)].chip.toLowerCase() + ' (one line)']], { def: 'severity' }) : ''}
-        ${t.type === 'heat' ? K.sel('Cell shape', 'cfg.shape', [['square', 'Square'], ['round', 'Rounded square'], ['circle', 'Circle'], ['hex', 'Hexagon'], ['hexo', 'Hexagon outline']], { def: 'square' }) + K.sel('Colours', 'cfg.theme', [['blue', 'Blue (accent colour)'], ['traffic', 'Traffic light (green, amber, red)'], ['heat', 'Heat (yellow to dark red)'], ['cool', 'Cool (teal, blue, purple)'], ['mono', 'Greys']], { def: 'blue' }) : ''}
         ${t.type === 'heat' ? K.sel('Shows', 'cfg.mode', [['hostTime', 'Busiest devices over time'], ['dowHour', 'Weekday against hour of day']], { def: 'hostTime' }) : ''}
-        ${['top', 'latest', 'pie', 'heat', 'bar', 'treemap', 'table', 'bargauge', ...NEWRANK].includes(t.type) ? K.num(t.type === 'pie' ? 'Slices' : 'Rows', 'cfg.n', { min: 1, max: t.type === 'pie' ? 12 : t.type === 'heat' ? 20 : TOPLIKE[t.type] || 50, ph: '8' }) : ''}
+        ${['top', 'latest', 'pie', 'heat', 'bar', 'treemap', 'table', 'bargauge', ...NEWRANK].includes(t.type) ? K.num(t.type === 'pie' ? 'Slices' : 'Rows', 'cfg.n', { min: 1, max: t.type === 'pie' ? 12 : t.type === 'heat' ? 20 : TOPLIKE[t.type] || 50, ph: '8' }) : ''}`;
+      const genVis = `${t.type === 'bar' ? K.sel('Direction', 'cfg.orient', [['h', 'Horizontal bars'], ['v', 'Vertical columns']], { def: 'h' }) : ''}
+        ${t.type === 'pie' ? K.sel('Shape', 'cfg.style', [['donut', 'Donut'], ['pie', 'Pie']], { def: 'donut' }) : ''}
+        ${t.type === 'heat' ? K.sel('Cell shape', 'cfg.shape', [['square', 'Square'], ['round', 'Rounded square'], ['circle', 'Circle'], ['hex', 'Hexagon'], ['hexo', 'Hexagon outline']], { def: 'square' }) + K.sel('Colours', 'cfg.theme', [['blue', 'Blue (accent colour)'], ['traffic', 'Traffic light (green, amber, red)'], ['heat', 'Heat (yellow to dark red)'], ['cool', 'Cool (teal, blue, purple)'], ['mono', 'Greys']], { def: 'blue' }) : ''}
         ${t.type === 'text' ? K.fld('Text', `<textarea data-p="cfg.text" rows="6" style="width:100%" maxlength="2000" placeholder="# Heading&#10;Plain text, **bold**, - bullets and [links](https://example.com)">${esc(c.text || '')}</textarea>`) : ''}
-        ${t.type === 'gauge' ? K.num('Dial maximum', 'cfg.max', { min: 0, ph: 'auto' }) : ''}
+        ${t.type === 'gauge' ? K.num('Dial maximum', 'cfg.max', { min: 0, ph: 'auto' }) : ''}`;
+      const genTile = `${K.txt('Title', 'title', { ph: ty.label })}
         ${K.num('Width', 'w', { min: ty.minW, max: 12, unit: 'of 12 columns' })}${K.num('Height', 'h', { min: ty.minH, max: 40, unit: 'rows' })}`;
       const metricFixed = (t.type === 'kpi' || t.type === 'gauge') && METRICS[c.metric]?.srv && kd !== 'events';
       const flt = !fl ? '' : kd === 'events' ? `<div id="mFilter"><p class="muted" style="margin:0 0 6px">Only count messages that match (leave empty for all):</p>
@@ -1100,7 +1149,7 @@ views.dashboard = (el) => {
         ${K.txt('Device', 'cfg.filter.host', { ph: 'name or IP', max: 200 })}${K.txt('Alarm rule', 'cfg.filter.rule', { ph: 'part of the rule name', max: 100 })}${K.txt('Text', 'cfg.filter.text', { ph: 'words in the alarm message', max: 200 })}</div>`
         : kd === 'devices' ? `<div id="mFilter"><p class="muted" style="margin:0 0 6px">Only use devices that match (leave empty for all):</p>
         ${metricFixed ? '' : K.sel('Which devices', 'cfg.filter.dstate', D_STATES, { def: 'all' })}${K.txt('Vendor', 'cfg.filter.vendor', { ph: 'for example Cisco', max: 60 })}${K.txt('Group', 'cfg.filter.group', { max: 60 })}</div>` : '';
-      const calcs = (t.type === 'kpi' || t.type === 'gauge') ? (() => {
+      const calcs = (t.type === 'kpi' || t.type === 'gauge') && kd === 'poll' ? `<p class="muted" style="margin:0 0 6px">Convert the value, for example a reading in tenths: multiply by 0.1.</p>${K.num('Multiply by', 'cfg.calc.mul', { step: 'any', ph: '1' })}${K.num('Then add', 'cfg.calc.add', { step: 'any', ph: '0' })}` : (t.type === 'kpi' || t.type === 'gauge') ? (() => {
         const srv = !!METRICS[c.metric]?.srv, ops = srv ? [['none', 'No calculation'], ['pct', 'Percent of another number (A ÷ B × 100)'], ['ratio', 'Ratio to another number (A ÷ B)'], ['diff', 'Difference to another number (A − B)'], ['sum', 'Sum with another number (A + B)'], ['perMin', 'Average per minute'], ['perHour', 'Average per hour'], ['perDay', 'Average per day'], ['delta', 'Change since the period before'], ['deltaPct', '% change since the period before']] : [['none', 'No calculation']], op = c.calc?.op || 'none';
         return `<p class="muted" style="margin:0 0 6px">A is the number chosen under "Show". Calculations are done on the live numbers each refresh.</p>${K.sel('Calculation', 'cfg.calc.op', ops, { def: 'none' })}
           ${['pct', 'ratio', 'diff', 'sum'].includes(op) ? K.fld('B is', `<select data-p="cfg.calc.bm">${calcMetricOpts()}</select>`) : ''}
@@ -1123,7 +1172,9 @@ views.dashboard = (el) => {
         ${K.sel('Shadow', 'cfg.look.shadow', [['', 'Theme default'], ['none', 'None'], ['soft', 'Soft'], ['strong', 'Strong'], ['glow', 'Glow (border colour)']])}${!hasDs(t) ? '' : K.chk('Show the data label (Syslog / SNMP traps / Alarms / Devices)', 'cfg.look.tSrc', true)}${K.num('Inner space', 'cfg.look.pad', { min: 0, max: 32, unit: 'px', ph: '12' })}${K.col('Text colour', 'cfg.look.tc', '#e5e7eb', { hint: 'for everything inside the tile' })}`;
       const ttl = `${K.chk('Show the title', 'cfg.look.tShow', true)}${K.sel('Alignment', 'cfg.look.tAlign', [['', 'Left'], ['center', 'Centre'], ['right', 'Right']])}${K.num('Size', 'cfg.look.tSize', { min: 10, max: 28, unit: 'px', ph: '13' })}${K.col('Colour', 'cfg.look.tColor', '#e5e7eb')}${K.chk('Capital letters', 'cfg.look.tUpper')}
         ${K.sel('Title bar', 'cfg.look.tBar', [['', 'None'], ['solid', 'Solid colour'], ['gradient', 'Gradient']])}${K.col('Bar colour', 'cfg.look.tBarC', '#4338ca')}${K.col('Bar second colour', 'cfg.look.tBarC2', '#1e1b4b')}`;
-      return (data ? G('Data', data, true) : '') + G('General', gen + flt, true) + (calcs ? G('Calculations', calcs, false) : '') + (val ? G(hasVal ? 'Value' : 'Numbers', val, hasVal) : '') + (thr ? G('Colour steps (thresholds)', thr, hasVal) : '') + (chart ? G('Chart', chart, true) : '') + (pal ? G('Chart colours', pal) : '') + G('Tile look', look, false) + G('Title', ttl);
+      const SH = (h) => `<h4 class="ogsub">${h}</h4>`;
+      const fmt = (genVis.replace(/\s/g, '') ? genVis : '') + (calcs ? SH('Calculation') + calcs : '') + (val ? SH(hasVal ? 'Value' : 'Numbers') + val : '') + (thr ? SH('Colour steps (thresholds)') + thr : '') + (chart ? SH('Chart') + chart : '') + (pal ? SH('Colours') + pal : '');
+      return (visGrid ? G('1 · Visual', visGrid, false) : '') + G(visGrid ? '2 · Data' : 'Content', dsSel + (isPoll ? pollFields : genData + flt) + (visGrid ? '' : genVis), true) + (fmt.replace(/\s/g, '') && visGrid ? G('3 · Format', fmt, false) : '') + G(visGrid ? '4 · Tile' : 'Tile', genTile + iconPick + SH('Look') + look + SH('Title') + ttl, false);
     };
     // ----- preview -----
     let pvData = null, pvKey = '', pvFetching = false, pvTimer;
@@ -1131,7 +1182,8 @@ views.dashboard = (el) => {
     function pvPaint() {
       const node = q('pvW'); if (!node) return; const tt = pvTile(), k = lookOf(tt), ob = $('.whead', node);
       node.className = `widget panel pvw ${k.cls}`; node.style.cssText = k.style; node.classList.remove('tinted'); ob.className = `whead ${k.hideTitle ? 'nohead' : ''}`; ob.style.cssText = k.head;
-      ob.innerHTML = k.hideTitle ? '' : `<h2 class="wtitle" style="${k.title}">${esc(tt.title || TYPES[tt.type].label)}</h2>${hasDs(tt) && tt.cfg?.look?.tSrc !== false ? `<span class="srcchip" data-ds="${dsOf(tt)}">${esc(tt.w <= 2 ? DS[dsOf(tt)].short : DS[dsOf(tt)].chip)}</span>` : ''}`;
+      const ib = iconBits(tt); node.querySelectorAll('.wico-corner,.wico-mark').forEach((x) => x.remove()); if (ib.box) node.insertAdjacentHTML('afterbegin', ib.box); node.classList.toggle('has-ico', !!ib.box); node.classList.toggle('ico-corner', !!ib.cls); if (ib.vars) node.style.setProperty('--icz', ib.vars.slice(6, -1));
+      ob.innerHTML = k.hideTitle ? '' : `<h2 class="wtitle" style="${k.title}">${ib.title}${esc(tt.title || TYPES[tt.type].label)}</h2>${hasDs(tt) && tt.cfg?.look?.tSrc !== false ? `<span class="srcchip" data-ds="${dsOf(tt)}">${esc(tt.w <= 2 ? DS[dsOf(tt)].short : DS[dsOf(tt)].chip)}</span>` : ''}`;
       const stage = q('peStage'), W = Math.min(stage.clientWidth || 460, Math.max(160, t.w * 84)), H = Math.max(110, Math.min(360, t.h * (GRID.row + GRID.gap) - GRID.gap)); node.style.width = W + 'px'; node.style.height = H + 'px';
       const saved = data; if (pvData) data = { ...pvData, tiles: pvData.tiles }; cache.delete('pv');
       try { paintTile(tt); } finally { data = saved; }
@@ -1145,9 +1197,12 @@ views.dashboard = (el) => {
     const bindSev = () => { if (!fl) return; const sb = q('mSevBtn'); if (!sb) return; sb.textContent = sevLabel(sevs) + ' ▾'; sb.onclick = () => sevPopover(sb, sevs, (v) => { sevs = v; sb.textContent = sevLabel(v) + ' ▾'; if (sevSetOf(v).length && sevSetOf(v).length < 10) setP(t, 'cfg.filter.sevs', v); else setP(t, 'cfg.filter.sevs', undefined); setP(t, 'cfg.filter.severityMax', undefined); changed(); /* 1.50: the old 'errors and worse' limit (severityMax) must go too, or ticking all severities still showed only errors */ }); };
     const renderOpts = () => { const open = new Set($$('details.og[open] > summary', back).map((s2) => s2.textContent)); q('peOpts').innerHTML = groups(); for (const d of $$('details.og', back)) d.open = open.size ? open.has($('summary', d).textContent) : d.open; bindSev(); };
     renderOpts(); $('input[type=text],input[type=number]', back)?.focus();
+    if (dsKind(t) === 'poll') POLLMETA.load().then(renderOpts);
     const onField = (e) => {
       const el2 = e.target, pth = el2.dataset?.p;
-      if (el2.id === 'peDs') { setDs(el2.value); renderOpts(); return changed(); }
+      if (el2.id === 'peDs') { setDs(el2.value); renderOpts(); if (DS[el2.value]?.kind === 'poll') POLLMETA.load().then(renderOpts); return changed(); }
+      if (el2.dataset?.pdev !== undefined) { const set = new Set(c.pdevs || []); if (el2.checked) set.add(el2.dataset.pdev); else set.delete(el2.dataset.pdev); c.pdevs = [...set]; if (!c.pdevs.length) delete c.pdevs; return changed(); }
+      if (pth === 'cfg.pk' && (!t.title || POLLMETA.data?.keys.some((x) => x.label === t.title))) { const kk = POLLMETA.data?.keys.find((x) => x.k === el2.value); if (kk) { t.title = kk.label; const ti = $('[data-p=title]', back); if (ti) ti.value = t.title; } }
       if (el2.id === 'peVis') { setType(el2.value); renderOpts(); return changed(); }
       if (pth === 'cfg.calc.op' || pth === 'cfg.sc.op') { const key = pth === 'cfg.calc.op' ? 'calc' : 'sc'; setP(t, pth, el2.value); if (el2.value === 'none') { delete c[key].op; if (!Object.keys(c[key]).length) delete c[key]; } else if (key === 'calc' && ['pct', 'ratio', 'diff', 'sum'].includes(el2.value) && !c.calc.bm) c.calc.bm = 'total'; renderOpts(); return changed(); }
       if (pth === 'cfg.ch.bars' || pth === 'cfg.ch.fillA' || pth === 'cfg.look.tBar' || pth === 'cfg.look.bgMode') setTimeout(() => { renderOpts(); }, 0);
@@ -1161,6 +1216,8 @@ views.dashboard = (el) => {
     back.addEventListener('input', onField); back.addEventListener('change', onField);
     back.addEventListener('click', (e) => {
       const clr = e.target.closest('[data-clr]'); if (clr) { setP(t, clr.dataset.clr, undefined); const i2 = $(`[data-p="${clr.dataset.clr}"]`, back); if (i2) { i2.closest('.colw')?.classList.add('unset'); } renderOpts(); return changed(); }
+      const vb = e.target.closest('[data-vis]'); if (vb) { setType(vb.dataset.vis); renderOpts(); return changed(); }
+      const icb = e.target.closest('[data-icon]'); if (icb) { if (icb.dataset.icon) c.icon = { ...(c.icon || {}), name: icb.dataset.icon }; else delete c.icon; renderOpts(); return changed(); }
       const pr = e.target.closest('[data-preset]'); if (pr) { const l = LOOK_PRESETS[+pr.dataset.preset][1]; if (l) c.look = structuredClone(l); else delete c.look; delete c.color; renderOpts(); return changed(); }
       if (e.target.id === 'thAdd') { c.th ||= {}; c.th.steps ||= []; const last = c.th.steps.at(-1); c.th.steps.push({ v: last ? last.v + 50 : 0, c: '#f5a524' }); if (!c.th.mode || c.th.mode === 'none') c.th.mode = 'value'; renderOpts(); return changed(); }
       const del = e.target.closest('[data-sdel]'); if (del) { c.th.steps.splice(+del.dataset.sdel, 1); if (!c.th.steps.length) delete c.th.steps; renderOpts(); return changed(); }
@@ -1174,6 +1231,7 @@ views.dashboard = (el) => {
       t.title = (t.title || '').trim(); if (c.filter?.source === 'syslog') delete c.filter.source; if (c.th && !c.th.steps?.length) delete c.th; if (c.th?.mode === 'none' && !c.th.steps) delete c.th;
       if (c.val?.size === 'auto') delete c.val.size; if (c.graph === 'none') delete c.graph; if (c.pal === 'theme') delete c.pal; if (c.look?.bgMode === '') delete c.look.bgMode; if (c.look?.tBar === '') delete c.look.tBar;
       if (t.type === 'pie' && c.n) c.n = Math.min(12, Math.max(1, c.n)); prune(c);
+      if (!t.title && dsKind(t) === 'poll') t.title = POLLMETA.data?.keys.find((x) => x.k === c.pk)?.label || '';
       if (!t.title) t.title = (t.type === 'kpi' || t.type === 'gauge') ? (METRICS[c.metric || 'total'].label.replace(/ in the time range| since the service started/i, '')) : t.type === 'alarm' ? AL_CARDS[c.card || 'open'] : TYPES[t.type].label;
       t.w = Math.min(12, Math.max(ty.minW, Math.round(+t.w) || ty.w)); t.h = Math.min(40, Math.max(ty.minH, Math.round(+t.h) || ty.h));
       const list = getTiles();
@@ -1398,7 +1456,7 @@ views.dashboard = (el) => {
 
   function addMenu() {
     const back = document.createElement('div'); back.className = 'modal-back';
-    const works = (k) => (k === 'poll' || POLL_CARDS[k] ? 'SNMP polling' : VIS_DS[k] ? [...new Set(VIS_DS[k].map((x) => ({ events: 'Syslog / traps', alarms: 'Alarms', devices: 'Devices', system: 'System' }[x])))].join(' · ') : 'Fixed content');
+    const works = (k) => (k === 'poll' || POLL_CARDS[k] ? 'SNMP polling' : VIS_DS[k] ? [...new Set(VIS_DS[k].map((x) => ({ events: 'Syslog / traps', alarms: 'Alarms', devices: 'Devices', poll: 'SNMP polling', system: 'System' }[x])))].join(' · ') : 'Fixed content');
     const card = (k) => `<button type="button" class="vcard" data-type="${k}" aria-label="${esc(cardMeta(k).label)}"><span class="vthumb">${(POLL_CARDS[k] && POLL_CARDS[k][3]) || THUMB[k] || THUMB.poll || ''}</span><b>${esc(cardMeta(k).label)}</b><span class="muted vdesc">${esc(cardMeta(k).desc)}</span><span class="vworks">${esc(works(k))}</span></button>`;
     const stepOne = () => `<h3 style="margin:0 0 4px">Add a tile</h3><p class="muted" style="margin:0 0 10px">Step 1 of 3 – pick a visual. Next you choose the data it shows, then colours and options.</p><input type="search" id="vFind" placeholder="Search visuals…" aria-label="Search visuals" style="width:100%;margin-bottom:8px">
       <div class="gallery" id="vGal">${GALLERY.map(([g, ks]) => `<div class="gcat"><h4>${g}</h4><div class="gitems">${ks.map(card).join('')}</div></div>`).join('')}</div><div class="toolbar" style="margin:12px 0 0"><span class="spacer"></span><button type="button" id="mCancel">Cancel</button></div>`;
@@ -1422,6 +1480,7 @@ views.dashboard = (el) => {
   /** click-through: syslog and traps open the message pages; alarms open the Alarms page; devices open the Devices page */
   const drillTile = (t, by, key) => {
     const k = dsKind(t);
+    if (k === 'poll') { location.hash = '#polling'; return; }
     if (k === 'alarms') { const st = by === 'state' ? ({ open: 'open', ack: 'ack', cleared: 'cleared', escalated: 'escalated' }[key] || 'active') : ({ active: 'active', open: 'open', ack: 'ack', esc: 'escalated', cleared: 'cleared' }[t.cfg?.filter?.astate] || 'active'); S.alarmState = st; S.alarmSrc = by === 'source' ? String(key) : ''; S.alarmRange = ''; try { sessionStorage.setItem('sp.alarmQ', by === 'host' || by === 'rule' ? String(key) : ''); } catch { /* ignore */ } location.hash = '#alarms'; return; }
     if (k === 'devices') { location.hash = '#devices'; return; }
     return drill(drillFilter(by, key, t));

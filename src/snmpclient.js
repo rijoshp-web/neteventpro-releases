@@ -20,13 +20,24 @@ class SnmpError extends Error { constructor(message, code = 'protocol') { super(
 const oidStr = (o) => (Array.isArray(o) ? o.join('.') : String(o));
 const oidArr = (o) => B.parseOid(o);
 const under = (oid, root) => { if (oid.length < root.length) return false; for (let i = 0; i < root.length; i++) if (oid[i] !== root[i]) return false; return true; };
+const cmpOid = (a, b) => { const n = Math.min(a.length, b.length); for (let i = 0; i < n; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; return a.length - b.length; };
 const isMissing = (vb) => vb.type === 'noSuchObject' || vb.type === 'noSuchInstance' || vb.type === 'endOfMibView';
 /** a value as a number (counters, gauges, integers, timeticks); null when it is text or missing */
-function toNumber(vb) { if (!vb || isMissing(vb)) return null; if (typeof vb.value === 'number') return vb.value; if (typeof vb.value === 'string' && /^-?\d+$/.test(vb.value)) return Number(vb.value); return null; }
+function toNumber(vb) {
+  if (!vb || isMissing(vb)) return null; if (typeof vb.value === 'number') return vb.value; if (typeof vb.value === 'bigint') return Number(vb.value);
+  if (typeof vb.value === 'string' && /^-?\d+$/.test(vb.value)) return Number(vb.value);
+  // 1.99.2 Opaque float / double (Net-SNMP style, used by some UPS and sensor cards): 9f 78 04 <float> or 9f 79 08 <double>
+  if (vb.type === 'opaque' && Buffer.isBuffer(vb.value)) { const b = vb.value; if (b.length === 7 && b[0] === 0x9f && b[1] === 0x78 && b[2] === 4) return +b.readFloatBE(3).toPrecision(7); if (b.length === 11 && b[0] === 0x9f && b[1] === 0x79 && b[2] === 8) return b.readDoubleBE(3); }
+  return null;
+}
 /** a value as text (octet strings are read as UTF-8 with control characters removed) */
 function toText(vb) {
   if (!vb || isMissing(vb) || vb.value === null) return '';
-  if (Buffer.isBuffer(vb.value)) return vb.value.toString('utf8').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+  if (Buffer.isBuffer(vb.value)) {
+    const b = vb.value; let bin = 0; for (const x of b) if ((x < 32 && x !== 9 && x !== 10 && x !== 13) || x === 127) bin++;
+    if (b.length && bin > 0 && (bin > b.length / 4 || b.length === 6)) return [...b].map((x) => x.toString(16).padStart(2, '0')).join(':').toUpperCase();   // 1.99.2 binary (a MAC address, a status bitmap) as hex, not garbled text
+    return b.toString('utf8').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+  }
   if (Array.isArray(vb.value)) return vb.value.join('.');
   return String(vb.value);
 }
@@ -57,7 +68,9 @@ class SnmpClient {
     let finish; const done = new Promise((res, rej) => { finish = { res, rej }; });
     sock.on('error', (e) => finish.rej(new SnmpError('network error: ' + e.message, 'network')));
     sock.on('message', (buf, rinfo) => {
-      if (rinfo.address !== dest.address || rinfo.port !== port) return;
+      // 1.99.2 an answer may come from another address of the same device (several network ports, a firewall in between): the request id
+      // or SNMPv3 message id checked in accept() decides, as in most SNMP managers
+      if (rinfo.port !== port && rinfo.address === dest.address) return;
       try { const out = accept(buf); if (out !== undefined) finish.res(out); } catch (e) { finish.rej(e); }
     });
     try {
@@ -163,7 +176,8 @@ class SnmpClient {
         rtt = Math.max(rtt, r.rtt || 0);
         if (r.errorStatus === ERR_TOO_BIG && pending.length > 1) { const h = Math.ceil(pending.length / 2); await run(pending.slice(0, h)); await run(pending.slice(h)); return; }
         if (r.errorStatus === ERR_NO_SUCH_NAME && r.errorIndex >= 1 && r.errorIndex <= pending.length) { const bad = pending[r.errorIndex - 1]; out[bad] = { oid: list[bad], type: 'noSuchObject', value: null }; pending = pending.filter((_, j) => j !== r.errorIndex - 1); continue; }
-        if (r.errorStatus) throw new SnmpError(`the device reported an error (status ${r.errorStatus})`, 'device');
+        if (r.errorStatus && pending.length > 1) { const h = Math.ceil(pending.length / 2); await run(pending.slice(0, h)); await run(pending.slice(h)); return; }   // 1.99.2 some devices answer "general error" when one object of many is unknown: ask in halves
+        if (r.errorStatus) { out[pending[0]] = { oid: list[pending[0]], type: 'noSuchObject', value: null, err: r.errorStatus }; return; }                       // and that one object counts as missing, not the whole poll as failed
         pending.forEach((i, j) => { out[i] = r.varbinds[j] || { oid: list[i], type: 'noSuchObject', value: null }; });
         return;
       }
@@ -176,13 +190,26 @@ class SnmpClient {
   async next(t, oid, maxRep = 10) {
     const o = oidArr(oid);
     if (t.version === 'v1') { const r = await this.send(t, PDU.GETNEXT, [o]); if (r.errorStatus === ERR_NO_SUCH_NAME) return { vbs: [{ oid: o, type: 'endOfMibView', value: null }], rtt: r.rtt }; if (r.errorStatus) throw new SnmpError(`the device reported an error (status ${r.errorStatus})`, 'device'); return { vbs: r.varbinds, rtt: r.rtt }; }
-    for (let m = maxRep; m >= 1; m = Math.floor(m / 2)) {
-      const r = await this.send(t, PDU.GETBULK, [o], { nonRep: 0, maxRep: m });
-      if (r.errorStatus === ERR_TOO_BIG && m > 1) continue;
-      if (r.errorStatus) throw new SnmpError(`the device reported an error (status ${r.errorStatus})`, 'device');
+    const hk = `${t.host}:${t.port || 161}`;
+    if (!this.noBulk?.has(hk)) {
+      try {
+        for (let m = maxRep; m >= 1; m = Math.floor(m / 2)) {
+          const r = await this.send(t, PDU.GETBULK, [o], { nonRep: 0, maxRep: m });
+          if (r.errorStatus === ERR_TOO_BIG && m > 1) continue;
+          if (r.errorStatus) throw new SnmpError(`the device reported an error (status ${r.errorStatus})`, 'bulk');
+          return { vbs: r.varbinds, rtt: r.rtt };
+        }
+      } catch (e) { if (!['bulk', 'timeout'].includes(e.code)) throw e; }
+      // 1.99.2 the device does not handle GETBULK (an error, or no answer at all): read with GETNEXT, and remember that for this device for an hour
+      const r = await this.send(t, PDU.GETNEXT, [o]).catch((e) => { throw e; });
+      (this.noBulk ||= new Map()).set(hk, Date.now()); if (this.noBulk.size > 5000) this.noBulk.clear();
+      if (r.errorStatus) return { vbs: [{ oid: o, type: 'endOfMibView', value: null }], rtt: r.rtt };
       return { vbs: r.varbinds, rtt: r.rtt };
     }
-    throw new SnmpError('the answer is too large for this device', 'device');
+    if (Date.now() - this.noBulk.get(hk) > 3600000) this.noBulk.delete(hk);
+    const r = await this.send(t, PDU.GETNEXT, [o]);
+    if (r.errorStatus) return { vbs: [{ oid: o, type: 'endOfMibView', value: null }], rtt: r.rtt };
+    return { vbs: r.varbinds, rtt: r.rtt };
   }
 
   /** every object under root, in order: [{ oid: [..], type, value }]. At most maxRows rows. */
@@ -193,7 +220,7 @@ class SnmpClient {
       if (!r.vbs.length) break; let progressed = false, ended = false;
       for (const vb of r.vbs) {
         if (vb.type === 'endOfMibView' || !under(vb.oid, rootA)) { ended = true; break; }
-        if (vb.oid.length === cur.length && vb.oid.every((x, i) => x === cur[i])) { ended = true; break; }       // the device did not move forward
+        if (cmpOid(vb.oid, cur) <= 0) { ended = true; break; }       // 1.99.2 the device did not move forward (or went back): stop, never loop
         out.push(vb); cur = vb.oid; progressed = true; if (out.length >= maxRows) break;
       }
       if (ended || !progressed) break;

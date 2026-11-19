@@ -1,5 +1,5 @@
 'use strict';
-// A small fake SNMP device for tests: answers GET / GETNEXT / GETBULK for v1, v2c and v3 (user "monitor"). startAgent({ mib, drop, time }) -> { port, set(oid, value), close(), setTime(t), seen }
+// A small fake SNMP device for tests: answers GET / GETNEXT / GETBULK for v1, v2c and v3 (user "monitor"). startAgent({ mib, drop, time, hook, replyFrom }) -> { port, set(oid, value), close(), setTime(t), seen }
 const dgram = require('node:dgram');
 const B = require('../src/ber'); const V = require('../src/snmpv3');
 const { T, tlv, encSigned, header, readSigned, readVarbinds } = B;
@@ -67,9 +67,11 @@ function startAgent(opts = {}) {
       }
       const ch = header(buf, vh.end, top.end), community = buf.toString('latin1', ch.start, ch.end); if (community !== 'public') return;
       const ph = header(buf, ch.end, top.end), r = header(buf, ph.start, ph.end), e1 = header(buf, r.end, ph.end), e2 = header(buf, e1.end, ph.end), vb = header(buf, e2.end, ph.end);
-      const oids = readVarbinds(buf, vb).map((v) => v.oid), a = answer(ph.tag, oids, Number(readSigned(buf, e2)) || 20, ver === 0);
+      const oids = readVarbinds(buf, vb).map((v) => v.oid); let a = opts.hook ? opts.hook(ph.tag, oids) : null;   // hook: a test's own answer, 'drop' for none
+      if (a === 'drop') return; if (!a) a = answer(ph.tag, oids, Number(readSigned(buf, e2)) || 20, ver === 0);
+      const from = opts.replyFrom || sock;
       const pdu = respPdu(Number(readSigned(buf, r)), a.status, a.index, a.vbs);
-      sock.send(tlv(T.SEQUENCE, Buffer.concat([tlv(T.INTEGER, encSigned(ver)), tlv(T.OCTETS, Buffer.from(community)), pdu])), rinfo.port, rinfo.address);
+      from.send(tlv(T.SEQUENCE, Buffer.concat([tlv(T.INTEGER, encSigned(ver)), tlv(T.OCTETS, Buffer.from(community)), pdu])), rinfo.port, rinfo.address);
     } catch { /* ignore */ }
   });
   return new Promise((res) => sock.bind(opts.port || 0, opts.host || '127.0.0.1', () => res({ sock, port: sock.address().port, seen, close: () => sock.close(), setTime: (t) => { bootsTime = t; }, set: (oid, value) => { const h = MIB.find((m) => cmp(m.oid, B.parseOid(oid)) === 0); if (h) h.value = value; }, mib: MIB })));

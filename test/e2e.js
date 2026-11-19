@@ -471,7 +471,7 @@ END`;
       r = await api('/api/poll/series?id=' + pid + '&k=cpu&hours=1'); check('polling: the graph has readings', r.json?.points?.length >= 1 && r.json.points[0].v === 91, r.text.slice(0, 120));
       r = await api('/api/alarms?state=active&limit=50'); check('polling: the threshold raised a normal alarm', (r.json?.alarms || []).some((x) => x.rule === 'CPU high e2e' && x.device === 'e2e-switch'), JSON.stringify((r.json?.alarms || []).map((x) => x.rule)));
       ag.close(); await sleep(300);
-      for (let i = 0; i < 3; i++) { await api('/api/poll/now', { method: 'POST', body: JSON.stringify({ id: pid }) }); await sleep(1100); }
+      for (let i = 0; i < 8; i++) { await api('/api/poll/now', { method: 'POST', body: JSON.stringify({ id: pid }) }); await sleep(1100); if (i >= 2) { r = await api('/api/alarms?state=active&limit=50'); if ((r.json?.alarms || []).some((x) => x.rule === 'No SNMP answer' && x.device === 'e2e-switch')) break; } }   // a poll still running skips a 'poll now': wait for 3 real misses
       r = await api('/api/alarms?state=active&limit=50'); check('polling: a device that stops answering raises "No SNMP answer"', (r.json?.alarms || []).some((x) => x.rule === 'No SNMP answer' && x.device === 'e2e-switch'), JSON.stringify((r.json?.alarms || []).map((x) => x.rule)));
       r = await api('/api/poll/report?hours=24'); check('polling: the report lists the device with its availability', r.json?.rows?.some((x) => x.id === pid && x.polls >= 1), r.text.slice(0, 160));
       r = await api('/api/poll/export?hours=24'); check('polling: the summary downloads as CSV', r.status === 200 && /text\/csv/.test(r.headers.get('content-type')) && /Availability/.test(r.text), r.text.slice(0, 80));
@@ -682,6 +682,9 @@ END`;
     check('1.99.1: the Operations page is gone (one Dashboard page) and the language file loads before the pages', !/ops\.js/.test(ix) && !/href="#ops"/.test(ix) && /href="#dashboard"/.test(ix) && ix.indexOf('lang-en.js') < ix.indexOf('app.js'));
     const dsh = await api('/api/dash', { method: 'POST', body: JSON.stringify({ from: Date.now() - 86400000, to: Date.now(), tiles: [{ id: 'a', kind: 'top', by: 'severity', ds: 'alarms', filter: { astate: 'active' } }, { id: 'b', kind: 'top', by: 'msgid', filter: { source: 'snmp' } }, { id: 'c', kind: 'heatDow', tz: 240 }] }) });
     check('dashboard data requests for alarms, traps and heatmaps are answered', dsh.status === 200 && Array.isArray(dsh.json.tiles.a.rows) && Array.isArray(dsh.json.tiles.b.rows) && dsh.json.tiles.c.cells.length === 7, dsh.text.slice(0, 200));
+  { const now2 = Date.now(), rq = await api('/api/dash', { method: 'POST', body: JSON.stringify({ from: now2 - 3600000, to: now2, tiles: [{ id: 'pa', kind: 'count', ds: 'poll', k: 'L:Battery voltage|V' }, { id: 'pb', kind: 'top', ds: 'poll', k: '' }, { id: 'pc', kind: 'series', ds: 'poll', k: 'cpu', per: 'device' }] }) });
+    check('1.99.2: polled readings are a dashboard data source (empty when nothing is polled, a clear message without a reading)', rq.status === 200 && rq.json.tiles.pa.n === null && rq.json.tiles.pa.unit === 'V' && /Choose a reading/.test(rq.json.tiles.pb.error) && Array.isArray(rq.json.tiles.pc.series), JSON.stringify(rq.json?.tiles)); }
+  { const kk = await api('/api/poll/keys?for=dash'); check('1.99.2: the dashboard reading list answers', kk.status === 200 && Array.isArray(kk.json.keys) && kk.json.keys.some((x) => x.k === 'cpu')); }
     await put({ format: { date: 'ymd', clock: '24' }, sevNames: {}, sevColors: {} });
     st = await api('/api/state'); check('standard severity names come back when the own ones are removed', st.json.sevLabels[3] === 'Error');
   }

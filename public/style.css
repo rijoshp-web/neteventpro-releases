@@ -1572,7 +1572,9 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 }
 
 /* 1.85 dialogs: a glass panel with a blur is the containing block of any fixed child, so a dialog opened from inside one was shifted, clipped and slid under the header. Drop the blur on whatever holds an open dialog, lift dialogs above the page chrome, and make them solid enough to read. */
-:root :is(*):has(.modal-back):not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; filter: none !important; transform: none !important; }
+/* 1.99.2: marked from app.js (class has-modal on each element that holds an open dialog). It was :root :is(*):has(.modal-back): every element on the page
+   was re-checked on every change anywhere (a clock tick, a counter), which made big pages slow all the time. */
+.has-modal:not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; filter: none !important; transform: none !important; }
 .modal-back { z-index: 1000; background: rgba(4,6,10,.62); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
 :root[data-glass] .modal:not(#_), :root .modal:not(#_) { background: color-mix(in srgb, var(--panel) 97%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 18px; border-color: var(--line2); box-shadow: 0 24px 70px rgba(0,0,0,.55); }
 
@@ -1629,7 +1631,7 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
 :root[data-m-page] #view[data-m-page] > * { animation: m-page .42s cubic-bezier(.2,.7,.2,1) both; }
 
 /* live rows */
-:root[data-m-rows] table.log tr.new td { animation: flash 1.2s ease-out, m-row .38s cubic-bezier(.2,.7,.2,1); }
+:root[data-m-rows] table.log tr.new td { animation: flash 1.2s ease-out; }   /* 1.99.2: no slide per cell: it moved every cell of every new row */
 :root[data-m-rows] table.alarms tr.new td, :root[data-m-rows] .alarm-card.new { animation: m-row .38s cubic-bezier(.2,.7,.2,1); }
 
 /* windows, menus, drawer */
@@ -1957,8 +1959,8 @@ details.rphelp { margin: 0 0 12px; } details.rphelp > summary { cursor: pointer;
 
 /* 1.97.5 faster customising: the frosted blur behind tiles is the most expensive thing to draw; it is paused while tiles are being edited
    (edit mode, the tile editor, dragging) and comes back when you finish. The tint stays, so the look barely changes. */
-.dgrid.editing > .widget.panel:not(#_):not(#__), body:has(> .modal-back) .dgrid > .widget.panel:not(#_):not(#__), .dgrid > .widget.panel.dragging:not(#_):not(#__) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-body:has(> .modal-back) :is(.rail, .main, .status, .stickyhead, fieldset, .panel):not(.modal):not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.dgrid.editing > .widget.panel:not(#_):not(#__), body.has-modal .dgrid > .widget.panel:not(#_):not(#__), .dgrid > .widget.panel.dragging:not(#_):not(#__) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+body.has-modal :is(.rail, .main, .status, .stickyhead, fieldset, .panel):not(.modal):not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .modal-back:not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .dgrid > .widget.dragging { transition: none !important; z-index: 20; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
 
@@ -2038,3 +2040,27 @@ table.devtbl .selc { width: 34px; text-align: center; }
 table.devtbl tr.sel td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 #devPager { flex-wrap: wrap; }
 #devPager .spacer { flex: 1; }
+
+/* 1.99.2 tile editor in steps: visual gallery, icon choice, sub-headings */
+.visgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.visgrid .visb:not(#_):not(#__) { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; font-size: 11.5px; line-height: 1.2; text-align: center; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--text); min-height: 64px; }
+.visgrid .visb svg { color: var(--muted); }
+.visgrid .visb:hover:not(#_):not(#__) { border-color: var(--accent); }
+.visgrid .visb.on:not(#_):not(#__) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
+.visgrid .visb.on svg { color: var(--accent); }
+.icongrid { display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px; }
+.icongrid .icb:not(#_):not(#__) { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); font-size: 10.5px; }
+.icongrid .icb[data-icon=""]:not(#_):not(#__) { width: auto; padding: 0 8px; }
+.icongrid .icb.on:not(#_):not(#__) { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.pdevs { display: flex; flex-direction: column; gap: 2px; max-height: 150px; overflow: auto; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; min-width: 220px; }
+h4.ogsub { margin: 14px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+h4.ogsub:first-child { margin-top: 2px; }
+/* tile icons */
+.wicon { display: inline-flex; vertical-align: -0.18em; margin-right: 6px; color: var(--ic, var(--accent)); }
+.widget.has-ico { position: relative; }
+.wico-corner { position: absolute; top: 10px; right: 12px; z-index: 1; display: grid; place-items: center; width: calc(var(--icz, 22px) + 16px); height: calc(var(--icz, 22px) + 16px); border-radius: 12px; color: var(--ic, var(--accent)); background: color-mix(in srgb, var(--ic, var(--accent)) 15%, transparent); pointer-events: none; }
+.dgrid.editing .wico-corner { top: 40px; }
+.wico-mark { position: absolute; right: -4%; bottom: -8%; width: min(55%, 160px); aspect-ratio: 1; color: var(--ic, currentColor); opacity: .1; pointer-events: none; z-index: 0; }
+.widget.has-ico > .wb, .widget.has-ico > .whead { position: relative; z-index: 1; }
+.widget.ico-corner > .whead { padding-right: calc(var(--icz, 22px) + 24px); }
+.widget.ico-corner > .whead { padding-right: calc(var(--icz, 22px) + 24px); }

@@ -446,7 +446,7 @@ async function main() {
         res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="NetEventPro-polling${id ? '-readings' : '-summary'}.csv"`, 'cache-control': 'no-store' }); return res.end(text);
       }
       if (p === '/api/poll/mibobjects' && req.method === 'GET') { need('polling'); const r = mibs.readings(str(url.searchParams.get('q'), 100), clampInt(url.searchParams.get('limit'), 1, 500, 100), { file: str(url.searchParams.get('file'), 80), entry: str(url.searchParams.get('entry'), 120), offset: clampInt(url.searchParams.get('offset'), 0, 1e7, 0) }); if (url.searchParams.get('files')) r.files = mibs.readingFiles(); return json(res, r); }
-      if (p === '/api/poll/keys' && req.method === 'GET') { need('polling'); return json(res, { keys: polling.keyList() }); }
+      if (p === '/api/poll/keys' && req.method === 'GET') { need('polling'); return json(res, { keys: url.searchParams.get('for') === 'dash' ? polling.dashKeys() : polling.keyList() }); }
       if (p === '/api/poll/devices' && POST) {
         need('polling'); const b = await readJson(req); const d = wrap(() => polling.saveDevice(b));
         audit(who, `${b.id ? 'changed' : 'added'} the polled device "${d.name}" (${d.host}, SNMP ${d.version})`); return json(res, { ok: true, id: d.id });
@@ -1063,7 +1063,7 @@ async function main() {
   const dashTiles = new Map(), dashMeta = new Map();
   async function dashData(body) {
     const full = sanitizeDashRequest(body), snap = (v) => (Number.isFinite(+v) && +v > 0 ? Math.floor(+v / 5000) * 5000 : v), from = snap(full.from), to = snap(full.to), now = Date.now();
-    const sv = full.tiles.filter((t) => t.ds !== 'devices'), out = {}, miss = [], keyOf = (t) => `${from}|${to}|${JSON.stringify({ ...t, id: undefined })}`;
+    const sv = full.tiles.filter((t) => t.ds !== 'devices' && t.ds !== 'poll'), out = {}, miss = [], keyOf = (t) => `${from}|${to}|${JSON.stringify({ ...t, id: undefined })}`;
     for (const t of sv) { const h = dashTiles.get(keyOf(t)); if (h && now - h.at < 8000) out[t.id] = h.value; else miss.push(t); }
     let meta = dashMeta.get(`${from}|${to}`);
     if (miss.length || !meta) {
@@ -1075,6 +1075,8 @@ async function main() {
       dashMeta.set(`${from}|${to}`, meta); for (const m of [dashTiles, dashMeta]) while (m.size > 600) m.delete(m.keys().next().value);
     }
     let value = { ...meta, tiles: out };
+    const pq = full.tiles.filter((t) => t.ds === 'poll');   // 1.99.2 polled values (readings in memory and the polling tables)
+    if (pq.length) { value = { ...value, tiles: { ...value.tiles } }; for (const t of pq) { const ck = 'poll|' + keyOf(t), h = dashTiles.get(ck); if (h && now - h.at < 8000) { value.tiles[t.id] = h.value; continue; } try { value.tiles[t.id] = require('./pollq').run(polling, t, meta); dashTiles.set(ck, { at: now, value: value.tiles[t.id] }); } catch (e) { value.tiles[t.id] = { error: e.message }; } } }
     const dv = full.tiles.filter((t) => t.ds === 'devices'); if (!dv.length) return value;
     const list = engine.deviceList(); value = { ...value, tiles: { ...value.tiles } };
     for (const t of dv) value.tiles[t.id] = require('./devq').run(list, t);
@@ -1460,7 +1462,8 @@ function sanitizeDashRequest(b) {
   b = b && typeof b === 'object' ? b : {};
   const lo5 = (v) => Math.floor(+v / 5000) * 5000, hi5 = (v) => Math.ceil(+v / 5000) * 5000;     // 5 s steps (the end rounds up so the newest messages are never cut off), so refreshes from several dashboards can share one answer
   const tiles = (Array.isArray(b.tiles) ? b.tiles : []).slice(0, 80).filter((t) => t && /^[a-z0-9_]{1,24}$/.test(t.id) && ['count', 'distinct', 'series', 'top', 'list', 'heatHost', 'heatDow'].includes(t.kind)).map((t) => ({
-    id: t.id, kind: t.kind, ds: ['alarms', 'devices'].includes(t.ds) ? t.ds : 'events', agg: t.agg === 'avgclear' ? 'avgclear' : '', tz: clampInt(t.tz, -840, 840, 0), prev: !!t.prev, by: ['host', 'app', 'severity', 'facility', 'msgid', 'rule', 'state', 'source', 'vendor', 'status', 'group', 'kind'].includes(t.by) ? t.by : 'host', n: Math.min(50, Math.max(1, Math.round(+t.n) || 10)), filter: cleanTileFilter(t.filter)
+    ...(t.ds === 'poll' ? require('./pollq').clean(t) : {}),
+    id: t.id, kind: t.kind, ds: ['alarms', 'devices', 'poll'].includes(t.ds) ? t.ds : 'events', agg: t.agg === 'avgclear' ? 'avgclear' : '', tz: clampInt(t.tz, -840, 840, 0), prev: !!t.prev, by: ['host', 'app', 'severity', 'facility', 'msgid', 'rule', 'state', 'source', 'vendor', 'status', 'group', 'kind'].includes(t.by) ? t.by : 'host', n: Math.min(50, Math.max(1, Math.round(+t.n) || 10)), filter: cleanTileFilter(t.filter)
   }));
   const from = Number.isFinite(+b.from) && +b.from > 0 ? lo5(b.from) : 0, to = Number.isFinite(+b.to) ? hi5(b.to) : hi5(Date.now());
   return { from, to, tiles };

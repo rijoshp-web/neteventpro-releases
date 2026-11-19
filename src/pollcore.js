@@ -5,7 +5,7 @@ const net = require('node:net');
 const { execFile } = require('node:child_process');
 const { SnmpClient, SnmpError, toNumber, toText, oidStr, isMissing } = require('./snmpclient');
 /** a number from a value; a device that sends its numbers as text ("12.4", "12.4 V") is read too (1.51) */
-const numOf = (vb) => { const n = toNumber(vb); if (n !== null) return n; if (vb && !isMissing(vb) && (Buffer.isBuffer(vb.value) || typeof vb.value === 'string')) { const m = /^\s*([-+]?\d+(?:[.,]\d+)?)/.exec(toText(vb)); if (m) return Number(m[1].replace(',', '.')); } return null; };
+const numOf = (vb) => { const n = toNumber(vb); if (n !== null) return n; if (vb && !isMissing(vb) && (Buffer.isBuffer(vb.value) || typeof vb.value === 'string')) { const tx = toText(vb); const m = /^\s*([-+]?\d+(?:[.,]\d+)?)/.exec(tx) || /(?:^|[\s:=])([-+]?\d+(?:\.\d+)?)\s*[A-Za-z%°]*\s*$/.exec(tx); if (m) return Number(m[1].replace(',', '.')); } return null; };   // 1.99.2 also "Temp: 23.5 C"
 const ENT = require('./enterprises');
 
 const OID = { sysDescr: '1.3.6.1.2.1.1.1.0', sysObjectID: '1.3.6.1.2.1.1.2.0', sysUpTime: '1.3.6.1.2.1.1.3.0', sysName: '1.3.6.1.2.1.1.5.0' };
@@ -129,7 +129,9 @@ class Collector {
   /** a counter turned into a rate per second; null for the first reading or after a reset */
   rate(key, v, ts, wrap = 4294967296) {
     const p = this.prev.get(key); this.prev.set(key, { v, ts }); if (!p || ts <= p.ts) return null;
-    let d = v - p.v; if (d < 0) { if (p.v > 4294967295) d += 18446744073709552000; else d += wrap; if (d < 0 || d > wrap) return null; }
+    // 1.99.2: a counter that went down wrapped only if it was near its top; otherwise the device restarted (or the counter was
+    // cleared) and that interval is skipped, instead of showing a huge false spike
+    let d = v - p.v; if (d < 0) { if (p.v > 4294967295 || p.v < wrap * 0.75) return null; d += wrap; if (d < 0 || d > wrap) return null; }
     return d / ((ts - p.ts) / 1000);
   }
   async interfaces(t, dev, ts, n, res, out) {
@@ -167,7 +169,9 @@ class Collector {
     const t = target(dev), ts = Date.now(), readings = [], res = { ts, ok: false, readings, ifaces: [] }, n = this.count.get(dev.id) || 0; this.count.set(dev.id, n + 1);
     try {
       const r = await this.client.get(t, [OID.sysUpTime, OID.sysObjectID, OID.sysName, OID.sysDescr]);
-      const up = toNumber(r.vbs[0]); if (up === null && r.vbs.every(isMissing)) throw new SnmpError('the device answered but has none of the standard objects (is the SNMP view restricted?)', 'device');
+      // 1.99.2: some controllers (rectifiers, gensets, UPS cards) show only their own vendor section and none of the standard
+      // system values. The device did answer, so the poll goes on: answer time and the readings set up for it are still read.
+      const up = toNumber(r.vbs[0]); if (r.vbs.every(isMissing)) res.noStd = true;
       res.rtt = r.rtt; res.sysName = toText(r.vbs[2]); res.sysDescr = toText(r.vbs[3]).slice(0, 300); res.objectId = r.vbs[1].type === 'oid' ? oidStr(r.vbs[1].value) : '';
       res.detected = detectProfile(res.objectId);
       const want = dev.profile && dev.profile !== 'auto' ? dev.profile : res.detected, prof = profiles.find((p) => p.id === want) || profiles.find((p) => p.id === 'generic') || profiles[0]; res.profile = prof.id;
@@ -186,9 +190,9 @@ class Collector {
     const t = target(d);
     try {
       const r = await this.client.get(t, [OID.sysDescr, OID.sysObjectID, OID.sysUpTime, OID.sysName]);
-      const objectId = r.vbs[1].type === 'oid' ? oidStr(r.vbs[1].value) : '', prof = detectProfile(objectId); let ifs = 0;
+      const objectId = r.vbs[1].type === 'oid' ? oidStr(r.vbs[1].value) : '', prof = detectProfile(objectId); let ifs = 0; const noStd = r.vbs.every(isMissing);
       try { ifs = (await this.client.walk(t, IF.oper, { maxRows: 3000 })).vbs.length; } catch { /* interfaces are optional */ }
-      return { ok: true, rtt: r.rtt, vendor: vendorOf(objectId), sysDescr: toText(r.vbs[0]).slice(0, 300), sysName: toText(r.vbs[3]), objectId, uptimeSec: (toNumber(r.vbs[2]) || 0) / 100, profile: prof, profileName: profileName ? profileName(prof) : prof, interfaces: ifs };
+      return { ok: true, noStd, note: noStd ? 'The device answers, but shows none of the standard system values (name, uptime, description). This is normal for some controllers that only show their own vendor values: add those as readings (Add from MIB).' : '', rtt: r.rtt, vendor: vendorOf(objectId), sysDescr: toText(r.vbs[0]).slice(0, 300), sysName: toText(r.vbs[3]), objectId, uptimeSec: (toNumber(r.vbs[2]) || 0) / 100, profile: prof, profileName: profileName ? profileName(prof) : prof, interfaces: ifs };
     } catch (e) { return { ok: false, error: e.message, code: e.code || 'error' }; }
   }
 

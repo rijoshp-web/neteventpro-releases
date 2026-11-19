@@ -2,6 +2,29 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.2
+Faster everywhere, smooth dashboard editing, SNMP polling that copes with any device, polled readings in every visual, a stepped tile editor and tile icons.
+- **Much lighter on the computer**: found and fixed what kept the browser busy even when nothing happened.
+  - The colour chooser repainted itself endlessly (60 times a second) on every page with a colour box: Settings, Rules and dashboard editing. That made editing feel slow and glitchy.
+  - A style rule made the browser re-check every element of the page on every small change (a clock tick, a counter). It is replaced by a simple marker set when a window opens.
+  - Measured with the page open and idle: Settings 14 % → 2.5 % busy, Rules 15 % → 3 %, Devices 21 % → 10 %, Dashboard 7 % → 4 %. Logs with messages streaming in: 40 % → 15 %.
+- **Logs page**: draws 300 rows and adds more as you scroll (it drew up to 5 000 and reflowed them on every new message); no slide effect on every cell of new rows.
+- **Devices page**: a refresh that only moves the "last heard" times updates those cells instead of rebuilding the table.
+- **SNMP polling, for any vendor**:
+  - Devices that show only their own vendor values (no uptime or system name; many rectifiers, gensets and UPS cards) are polled: the answer time shows and their readings are read. They were reported as "No SNMP answer" before.
+  - An answer from another address of the same device (several network ports, a firewall in between) is accepted.
+  - Devices without bulk requests (GETBULK) are read with simple requests; remembered per device.
+  - One unknown value in a request no longer fails the whole poll: that value counts as missing.
+  - A table read stops when a device repeats or goes back, never loops.
+  - A counter that drops because the device restarted no longer shows a huge false spike.
+  - Decimal values sent as "opaque float/double" are read, numbers inside text ("Temp: 23.5 C") are read, binary values (MAC addresses) show as hex.
+  - Test explains a device that answers but shows no standard values.
+- **Polled readings in every visual**: number, gauge, number with trend line, line chart, bars, pie, treemap, table, waffle, radial, rose, bubbles, funnel, podium, word cloud, bar gauge. Choose the reading, the devices, the instance (port, sensor, rectifier, or all) and how values combine (average, highest, lowest, sum, latest, number of). Readings with the same name and unit are one choice across devices and vendors. Line charts draw one line per device or instance on their own scale, with gaps where nothing was read.
+- **Tile editor in four steps**: 1 Visual (picture gallery), 2 Data (the fields change with the data), 3 Format (calculation, value, colour steps, chart, colours), 4 Tile (title, size, icon, look).
+- **Icons on tiles**: 43 built-in icons (thermometer, battery, power, voltage, fan, server, switch, network, clock, bell …), next to the title, as a corner badge or large and faint in the background, in the accent colour or your own.
+- **Trend tile for alarms**: shows raised or cleared alarms as chosen (it always showed raised).
+- Polled tiles are cached for 8 seconds on the server, like the other tiles, so several open dashboards share one calculation.
+
 ## 1.99.1
 Fast Devices page for tens of thousands of devices, select and forget many devices, the Operations page removed, a ready-made Aurora dashboard, the cause of long pauses, and SNMP polling on its own thread.
 - **Devices page is fast with many devices**: it drew every device every 5 seconds, which froze the browser at about 20 000 devices (it never finished in 2 minutes). Now one page of rows is drawn (50/100/250/500 per page): with 20 000 devices it opens in about 0.4 s, and search, sort and page changes take about 0.2 s. Big lists refresh every 15 s instead of 5 s.

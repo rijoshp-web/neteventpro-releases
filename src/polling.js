@@ -55,6 +55,7 @@ class Polling {
   }
   profile(id) { return this.profiles().find((p) => p.id === id) || this.profiles()[0]; }
   metricInfo(k) {
+    if (String(k).startsWith('L:')) { const s2 = String(k).slice(2), i = s2.lastIndexOf('|'); return { label: s2.slice(0, i), unit: s2.slice(i + 1) }; }
     for (const p of this.profiles()) for (const m of p.metrics) if (m.k === k) return { label: m.label || k, unit: m.unit || '', lookup: m.lookup || '', text: m.dtype === 'text' };
     const x = [...IF_KEYS, ...BASE_KEYS].find((y) => y.k === k); return x ? { label: x.label, unit: x.unit } : { label: k, unit: '' };
   }
@@ -63,6 +64,23 @@ class Polling {
     for (const p of this.profiles()) if (!p.own) for (const m of p.metrics) if (!seen.has(m.k)) seen.set(m.k, { k: m.k, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text', inst: (m.srcs || []).some((x) => x.agg === 'each') });
     for (const x of [...IF_KEYS, ...BASE_KEYS]) seen.set(x.k, { ...x, inst: !!x.inst });
     return [...seen.values()];
+  }
+  /** 1.99.2 readings for dashboards: the same name and unit on any device (any vendor, any OID) is one choice, key "L:<name>|<unit>" */
+  dashKeys() {
+    const seen = new Map(), devOf = new Map(Object.entries(this.cfg.readings || {}).flatMap(([id, l]) => l.map((r) => [r.k, id])));
+    for (const p of this.profiles()) for (const m of p.metrics) {
+      if (m.on === false) continue; const own = !!p.own, key = own ? `L:${(m.label || m.k).trim()}|${m.unit || ''}` : m.k;
+      const e = seen.get(key) || { k: key, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text', devices: 0 }; if (own) e.devices++; seen.set(key, e);
+    }
+    for (const x of [...IF_KEYS, ...BASE_KEYS]) if (!seen.has(x.k)) seen.set(x.k, { k: x.k, label: x.label, unit: x.unit || '', text: false, devices: 0 });
+    void devOf; return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }
+  /** the reading keys behind a dashboard key (several when it is a name and unit) */
+  keysOf(dk) {
+    if (!String(dk).startsWith('L:')) return [dk];
+    const s = String(dk).slice(2), i = s.lastIndexOf('|'), label = s.slice(0, i), unit = s.slice(i + 1), out = new Set();
+    for (const p of this.profiles()) if (p.own) for (const m of p.metrics) if ((m.label || m.k).trim() === label && (m.unit || '') === unit) out.add(m.k);
+    return [...out];
   }
   vendorOf(o) { return vendorOf(o); }
   detectProfile(o) { return detectProfile(o); }

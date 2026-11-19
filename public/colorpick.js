@@ -29,8 +29,12 @@
   const label = (inp) => inp.getAttribute('aria-label') || inp.title || inp.closest('.field')?.querySelector('label')?.textContent?.trim() || 'Colour';
   function paint(inp) {
     const b = inp._cxBtn; if (!b) return; const unset = inp.dataset.unset === '1' || inp.closest('.colw')?.classList.contains('unset');
-    b.style.setProperty('--cx', unset ? 'transparent' : inp.value); b.classList.toggle('none', !!unset);
-    b.title = `${label(inp)}: ${unset ? (inp.dataset.cxNone || 'default') : inp.value.toUpperCase()}`; b.querySelector('.cx-hex').textContent = unset ? (inp.dataset.cxNone || 'Default') : inp.value.toUpperCase();
+    // 1.99.2: only touch what changed. Writing the same text again counted as a page change for the observer below, which
+    // painted again on the next frame: an endless loop (60 repaints a second on every page with a colour box).
+    const cx = unset ? 'transparent' : inp.value; if (b.style.getPropertyValue('--cx') !== cx) b.style.setProperty('--cx', cx);
+    if (b.classList.contains('none') !== !!unset) b.classList.toggle('none', !!unset);
+    const title = `${label(inp)}: ${unset ? (inp.dataset.cxNone || 'default') : inp.value.toUpperCase()}`; if (b.title !== title) b.title = title;
+    const hx = b.querySelector('.cx-hex'), txt = unset ? (inp.dataset.cxNone || 'Default') : inp.value.toUpperCase(); if (hx && hx.textContent !== txt) hx.textContent = txt;
   }
   function set(inp, v) {
     if (!isHex(v)) return; delete inp.dataset.unset; inp.value = v.toLowerCase(); inp.closest('.colw')?.classList.remove('unset');
@@ -74,7 +78,7 @@
   }
   const scan = (root) => { if (root.nodeType !== 1) return; if (root.matches?.('input[type=color]')) enhance(root); root.querySelectorAll?.('input[type=color]').forEach(enhance); };
   let queued = new Set(), raf = 0;
-  new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) queued.add(n); if (!raf) raf = requestAnimationFrame(() => { raf = 0; const q = queued; queued = new Set(); q.forEach((n) => n.isConnected && scan(n)); for (const i of document.querySelectorAll('input.cx-native')) if (i._cxBtn) { i._cxBtn.disabled = i.disabled; paint(i); } }); })
+  new MutationObserver((ms) => { for (const m of ms) { if (m.target.closest?.('.cx-btn')) continue; for (const n of m.addedNodes) queued.add(n); } if (!queued.size) return; if (!raf) raf = requestAnimationFrame(() => { raf = 0; const q = queued; queued = new Set(); q.forEach((n) => n.isConnected && scan(n)); for (const i of document.querySelectorAll('input.cx-native')) if (i._cxBtn) { i._cxBtn.disabled = i.disabled; paint(i); } }); })
     .observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('scroll', (e) => { if (!open || open.panel.contains(e.target)) return; if (Math.abs(open.btn.getBoundingClientRect().top - open.at) > 2) close(); }, true); window.addEventListener('resize', () => close());
   document.addEventListener('DOMContentLoaded', () => scan(document.body));

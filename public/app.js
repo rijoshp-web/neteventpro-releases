@@ -64,6 +64,17 @@ async function api(path, opts = {}) {
 }
 let toastTimer;
 /** In-app yes/no box (replaces the browser's confirm(), which steals focus and can need several clicks). Resolves true / false. */
+// 1.99.2 mark the elements that hold an open dialog (class has-modal), for the CSS that drops blur and transforms around it.
+// A cheap watch: it only looks at the (live) list of dialogs, and changes classes only when the set of holders changes.
+(() => {
+  const backs = document.getElementsByClassName('modal-back'); let marked = new Set(), q = 0;
+  const sync = () => {
+    q = 0; const want = new Set(); for (const b of backs) for (let p = b.parentElement; p; p = p.parentElement) want.add(p);
+    if (want.size === marked.size && [...want].every((x) => marked.has(x))) return;
+    for (const e of marked) if (!want.has(e)) e.classList.remove('has-modal'); for (const e of want) if (!marked.has(e)) e.classList.add('has-modal'); marked = want;
+  };
+  new MutationObserver(() => { if (!q && (backs.length || marked.size)) q = requestAnimationFrame(sync); }).observe(document.documentElement, { childList: true, subtree: true });
+})();
 function askConfirm(message, okLabel, checkLabel) {    // with checkLabel: resolves false, or { checked } when confirmed
   return new Promise((resolve) => {
     const back = document.createElement('div'); back.className = 'modal-back';
@@ -836,7 +847,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     ${can('delete') ? ibtn('bSelect', 'check', 'Select', 'Tick messages to delete them') + `<button id="bDelete" class="ib danger" hidden>${ico('x')}<span class="bt">Delete…</span></button>` : ''}
   </div>
   <div class="logwrap" id="logwrap"><table class="log" id="lt"><colgroup id="cg"></colgroup><thead id="th"></thead><tbody id="tb"></tbody></table><div id="emptyMsg"></div></div>`;
-  const tb = $('#tb'); const MAXDOM = 5000, MAXROWS = 20000;
+  const tb = $('#tb'); const MAXDOM = 5000, MAXROWS = 20000, PAGE = 300; let domCap = PAGE;   // 1.99.2: 300 rows are drawn, more as you scroll (it drew up to 5 000 and reflowed them on every new message)
   const tViews = () => (isSyslog ? [] : S.prefs.trapViews || []), trapSel = () => (tViews().length === 1 ? tViews()[0].id : S.trapView === undefined ? S.prefs.trapViewDefault || '' : S.trapView), tView = () => tViews().find((v) => v.id === trapSel()) || null;
   const colsNow = () => { const v = tView(); return v && v.cols.length ? trapViewCols(v) : visibleCols(VIEW); };
   let selOn = false; const sel = new Set(); let flt = makeFilter(f), terms = termsOf(f.text), shown = 0, cols = colsNow(), rows = [], lastQ = {}, sortTimer, seen = new Set(), loaded = false;
@@ -869,7 +880,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     $('#emptyMsg').innerHTML = shown || !loaded ? '' : `<div class="empty"><b>No matching messages</b>${fixedEnd() ? 'Widen the time range or loosen the filters.' : 'Nothing in this time range yet. New matching messages will appear here as they arrive.'}</div>`;
   };
   const render = () => {
-    const list = ordered(source()); shown = list.length; tb.innerHTML = list.slice(0, MAXDOM).map((m) => rowHtml(m, terms, cols, '', selOn ? sel : null)).join(''); info();
+    const list = ordered(source()); shown = list.length; tb.innerHTML = list.slice(0, groupMode() !== 'off' ? MAXDOM : Math.min(MAXDOM, domCap)).map((m) => rowHtml(m, terms, cols, '', selOn ? sel : null)).join(''); info();
     const hosts = [...new Set(rows.map((m) => m.host).concat(S.live.filter((m) => (m.source || 'syslog') === SRC).map((m) => m.host)))].sort().slice(0, 300); $('#hostList').innerHTML = hosts.map((h) => `<option value="${esc(h)}">`).join('');
   };
   const widthOf = (id) => S.prefs.widths?.[id] ?? DEFAULT_W[id] ?? TV_DEFS[id]?.w;
@@ -895,7 +906,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
   };
   let runId = 0;
   const run = async (more) => {
-    readFilters(); const q = more ? { ...lastQ, beforeId: rows[rows.length - 1].id } : params(); if (!more) lastQ = q;
+    readFilters(); const q = more ? { ...lastQ, beforeId: rows[rows.length - 1].id } : params(); if (!more) { lastQ = q; domCap = PAGE; }
     const my = ++runId; $('#qGo').disabled = true;
     try {
       const { total: _t, ...qq } = q;
@@ -916,9 +927,10 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     if (lastQ.total !== undefined) lastQ.total += ok.length + (skippedN || 0);
     floodBar(skippedN);
     if (groupMode() !== 'off' || (S.prefs.sort && cols.includes(S.prefs.sort.col))) { clearTimeout(sortTimer); sortTimer = setTimeout(() => { render(); setMode(); }, 150); return; }   // sorted view: re-sort in one go, not per message
-    const wrap = $('#logwrap'); const atTop = wrap.scrollTop < 40; const html = ok.slice(-500).reverse().map((m) => rowHtml(m, terms, cols, skippedN || flood.active ? '' : 'new', selOn ? sel : null)).join('');   // no flash animation in a flood: hundreds of animated cells make the page crawl
+    const wrap = $('#logwrap'); const atTop = wrap.scrollTop < 40; const html = ok.slice(-500).reverse().map((m) => rowHtml(m, terms, cols, skippedN || flood.active || ok.length > 5 ? '' : 'new', selOn ? sel : null)).join('');   // no flash animation in a flood: hundreds of animated cells make the page crawl
     const h0 = wrap.scrollHeight; tb.insertAdjacentHTML('afterbegin', html); shown += ok.length;
-    const cap = S.floodNote && Date.now() - S.floodNote.at < 4000 ? 600 : MAXDOM;   // in a flood keep the table small: a big table makes every redraw slow
+    if (atTop) domCap = PAGE;   // reading the newest: keep the table short
+    const cap = S.floodNote && Date.now() - S.floodNote.at < 4000 ? Math.min(600, domCap) : Math.min(MAXDOM, Math.max(domCap, PAGE));   // in a flood keep the table small: a big table makes every redraw slow
     for (let ex = tb.rows.length - cap; ex > 0; ex--) tb.lastElementChild.remove();
     if (!atTop) wrap.scrollTop += wrap.scrollHeight - h0; // keep reading position stable
     info(); setMode();
@@ -930,6 +942,12 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     clearTimeout(bar._t); bar._t = setTimeout(() => bar.remove(), 5000); bar.dataset.at = Date.now(); bar.innerHTML = `<b>Very busy:</b> about ${fmtN(fn.rate)} messages per second are arriving, so the page shows only the newest ones (${fmtN(fn.shown)} of ${fmtN(fn.shown + sk)} in the last moment). Every message is still received, stored and checked by the rules. <button type="button" id="floodPause" class="linkish">Pause the feed</button> to read.`;
     $('#floodPause')?.addEventListener('click', () => { if (!S.paused) setPause(true); bar.remove(); });
   };
+  $('#logwrap').addEventListener('scroll', (e) => {   // 1.99.2 draw the next rows when the end comes near
+    const w = e.currentTarget; if (w.scrollTop + w.clientHeight < w.scrollHeight - 600 || groupMode() !== 'off') return;
+    const have = tb.rows.length; if (have >= Math.min(MAXDOM, shown)) return;
+    const list = ordered(source()); domCap = Math.min(MAXDOM, have + PAGE);
+    tb.insertAdjacentHTML('beforeend', list.slice(have, domCap).map((m) => rowHtml(m, terms, cols, '', selOn ? sel : null)).join(''));
+  }, { passive: true });
   let tmr; const deb = () => { clearTimeout(tmr); tmr = setTimeout(() => run(false), 350); };
   $('#qRange').onchange = () => { S.range = $('#qRange').value; if (S.range === 'day') day = dayKey(); setMode(); if (S.range !== 'custom') run(false); };
   const goDay = (k) => { day = k > dayKey() ? dayKey() : k; setMode(); run(false); };
@@ -1080,10 +1098,25 @@ views.devices = (el) => {
     const cols = devColList().filter((c) => c.visible).map((c) => c.id), rows = sh.slice(page * per(), (page + 1) * per());
     const allOnPage = rows.every((d) => sel.has(d.key));
     const th = (id) => SORTS[id] ? `<th data-sort="${id}" class="sortable${NUM.has(id) ? ' num-r' : ''}" aria-sort="${sort.k === id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${HEAD[id]}${sort.k === id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>` : `<th>${HEAD[id]}</th>`;
-    const html = `<table class="data compact devtbl" id="devTable"><thead><tr>${edit ? `<th class="selc"><input type="checkbox" id="devAll" aria-label="Select all on this page"${allOnPage ? ' checked' : ''}></th>` : ''}${cols.map(th).join('')}</tr></thead><tbody>` +
-      rows.map((d) => `<tr data-ip="${esc(d.key)}"${sel.has(d.key) ? ' class="sel"' : ''}>${edit ? `<td class="selc"><input type="checkbox" class="pick" aria-label="Select ${esc(d.host)}"${sel.has(d.key) ? ' checked' : ''}></td>` : ''}${cols.map((id) => `<td${NUM.has(id) ? ' class="num-r"' : id === 'last' ? ' class="muted"' : ''}${TITLE[id] ? ` title="${esc(TITLE[id](d))}"` : ''}>${CELL[id](d)}</td>`).join('')}</tr>`).join('') +
-      `</tbody></table><datalist id="grpList">${[...new Set(list.map((d) => d.group).filter(Boolean))].slice(0, 500).map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
-    if (html !== lastHtml || force) { lastHtml = html; $('#devWrap').innerHTML = html; enableColResize($('#devTable'), edit ? 'dev2' : 'dev', () => { lastHtml = ''; draw(true); }); }
+    // 1.99.2: the table is rebuilt only when its rows or columns change. A refresh that only moves the "last heard" times
+    // updates those cells in place (rebuilding 100 rows of input boxes every 5 s kept the browser busy).
+    const head = `<thead><tr>${edit ? `<th class="selc"><input type="checkbox" id="devAll" aria-label="Select all on this page"${allOnPage ? ' checked' : ''}></th>` : ''}${cols.map(th).join('')}</tr></thead>`;
+    const VOL = new Set(['last', 'sys', 'traps', 'state']);
+    const cell = (d, id) => `<td${NUM.has(id) ? ' class="num-r"' : id === 'last' ? ' class="muted"' : ''}${TITLE[id] ? ` title="${esc(TITLE[id](d))}"` : ''} data-c="${id}">${CELL[id](d)}</td>`;
+    const rowSig = (d) => d.key + '|' + sel.has(d.key) + '|' + cols.filter((id) => !VOL.has(id)).map((id) => CELL[id](d)).join('');
+    const sig = head + rows.map(rowSig).join('\n');
+    const tbl = $('#devTable');
+    if (force || !tbl || sig !== lastHtml) {
+      lastHtml = sig;
+      $('#devWrap').innerHTML = `<table class="data compact devtbl" id="devTable">${head}<tbody>` + rows.map((d) => `<tr data-ip="${esc(d.key)}"${sel.has(d.key) ? ' class="sel"' : ''}>${edit ? `<td class="selc"><input type="checkbox" class="pick" aria-label="Select ${esc(d.host)}"${sel.has(d.key) ? ' checked' : ''}></td>` : ''}${cols.map((id) => cell(d, id)).join('')}</tr>`).join('') + '</tbody></table>';
+      enableColResize($('#devTable'), edit ? 'dev2' : 'dev', () => { lastHtml = ''; draw(true); });
+    } else {
+      const trs = tbl.tBodies[0].rows;
+      rows.forEach((d, i) => { const tr = trs[i]; if (!tr) return; for (const id of cols) { if (!VOL.has(id)) continue; const td = tr.querySelector(`td[data-c="${id}"]`); if (!td) continue; const h = CELL[id](d), t = TITLE[id] ? TITLE[id](d) : null; if (td.innerHTML !== h) td.innerHTML = h; if (t !== null && td.title !== t) td.title = t; } });
+    }
+    const groups = [...new Set(list.map((d) => d.group).filter(Boolean))].slice(0, 500), gsig = groups.join('\u0001');
+    let dl = $('#grpList'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'grpList'; el.appendChild(dl); }
+    if (dl.dataset.sig !== gsig) { dl.dataset.sig = gsig; dl.innerHTML = groups.map((x) => `<option value="${esc(x)}">`).join(''); }
     const from = page * per() + 1, to = Math.min(sh.length, (page + 1) * per());
     const pg = `<span class="muted">${fmtN(from)}–${fmtN(to)} of ${fmtN(sh.length)}</span><button data-pg="first" ${page ? '' : 'disabled'} aria-label="First page">«</button><button data-pg="prev" ${page ? '' : 'disabled'}>‹ Previous</button><span>Page ${page + 1} of ${pages}</span><button data-pg="next" ${page < pages - 1 ? '' : 'disabled'}>Next ›</button><button data-pg="last" ${page < pages - 1 ? '' : 'disabled'} aria-label="Last page">»</button><span class="spacer"></span><label class="muted">Rows per page <select id="devPer">${[50, 100, 250, 500].map((x) => `<option${x === per() ? ' selected' : ''}>${x}</option>`).join('')}</select></label>`;
     if ($('#devPager').innerHTML !== pg) $('#devPager').innerHTML = pg;
