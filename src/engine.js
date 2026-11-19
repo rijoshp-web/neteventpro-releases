@@ -16,7 +16,9 @@ const VENDOR_TAGS = { cisco: 'Cisco', apc: 'APC', dell: 'Dell', hp: 'HP / HPE', 
 
 const RATE_WINDOW = 120; // seconds of per-second history kept in memory
 const MAX_MESSAGE_BYTES = 16384;
-const MAX_DEVICES = 10000;   // spoofed source addresses must not grow the device list without limit
+/** the device list; counts its changes so the address index below knows when to rebuild */
+class DevMap extends Map { constructor(...a) { super(...a); this.ver = 0; } set(k, v) { this.ver++; return super.set(k, v); } delete(k) { this.ver++; return super.delete(k); } clear() { this.ver++; return super.clear(); } }
+const MAX_DEVICES = 50000;   // spoofed source addresses must not grow the device list without limit (1.97.6: was 10 000, too few for big sites)
 
 /** Central pipeline: parse -> rules -> live buffer -> stats/devices -> storage -> forwarding. */
 class Engine extends EventEmitter {
@@ -28,7 +30,7 @@ class Engine extends EventEmitter {
     this.nextId = store.maxId() + 1; this.nextSeq = store.maxSeq();
     this.live = [];                         // newest last
     this.pending = [];                      // batch waiting for SSE flush
-    this.devices = new Map();
+    this.devices = new DevMap();
     this.totals = { received: 0, dropped: 0, bySeverity: new Array(10).fill(0), since: Date.now(), peakEps: 0 };
     this.secCounts = new Int32Array(RATE_WINDOW); this.secStamp = new Float64Array(RATE_WINDOW);
     this.dirtyDevices = new Set();
@@ -167,7 +169,15 @@ class Engine extends EventEmitter {
   /** One device, one row. A device that sends syslog under its host name and traps under its address (a trap has no host name) is the same device: a row named by an
    *  address is joined to the device that already sends from that address, but only when exactly one device does (a relay that forwards for several hosts stays as it is). */
   static isAddr(k) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(k) || (/:/.test(k) && /^[0-9a-f:.]+$/i.test(k)); }
-  namedDeviceAt(ip, except = '') { const hit = []; for (const o of this.devices.values()) if (o.key !== except && !Engine.isAddr(o.key) && (o.srcIps || []).includes(ip)) hit.push(o); return hit.length === 1 ? hit[0] : null; }
+  // 1.97.6: looked up in an address index instead of walking every device for every trap (12 000 devices x 2 000 traps/s was 24 million steps a second)
+  namedDeviceAt(ip, except = '') {
+    if (!this._ipIdx || this._ipIdx.ver !== this.devices.ver) {
+      const idx = new Map(); for (const o of this.devices.values()) if (!Engine.isAddr(o.key)) for (const a of o.srcIps || []) { const l = idx.get(a); if (l) l.push(o); else idx.set(a, [o]); }
+      this._ipIdx = { ver: this.devices.ver, idx };
+    }
+    const list = this._ipIdx.idx.get(ip) || []; if (list.length > 2) return null;      // several named devices share the address: none is "the" one
+    const hit = list.filter((o) => o.key !== except && (o.srcIps || []).includes(ip)); return hit.length === 1 ? hit[0] : null;
+  }
   /** the key a message belongs to: its own, or the named device at that address when the message is named by the address only */
   resolveKey(key, srcIp) {
     if (!Engine.isAddr(key)) return key;
@@ -182,6 +192,7 @@ class Engine extends EventEmitter {
     if (!into.vendor && from.vendor) into.vendor = from.vendor;
     if (Array.isArray(from.sev)) into.sev = (into.sev || new Array(10).fill(0)).map((n, i) => n + (from.sev[i] || 0));
     for (const ip of from.srcIps || []) if (!into.srcIps.includes(ip)) into.srcIps.push(ip);
+    this.devices.ver++;
     this.devices.delete(from.key); this.store.deleteDevice(from.key); this.dirtyDevices.add(into.key);
   }
   /** at start: join rows that are the same device (see above) */
@@ -206,7 +217,7 @@ class Engine extends EventEmitter {
     }
     d.legacy = false;
     if (d.srcIp !== msg.srcIp || !d.srcIps.includes(msg.srcIp)) {            // the same device sent from another address
-      d.srcIp = msg.srcIp; d.srcIps = d.srcIps.filter((x) => x !== msg.srcIp); d.srcIps.push(msg.srcIp); if (d.srcIps.length > 8) d.srcIps.shift();
+      d.srcIp = msg.srcIp; d.srcIps = d.srcIps.filter((x) => x !== msg.srcIp); d.srcIps.push(msg.srcIp); if (d.srcIps.length > 8) d.srcIps.shift(); this.devices.ver++;
     }
     d.host = msg.host; d.lastSeen = now; d.count++; d.sev[msg.severity]++;
     if (msg.source === 'snmp') { d.traps = (d.traps || 0) + 1; d.lastTrap = now; } else { d.sys = (d.sys || 0) + 1; d.lastSyslog = now; }
@@ -278,8 +289,14 @@ class Engine extends EventEmitter {
   }
 
   deviceList() {
-    const cfg = this.config.get(); const muted = new Set(cfg.mutedDevices || []); const now = Date.now(); const al = cfg.deviceAliases || {};
-    return [...this.devices.values()].map(d => ({
+    // 1.97.6: answered from a copy at most 2 s old (several dashboards and the Devices page ask often), and open alarms are counted
+    // once per call instead of once per device (10 000 devices x 2 000 open alarms was 20 million comparisons per call)
+    const cfg = this.config.get();
+    if (this._devList && Date.now() - this._devList.at < 2000 && this._devList.n === this.devices.size && this._devList.cfg === cfg) return this._devList.list;
+    const muted = new Set(cfg.mutedDevices || []); const now = Date.now(); const al = cfg.deviceAliases || {};
+    const byKey = new Map(); if (this.alarms?.open) for (const r of this.alarms.open.values()) { for (const k of new Set([String(r.dev), String(r.src_ip)])) { const l = byKey.get(k); if (l) l.push(r); else byKey.set(k, [r]); } }
+    const openAlarms = (keys) => { const seen = new Set(); for (const k of keys) for (const r of byKey.get(String(k)) || []) seen.add(r); return seen.size; };
+    const list = [...this.devices.values()].map(d => ({
       key: d.key, srcIp: d.srcIp, srcIps: d.srcIps, host: d.host, alias: al[d.key] ?? d.srcIps.map((ip) => al[ip]).find(Boolean) ?? '', firstSeen: d.firstSeen, lastSeen: d.lastSeen,
       count: d.count, sev: d.sev, silent: d.silent, muted: this.isMuted(muted, d),
       idle: !d.silent && (+cfg.silentDeviceMinutes || 0) > 0 && now - d.lastSeen > cfg.silentDeviceMinutes * 60000,   // quiet for a while, but too few messages to be sure it should be sending regularly
@@ -287,8 +304,10 @@ class Engine extends EventEmitter {
       sys: d.sys || 0, traps: d.traps || 0, lastSyslog: d.lastSyslog || 0, lastTrap: d.lastTrap || 0, vendor: d.vendor || '',
       group: (cfg.deviceInfo?.[d.key] || {}).group || '', note: (cfg.deviceInfo?.[d.key] || {}).note || '', expectMin: (cfg.deviceInfo?.[d.key] || {}).expectMin || 0,
       overdue: !!((cfg.deviceInfo?.[d.key] || {}).expectMin && now - d.lastSeen > cfg.deviceInfo[d.key].expectMin * 60000),
-      openAlarms: this.alarms ? this.alarms.openFor([d.key, d.srcIp, ...(d.srcIps || [])]) : 0
+      openAlarms: this.alarms ? openAlarms([d.key, d.srcIp, ...(d.srcIps || [])]) : 0
     })).sort((a, b) => b.lastSeen - a.lastSeen);
+    this._devList = { at: Date.now(), n: this.devices.size, cfg, list };
+    return list;
   }
 
   forgetDevice(key) { this.devices.delete(key); this.store.deleteDevice(key); }

@@ -2,6 +2,17 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.97.6
+Faster for big sites (tested with 12,000 devices and 20 million stored messages), plus one export fix.
+- Dashboards over long periods are much faster. The app now keeps per-minute and per-hour message counts, so a dashboard adds up summaries instead of reading every message. With 20 million messages, a 24-hour dashboard went from 14 s to 0.07 s, and a 48-hour one from 31 s to 0.12 s. Every number is the same as before.
+- No more empty dashboard after a restart: the statistics shown on the dashboard took 25 s the first time on a big database; now 0.2 s.
+- After updating, older messages are added to the summaries in the background (about 2 minutes for 20 million messages). Receiving goes on as normal meanwhile, and dashboards count the messages directly until it is done.
+- Deleting messages (by hand, by search, by age or by size limit) keeps the summaries right.
+- SNMP traps with many devices: each trap no longer checks every known device. With 12,000 devices, 2,000 traps a second used to lose a third of the traps; now none are lost and CPU use dropped from 81% to 23%.
+- Up to 50,000 devices are tracked (was 10,000).
+- The device list is prepared once every 2 seconds and shared by every screen that shows it, and it is compressed off the main thread.
+- Exports: negative numbers in SNMP polling CSV and Excel exports (a temperature of -3, say) now stay numbers instead of turning into text.
+
 ## 1.97.5
 - **Check for updates says so.** After a manual check you get a clear message: "NetEventPro x.y.z is up to date", "Version x.y.z is available", or a message window when the update server cannot be reached.
 - **Faster dashboard editing.** The frosted-glass blur behind tiles is paused while you customise (edit mode, the tile editor, dragging), dragging moves the tile on the graphics card and is limited to one update per screen frame. In tests dragging, resizing and typing in the tile editor became about twice as smooth with glass on.

@@ -459,7 +459,7 @@ class Polling {
   }
   /** CSV text: the summary of all devices, or every reading of one device (thinned to about 500 points per item) */
   csv(hours, id) {
-    const safe = (x) => { const t = String(x ?? ''); const u = /^[=+\-@\t\r]/.test(t) ? "'" + t : t; return '"' + u.replace(/"/g, '""') + '"'; }, f = (v, d = 2) => (v === null || v === undefined ? '' : Number(v.toFixed(d)));
+    const safe = (x) => { const t = String(x ?? ''); const u = typeof x === 'string' && /^[=+\-@\t\r]/.test(t) ? "'" + t : t; return '"' + u.replace(/"/g, '""') + '"'; }, f = (v, d = 2) => (v === null || v === undefined ? '' : Number(v.toFixed(d)));
     if (!id) {
       const sm = this.summary(hours), head = ['Device', 'Address', 'Site', 'Polls', 'Availability %', 'CPU avg %', 'CPU max %', 'Memory avg %', 'Memory max %', 'Temp avg C', 'Temp max C', 'Answer ms', 'Polling alarms'];
       return '﻿' + [head.map(safe).join(','), ...sm.rows.map((r) => [r.name, r.host, r.site, r.polls, f(r.availability), f(r.cpuAvg), f(r.cpuMax), f(r.memAvg), f(r.memMax), f(r.tempAvg), f(r.tempMax), f(r.rttAvg, 1), r.alarms].map(safe).join(','))].join('\r\n') + '\r\n';

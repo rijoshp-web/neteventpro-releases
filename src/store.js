@@ -1,5 +1,6 @@
 'use strict';
 const { packRaw } = require('./query');
+const SUM = require('./summary');
 const path = require('node:path');
 const fs = require('node:fs');
 const { Worker } = require('node:worker_threads');
@@ -92,6 +93,7 @@ class Store {
     this.insertStmt = this.db.prepare(
       'INSERT OR REPLACE INTO logs (id, ts, dev_ts, src_ip, host, facility, severity, app, pid, msgid, message, tags, color, raw, source, vb, seq) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     );
+    this.initSummary();
     this.queue = [];
     this.timer = setInterval(() => this.flush(), 250);
     this.timer.unref?.();
@@ -104,12 +106,11 @@ class Store {
   async deleteLogs({ ids, q }) {
     this.flush(); let n = 0;
     if (Array.isArray(ids)) {
-      const st = this.db.prepare('DELETE FROM logs WHERE id = ?');
-      for (let i = 0; i < ids.length; i += 500) { this.db.exec('BEGIN'); try { for (const id of ids.slice(i, i + 500)) n += Number(st.run(id).changes); this.db.exec('COMMIT'); this._rows = undefined; } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* */ } throw e; } await new Promise((r) => setImmediate(r)); }
+      for (let i = 0; i < ids.length; i += 500) { n += this.deleteWhere('SELECT value FROM json_each(?)', [JSON.stringify(ids.slice(i, i + 500))]); this._rows = undefined; await new Promise((r) => setImmediate(r)); }
       return n;
     }
     const { buildWhere } = require('./query'); const { sql, args } = buildWhere(q || {});
-    for (;;) { const c = Number(this.db.prepare(`DELETE FROM logs WHERE id IN (SELECT id FROM logs ${sql} LIMIT 5000)`).run(...args).changes); n += c; this._rows = undefined; if (c < 5000) break; await new Promise((r) => setImmediate(r)); }
+    for (;;) { const c = this.deleteWhere(`SELECT id FROM logs ${sql} LIMIT 5000`, args); n += c; this._rows = undefined; if (c < 5000) break; await new Promise((r) => setImmediate(r)); }
     return n;
   }
   maxSeq() { const o = { syslog: 0, snmp: 0 }; for (const r of this.db.prepare('SELECT source, MAX(seq) AS m FROM logs GROUP BY source').all()) o[r.source === 'snmp' ? 'snmp' : 'syslog'] = r.m || 0; return o; }
@@ -135,17 +136,86 @@ class Store {
           m.app, m.pid, m.msgid, m.message, m.tags ? m.tags.join(',') : '', m.color || '', packRaw(m.raw, m.message), m.source === 'snmp' ? 'snmp' : 'syslog', m.vb ? JSON.stringify(m.vb) : '', m.seq || 0);
       }
       this.db.exec('COMMIT');
+      const live = this.sumLive ? batch.filter((m) => m.ts >= this.sumLive) : batch;
+      if (live.length) SUM.tally(this.sumAcc, live);
+      if (Date.now() - this.sumAt >= 2000) this.sumFlush();
     } catch (e) {
       try { this.db.exec('ROLLBACK'); } catch { /* ignore */ }
       console.error('[store] flush failed:', e.message);
     }
   }
 
+  // ---- summaries (1.97.6, see summary.js) --------------------------------
+  initSummary() {
+    this.db.exec(SUM.SCHEMA);
+    this.sumAcc = {}; this.sumAt = Date.now(); this.sumStmts = {}; this.sumLive = 0;
+    const get = (k) => this.db.prepare('SELECT v FROM sum_meta WHERE k = ?').get(k)?.v;
+    this.setMeta = (k, v) => this.db.prepare('INSERT INTO sum_meta (k, v) VALUES (?, ?) ON CONFLICT DO UPDATE SET v = excluded.v').run(k, v);
+    let cov = get('cov');
+    if (cov === undefined) {
+      const any = this.db.prepare('SELECT ts FROM logs ORDER BY id LIMIT 1').get();
+      // nothing stored yet: everything is covered from the start. Otherwise count from the next minute on and fill in the past in the background.
+      cov = any ? Math.ceil((Date.now() + 1) / 60000) * 60000 : 0;
+      this.setMeta('cov', cov); this.setMeta('upto', Date.now());
+      if (any) this.sumLive = cov;
+    }
+    this.sumCov = cov;
+    if (cov > 0) this.sumBackfillSoon(cov === this.sumLive ? cov - Date.now() + 5000 : 15000);
+  }
+  /** writes what was counted since the last time; "upto" tells the readers how far the summaries are complete */
+  sumFlush() {
+    this.sumAt = Date.now();
+    if (this.sumAt - (this.sumPruneAt || 0) > 300000) {      // the 1-minute device and process counts are only kept for a few hours
+      this.sumPruneAt = this.sumAt;
+      try { for (const [t, , , keep] of SUM.TABLES) if (keep) this.db.prepare(`DELETE FROM ${t} WHERE t < ?`).run(this.sumAt - keep); } catch (e) { console.error('[store] summary:', e.message); }
+    }
+    const acc = this.sumAcc; this.sumAcc = {};
+    try {
+      this.db.exec('BEGIN'); SUM.apply(this.db, acc, this.sumStmts); this.setMeta('upto', this.sumAt - 1); this.db.exec('COMMIT');
+    } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } console.error('[store] summary:', e.message); }
+  }
+  sumBackfillSoon(ms) { clearTimeout(this.sumTimer); this.sumTimer = setTimeout(() => this.sumBackfill().catch((e) => console.error('[store] summary backfill:', e.message)), Math.max(1000, ms)); this.sumTimer.unref?.(); }
+  /** counts older messages one minute at a time, newest first, with short pauses so the receiver never waits for it */
+  async sumBackfill() {
+    if (this.sumBusy) return; this.sumBusy = true;
+    try {
+      const first = this.db.prepare('SELECT MIN(ts) AS t FROM logs').get().t;
+      const st = this.db.prepare('SELECT ts, host, app, severity, facility, source, n FROM (SELECT CAST(ts / 60000 AS INTEGER) * 60000 AS ts, host, app, severity, facility, source, COUNT(*) AS n FROM logs WHERE ts >= ? AND ts < ? GROUP BY 1, host, app, severity, facility, source)');
+      let started = Date.now(), done = 0;
+      while (!this.closed && first !== null && this.sumCov > Math.floor(first / 60000) * 60000) {
+        this.flush();
+        const to = this.sumCov, from = to - 60000;
+        this.db.exec('BEGIN');
+        try { SUM.apply(this.db, SUM.tally({}, st.all(from, to)), this.sumStmts); this.setMeta('cov', from); this.db.exec('COMMIT'); this.sumCov = from; } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+        if (++done % 60 === 0 && Date.now() - started > 60000) { console.log(`[store] summaries filled back to ${new Date(from).toISOString()}`); started = Date.now(); }
+        await new Promise((r) => (done % 25 ? setImmediate(r) : setTimeout(r, 5)));
+      }
+      if (first === null || this.sumCov <= first) { this.sumCov = 0; this.setMeta('cov', 0); }
+    } finally { this.sumBusy = false; }
+  }
+  /** takes messages that are about to be deleted off the summaries (call inside the delete's transaction, before the DELETE) */
+  sumForget(rows) {
+    const keep = rows.filter((r) => r.ts >= this.sumCov);
+    if (keep.length) SUM.apply(this.db, SUM.tally({}, keep, -1), this.sumStmts);
+  }
+  /** deletes messages by an id-selecting SQL, keeping the summaries right; returns how many went */
+  deleteWhere(idSql, args) {
+    this.sumFlush();
+    const rows = this.db.prepare(`SELECT id, ts, host, app, severity, facility, source FROM logs WHERE id IN (${idSql})`).all(...args);
+    if (!rows.length) return 0;
+    this.db.exec('BEGIN');
+    try {
+      this.sumForget(rows);
+      const n = Number(this.db.prepare('DELETE FROM logs WHERE id IN (SELECT value FROM json_each(?))').run(JSON.stringify(rows.map((r) => r.id))).changes);
+      this.db.exec('COMMIT'); return n;
+    } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+  }
+
   // ---- reading (worker threads) ---------------------------------------------
   query(q, limit = 500) { this.flush(); return this.search.call('query', { q, limit }); }
   count(q) { this.flush(); return this.search.call('count', { q }); }
-  stats(since) { this.flush(); return this.statsReader.call('stats', { since }); }
-  dash(args) { this.flush(); return this.statsReader.call('dash', args); }
+  stats(since) { this.flush(); this.sumFlush(); return this.statsReader.call('stats', { since }); }
+  dash(args) { this.flush(); this.sumFlush(); return this.statsReader.call('dash', args); }
   oldest() { return this.statsReader.call('oldest', {}); }
   async backup(dest) { this.flush(); await this.search.call('backup', { dest }); }
 
@@ -210,15 +280,13 @@ class Store {
     let deleted = 0;
     if (retentionDays > 0) {
       const cutoff = Date.now() - retentionDays * 86400000;
-      const st = this.db.prepare('DELETE FROM logs WHERE id IN (SELECT id FROM logs WHERE ts < ? ORDER BY id LIMIT ?)');
       for (;;) {
-        const n = Number(st.run(cutoff, CHUNK).changes); deleted += n; if (this._rows !== undefined) this._rows -= n;
+        const n = this.deleteWhere('SELECT id FROM logs WHERE ts < ? ORDER BY id LIMIT ?', [cutoff, CHUNK]); deleted += n; if (this._rows !== undefined) this._rows -= n;
         if (n < CHUNK) break;
         await tick(); this.flush();
       }
     }
     if (maxDbMB > 0) {
-      const del = this.db.prepare('DELETE FROM logs WHERE id IN (SELECT id FROM logs ORDER BY id LIMIT ?)');
       // Measured on the space used by data (not the file size, which does not shrink when rows are deleted).
       // Aim for 90% of the limit so the next cleanup is not needed straight away.
       for (let round = 0; round < 4 && this.usedMB() > maxDbMB; round++) {
@@ -226,7 +294,7 @@ class Store {
         if (!rows) break;
         let left = Math.min(rows, Math.ceil(rows * (used - maxDbMB * 0.9) / used));
         while (left > 0) {
-          const n = Number(del.run(Math.min(CHUNK, left)).changes);
+          const n = this.deleteWhere('SELECT id FROM logs ORDER BY id LIMIT ?', [Math.min(CHUNK, left)]);
           if (!n) break;
           left -= n; deleted += n; if (this._rows !== undefined) this._rows -= n;
           await tick(); this.flush();
@@ -248,12 +316,14 @@ class Store {
 
   clearAll() {
     this.flush();
-    this.db.exec('DELETE FROM logs; PRAGMA wal_checkpoint(TRUNCATE); VACUUM;'); this._rows = 0;
+    this.sumAcc = {}; this.sumLive = 0; this.sumCov = 0;
+    this.db.exec(`DELETE FROM logs; ${SUM.TABLES.map(([t]) => `DELETE FROM ${t};`).join(' ')}`); this.setMeta('cov', 0); this.setMeta('upto', Date.now());
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM;'); this._rows = 0;
   }
 
   close() {
-    clearInterval(this.timer);
-    this.flush();
+    clearInterval(this.timer); clearTimeout(this.sumTimer); this.closed = true;
+    this.flush(); this.sumFlush();
     this.search.close(); this.statsReader.close();
     try { this.db.close(); } catch { /* ignore */ }
   }

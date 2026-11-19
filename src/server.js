@@ -92,6 +92,7 @@ async function main() {
   // a probe is a lean program of its own: only the listeners, the queue and a small local status page (see probe-main.js)
   if (config.get().mode === 'probe') { await require('./probe-main').run(config, { version: VERSION, updater }); return; }
   const store = new Store(config.dir);
+  let devJson = { list: null };      // the device list as JSON (and compressed), shared by everyone asking within 2 s
   const users = new UserStore(config.dir, restrictToAdmins);
   const loginFlush = setInterval(() => users.flushLogins(), 60000); loginFlush.unref?.();
   const engine = new Engine(config, store);
@@ -724,7 +725,14 @@ async function main() {
     });
 
     if (p === '/api/stats') return json(res, { ...(await engine.statsSnapshot()), alarms: alarms.counts() });
-    if (p === '/api/devices') return json(res, engine.deviceList());
+    if (p === '/api/devices') {      // 1.97.6: the list (5 MB for 12 000 devices) is turned into JSON and compressed once per copy, and compressed off the main thread
+      const l = engine.deviceList(); if (devJson.list !== l) devJson = { list: l, body: Buffer.from(JSON.stringify(l)), gz: null };
+      const d = devJson, zip = /\bgzip\b/.test(req.headers['accept-encoding'] || '') && d.body.length > 2048;
+      if (zip && !d.gz) d.gz = new Promise((ok) => require('node:zlib').gzip(d.body, { level: 1 }, (e, z) => ok(e ? null : z)));
+      const z = zip ? await d.gz : null;
+      res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(z ? { 'content-encoding': 'gzip', vary: 'accept-encoding' } : {}) });
+      return res.end(z || d.body);
+    }
     if (p === '/api/health') return json(res, await health.snapshot());
     if (p === '/api/health/history') return json(res, { ...health.history(['15m', '1h', '24h'].includes(q.range) ? q.range : '1h'), machine: health.machine(), disk: health.diskInfo() });
     if (p === '/api/dash' && req.method === 'POST') return json(res, await dashData(await readJson(req)));

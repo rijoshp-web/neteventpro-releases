@@ -41,11 +41,16 @@ const ops = {
     const { sql, args } = buildWhere({ ...q, beforeId: lastId ?? q.beforeId });
     return db.prepare(`SELECT ${COLS}, raw FROM logs ${sql} ORDER BY id DESC LIMIT ?`).all(...args, Math.min(Math.max(+n || 2000, 1), 5000)).map(rowOut);
   },
+  // 1.97.6: from the summary tables where they cover the period (24 h on 10 million messages went from 25 s to well under a second)
   stats({ since }) {
+    const now = Date.now(), m = require('./summary').meta(db), nb = Math.floor(now / 60000) - Math.floor(since / 60000) + 1, b0 = Math.floor(since / 60000);
+    const series = dashq.seriesRange(db, {}, since, now + 1, 60000, b0, nb, m), minuteSeries = [];
+    series.forEach((sv, i) => sv.forEach((n, sev) => { if (n) minuteSeries.push({ minute: b0 + i, severity: sev, n }); }));
+    const top = (col, ne) => dashq.topOf(dashq.groupRange(db, {}, col, since, now + 1, m, ne), 10);
     return {
-      minuteSeries: db.prepare('SELECT (ts/60000) AS minute, severity, COUNT(*) AS n FROM logs WHERE ts >= ? GROUP BY minute, severity ORDER BY minute').all(since),
-      topHosts: db.prepare('SELECT host, COUNT(*) AS n, MIN(' + SEVX.RANK_SQL + ') AS worst FROM logs WHERE ts >= ? GROUP BY host ORDER BY n DESC LIMIT 10').all(since).map((r) => ({ ...r, worst: SEVX.ORDER[r.worst] })),
-      topApps: db.prepare("SELECT app, COUNT(*) AS n FROM logs WHERE ts >= ? AND app <> '' GROUP BY app ORDER BY n DESC LIMIT 10").all(since)
+      minuteSeries,
+      topHosts: top('host').map((r) => ({ host: r.key, n: r.n, worst: SEVX.ORDER[r.worst] })),
+      topApps: top('app', true).map((r) => ({ app: r.key, n: r.n }))
     };
   },
   dash(args) { return dashq.run(db, args); },
