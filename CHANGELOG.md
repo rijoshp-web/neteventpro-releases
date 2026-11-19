@@ -2,6 +2,10 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.4
+- Audit records of your own changes (for example "admin removed the polled device ...") no longer go through the alarm rules. Before, a broad rule could raise a Critical alarm for every device you removed.
+- The error box "Cannot set properties of null (setting 'textContent')" no longer appears. A Logs search, Alarms refresh or Devices refresh that finishes after you have left the page now stops quietly.
+
 ## 1.99.3
 No vendor profiles, a faster SNMP polling page, sharper probe answer times, glass everywhere, every screen size, and a device simulator.
 - **No built-in vendor profiles**: the Cisco and APC sets are removed. Every device starts from the standard set (uptime, interfaces, standard CPU and memory where it has them); equipment-specific values are added as readings from its MIB. Devices that used the removed sets move to the standard set by themselves.

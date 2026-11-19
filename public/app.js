@@ -766,7 +766,7 @@ function drawClock() {
     : c.enabled ? `The NTP server did not answer${c.error ? ': ' + c.error : ''}. Showing the NetEventPro computer's own clock.` : "Showing the NetEventPro computer's own clock. Set up an NTP server in Settings → Time (NTP).";
   const sig = `${date}|${state}|${tip}`;
   if (el.dataset.sig !== sig) { el.dataset.sig = sig; el.title = tip; el.innerHTML = `<span class="cdate">${esc(date)}</span><span class="ctime"></span><span class="dot ${state === 'ok' ? 'ok' : state === 'warn' ? 'warn' : 'off'}"></span>`; }
-  el.querySelector('.ctime').textContent = time;
+  const ct = el.querySelector('.ctime'); if (ct) ct.textContent = time;
 }
 
 function renderStatus() {
@@ -888,6 +888,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
     return list.map((m) => [key(m), m]).sort((a, b) => (a[0] < b[0] ? -dir : a[0] > b[0] ? dir : b[1].id - a[1].id)).map((x) => x[1]);
   };
   const info = () => {
+    if (!$('#resInfo')) return;   // 1.99.4 a search that finishes after the page was left: nothing to update (it showed "Cannot set properties of null" on the next page)
     const g = groupMode() !== 'off' ? `${fmtN(shown)} groups from ${fmtN(srcCount)} messages` : '';
     $('#resInfo').textContent = loaded ? `${fmtN(rows.length)}${lastQ.total > rows.length ? ' of ' + fmtN(lastQ.total) + (lastQ.capped ? '+' : '') : ''} matching messages` + (g ? ` · ${g}` : '') + (S.paused ? ` · paused (${fmtN(S.pauseBuf.length)} waiting)` : fixedEnd() ? '' : ' · live') : 'Loading…';
     $('#emptyMsg').innerHTML = shown || !loaded ? '' : `<div class="empty"><b>No matching messages</b>${fixedEnd() ? 'Widen the time range or loosen the filters.' : 'Nothing in this time range yet. New matching messages will appear here as they arrive.'}</div>`;
@@ -925,10 +926,11 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
       const { total: _t, ...qq } = q;
       const r = await api('/api/logs?' + new URLSearchParams({ ...qq, limit: 500, ...(more ? {} : { countTotal: 1 }) }));
       if (my !== runId) return;      // a newer search was started meanwhile
+      if (!$('#qGo')) return;        // 1.99.4 the page was left while the search ran
       if (more) rows = rows.concat(r.rows.filter((x) => !seen.has(x.id))); else { rows = r.rows; lastQ.total = r.total; lastQ.capped = !!r.totalCapped; }
       seen = new Set(rows.map((x) => x.id)); loaded = true;
       render(); setMode();
-    } catch (e) { toast(e.message, true); } finally { if (my === runId) $('#qGo').disabled = false; }
+    } catch (e) { if ($('#qGo')) toast(e.message, true); } finally { const g = $('#qGo'); if (my === runId && g) g.disabled = false; }
   };
   const add = (msgs, skippedN) => {                // new messages stream into the window that is on screen
     if (!msgs) { clearTimeout(sortTimer); sortTimer = setTimeout(() => run(false), 300); return; }   // the live feed reconnected: reload so nothing is missed
@@ -1102,6 +1104,7 @@ views.devices = (el) => {
     if (!force && (colDrag || (ae && $('#devWrap').contains(ae) && ['INPUT', 'SELECT'].includes(ae.tagName) && ae.type !== 'checkbox'))) return;   // do not disturb typing in a cell or a column drag
     const sh = vis(), n = (f) => { let c = 0; for (const d of list) if (f(d)) c++; return c; };
     const pages = Math.max(1, Math.ceil(sh.length / per())); if (page >= pages) page = pages - 1; if (page < 0) page = 0;
+    if (!$('#devInfo')) return;   // 1.99.4 the page was left while it refreshed
     $('#devInfo').textContent = sh.length === list.length ? `${fmtN(list.length)} devices` : `${fmtN(sh.length)} of ${fmtN(list.length)} devices`;
     const nOver = n((d) => state(d) === 'overdue'), nAl = n((d) => d.openAlarms);
     const chips = `<span class="chip on"><b>${fmtN(list.length)}</b> devices</span><span class="chip"><b>${fmtN(n((d) => state(d) === 'ok'))}</b> reporting now</span><span class="chip ${nOver ? 'bad' : ''}"><b>${fmtN(nOver)}</b> overdue</span><span class="chip ${nAl ? 'warn' : ''}"><b>${fmtN(nAl)}</b> with open alarms</span><span class="chip"><b>${fmtN(n((d) => d.traps > 0))}</b> send traps</span>`;

@@ -103,7 +103,9 @@ class Engine extends EventEmitter {
 
     const maint = (!internal || msg.poll) && this.maint ? this.maint.forMessage(msg) : null;
     if (maint && !msg.tags.includes('maintenance')) msg.tags.push('maintenance');
-    const res = this.rules.apply(msg, !!maint);
+    // 1.99.3 the audit record of what someone did in NetEventPro (removed a device, changed a setting ...) is kept, but never
+    // checked against the alarm rules: a broad rule raised a Critical alarm for every device an administrator removed
+    const res = internal && msg.msgid === 'audit' ? { drop: false, sound: null, notify: null, alarms: [], clears: [], emails: [], notifs: [], webhooks: [] } : this.rules.apply(msg, !!maint);
     if (res.drop) { this.totals.dropped++; return; }
 
     msg.id = this.nextId++; msg.seq = ++this.nextSeq[msg.source === 'snmp' ? 'snmp' : 'syslog'];

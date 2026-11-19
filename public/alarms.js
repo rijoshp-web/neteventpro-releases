@@ -67,7 +67,7 @@ views.alarms = (el) => {
     <div class="panel alwrap" style="padding:0"><table class="data alarms" id="alTable"></table></div>`;
     $('#alState').value = state === 'cleared' ? 'active' : state; $('#alSrc').value = src; $('#alRange').value = range; setSev();
   };
-  const setSev = () => { const n = sevSetOf(sevs).length; $('#alSev').textContent = sevLabel(sevs) + ' ▾'; $('#alSev').classList.toggle('on', n > 0 && n < 10); };
+  const setSev = () => { const n = sevSetOf(sevs).length, b = $('#alSev'); if (!b) return; b.textContent = sevLabel(sevs) + ' ▾'; b.classList.toggle('on', n > 0 && n < 10); };
   const hist = () => state === 'cleared';
   const chips = () => {      // the two tabs (no counts on them); the history tab also needs the period controls
     $('#alChips').innerHTML = `<button role="tab" class="${hist() ? '' : 'on'}" data-t="active" aria-selected="${!hist()}">Active alarms</button><button role="tab" class="${hist() ? 'on' : ''}" data-t="hist" aria-selected="${hist()}">Alarm history</button>${data.counts?.refused ? `<span class="pill bad" style="margin-left:12px" title="Too many active alarms: new ones were not recorded. Clear old ones or tighten the rules.">${fmtN(data.counts.refused)} not recorded (limit reached)</span>` : ''}`;
@@ -76,7 +76,8 @@ views.alarms = (el) => {
   const sortOf = () => { const m = /^([a-z]+):(asc|desc)$/.exec(sort); return m ? { col: m[1], dir: m[2] } : null; };
   const table = () => {
     const act = data.canAct, sel = act || can('delete'), rows = data.alarms, cols = alarmColList().filter((c) => c.visible && (!ACOLS[c.id].hist || hist())).map((c) => c.id), shown = new Set(cols), sd = sortOf();
-    { const b = $('#alDelAll'); if (b) { b.hidden = !(data.total > rows.length); b.querySelector('.bt').textContent = `Delete all ${fmtN(data.total)}`; } }
+    if (!el.isConnected || !$('#alInfo', el)) return;   // 1.99.4 a refresh that finishes after the page was left or redrawn: nothing to update (it showed "Cannot set properties of null")
+    { const b = $('#alDelAll'); if (b) { b.hidden = !(data.total > rows.length); const bt = b.querySelector('.bt'); if (bt) bt.textContent = `Delete all ${fmtN(data.total)}`; } }
     $('#alInfo').textContent = `${fmtN(data.total)} alarm${data.total === 1 ? '' : 's'}${data.total > rows.length ? ` · showing ${rows.length}` : ''}`;
     let arrowDone = false;      // the date and time columns sort the same way: only the first one shows the arrow
     const th = (id) => { const d = ACOLS[id], on = sd && sd.col === d.sort && !arrowDone; if (on) arrowDone = true; return `<th data-sort="${d.sort}" tabindex="0" class="sortable" aria-sort="${on ? (sd.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="Click to sort by ${esc(d.label.toLowerCase())}">${esc(d.short || d.label)}<span class="arr">${on ? (sd.dir === 'asc' ? '▲' : '▼') : ''}</span></th>`; };
