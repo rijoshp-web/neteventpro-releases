@@ -2095,3 +2095,60 @@ h4.ogsub:first-child { margin-top: 2px; }
   .brand:not(#_) { font-size: 14px; }
 }
 @media (max-height: 300px) { .status-items { display: none !important; } }
+.data tr.sel > td { background: color-mix(in srgb, var(--accent) 10%, transparent); }   /* 1.99.10 ticked rows on the SNMP polling page */
+
+/* ---------- 1.99.10 Device view ---------- */
+.dvlayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.dvlayout.withside { grid-template-columns: minmax(0, 1fr) 300px; }
+@media (max-width: 1100px) { .dvlayout.withside { grid-template-columns: minmax(0, 1fr); } }
+.dvwrap { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius, 12px); border: 1px solid var(--line); background: var(--panel); user-select: none; touch-action: none; }
+.dvwrap.grid { background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 3.125% 5.5556%; }
+.dvcanvas { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
+.dvbg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.dvdim { position: absolute; inset: 0; background: #000; pointer-events: none; }
+.dvlinks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dvlinks line { stroke: var(--muted); stroke-width: 3; stroke-linecap: round; opacity: .7; }
+.dvlinks line.down { stroke: var(--bad); stroke-dasharray: 10 8; opacity: 1; }
+.dvlinks line.hit { stroke: transparent; stroke-width: 18; cursor: pointer; opacity: 1; }
+.dvlinks line.hit:hover { stroke: color-mix(in srgb, var(--bad) 35%, transparent); }
+.dvwrap:not(.editing) .dvlinks { pointer-events: none; }
+.dvi { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; width: calc(var(--s, 96px) * 1.7); cursor: pointer; --st: var(--muted); }
+.dvwrap.editing .dvi { cursor: grab; }
+.dvi.st-ok { --st: var(--ok); } .dvi.st-warn { --st: var(--s4, #e0a526); } .dvi.st-err { --st: var(--s3, #e8743b); } .dvi.st-crit { --st: var(--bad); } .dvi.st-unk { --st: var(--faint, var(--muted)); }
+.dvpic { position: relative; width: var(--s, 96px); height: var(--s, 96px); display: grid; place-items: center; border-radius: 22%; color: var(--st); background: var(--panel2, var(--panel)); border: 3px solid var(--st); box-shadow: 0 6px 18px rgba(0, 0, 0, .25); transition: border-color .3s, color .3s; }
+.dvpic.isimg { padding: 6px; } .dvpic img { width: 100%; height: 100%; object-fit: contain; border-radius: 14%; pointer-events: none; }
+.dvpic svg { stroke-width: 1.6; }
+.dvsub { position: absolute; bottom: 4px; font-size: 11px; color: var(--muted); }
+.dvbadge { position: absolute; top: -8px; left: calc(50% + var(--s, 96px) / 2 - 16px); min-width: 26px; padding: 4px 7px; border-radius: 999px; background: var(--st); color: #fff; font: 700 13px/1 var(--ui, system-ui); text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.dvname { font-weight: 650; font-size: 15px; line-height: 1.2; text-align: center; color: var(--text); text-shadow: 0 1px 2px color-mix(in srgb, var(--bg) 80%, transparent); overflow-wrap: anywhere; }
+.dvread { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.25; }
+.dvread .r-ok { color: var(--ok); } .dvread .r-warn, td.r-warn { color: var(--s4, #e0a526); } .dvread .r-crit, td.r-crit { color: var(--bad); }
+.dvi.pulse .dvpic { animation: dvpulse 1.6s ease-out infinite; }
+@keyframes dvpulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bad) 60%, transparent); } 100% { box-shadow: 0 0 0 22px transparent; } }
+@media (prefers-reduced-motion: reduce) { .dvi.pulse .dvpic { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 40%, transparent); } }
+.dvi.sel .dvpic, .dvlabel.sel { outline: 3px dashed var(--accent); outline-offset: 6px; }
+.dvi.linkfrom .dvpic { outline: 3px solid var(--accent); outline-offset: 6px; }
+.dvlabel { width: auto; white-space: nowrap; font-weight: 650; color: var(--text); padding: 2px 6px; text-shadow: 0 1px 2px color-mix(in srgb, var(--bg) 80%, transparent); }
+.dvi:focus-visible .dvpic { outline: 3px solid var(--accent); outline-offset: 4px; }
+.dvside { position: sticky; top: 8px; max-height: calc(100vh - 120px); overflow: auto; }
+.dvside h3 { margin: 0 0 8px; }
+.dvpicks { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 6px; margin-top: 8px; }
+.dvpick { display: grid; place-items: center; height: 38px; padding: 0; border-radius: 8px; cursor: pointer; }
+.dvpick.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.dvpick.upl { border: 1px dashed var(--line2); font-size: 18px; }
+.dvrd { display: grid; gap: 4px; margin-top: 6px; max-height: 220px; overflow: auto; }
+.dvtools button.on { border-color: var(--accent); color: var(--accent); }
+.dvlegend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 8px; font-size: 13px; }
+.dvlegend .lg { display: inline-block; width: 12px; height: 12px; border-radius: 4px; border: 3px solid var(--st); margin-right: -8px; --st: var(--muted); }
+.dvlegend .lg.st-ok { --st: var(--ok); } .dvlegend .lg.st-warn { --st: var(--s4, #e0a526); } .dvlegend .lg.st-err { --st: var(--s3, #e8743b); } .dvlegend .lg.st-crit { --st: var(--bad); } .dvlegend .lg.st-unk { --st: var(--faint, var(--muted)); }
+.dvstate { font-weight: 650; padding: 3px 10px; border-radius: 999px; border: 2px solid var(--st); color: var(--st); --st: var(--muted); }
+.dvstate.st-ok { --st: var(--ok); } .dvstate.st-warn { --st: var(--s4, #e0a526); } .dvstate.st-err { --st: var(--s3, #e8743b); } .dvstate.st-crit { --st: var(--bad); }
+.dvwallx { display: none; position: absolute; top: 10px; right: 10px; z-index: 5; opacity: .5; }
+.dvwallx:hover { opacity: 1; }
+.dvwrap:fullscreen, .dvwrap.wall { border: 0; border-radius: 0; background-color: var(--bg); }
+.dvwrap:fullscreen .dvwallx, .dvwrap.wall .dvwallx { display: block; }
+.dvwrap.wall { position: fixed; inset: 0; z-index: 900; width: 100vw; height: 100vh; aspect-ratio: auto; }
+body.dv-wall .rail, body.dv-wall .topbar { display: none; }
+.dvside .form .field { display: block; margin-bottom: 8px; } .dvside .form .field > label { display: block; margin-bottom: 4px; }
+.dvside input[type="text"], .dvside select, .dvside input[type="range"] { width: 100%; box-sizing: border-box; }
+:root[data-theme="crimson"] .gchip.on:not(#_):not(#__) { background: var(--accent); color: var(--accent-ink, #fff); border-color: var(--accent); }   /* 1.99.10 the chosen view / group chip stands out in Crimson too */

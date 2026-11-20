@@ -2,6 +2,17 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.10
+- Dashboard polling tiles: the Reading list only offers readings that a device actually polls. A name kept only in an unused reading set (for example "CM Room Temperature") was offered but could never show a value.
+- An empty polling tile now names each ticked device that has no reading with the chosen name, instead of wrongly saying the device "has no value for this reading yet".
+- SNMP polling page: tick devices (or all) and change them together: polling on/off, poll from a probe or this server, group, poll interval, apply a template, remove. The list shows 200 devices per page.
+- Alarms: the port / item is shown as the message wrote it ("Battery voltage", "Gi1/0/24") instead of lower case; a polling alarm's device name opens the device in SNMP polling.
+- Build: the installer must contain Node.js 22.23.5 or newer (the November 2026 security release).
+- SNMP polling → Settings → Device profiles: each profile shows how many devices use it; unused ones are marked "not used by any device" and can be removed in one go.
+- New Device view page: your devices as pictures on a grid, a plain background or your own floor plan / rack photo, each with its live state colour, open alarm count and up to 3 readings; lines between devices turn red when a device does not answer; boxes that open another view take the worst state inside; click a device for its alarms (acknowledge / clear) and readings; Wall screen shows a view on the whole screen. Admins and users with the polling permission edit views.
+- Generic for worldwide use: examples no longer use a particular country's phone numbers, device names or addresses; the Alarms and Devices CSV exports follow the columns you chose on those pages, in your order (the Logs and Traps exports already did).
+- Large installations: tested with 5 000 polled devices and 25 000 readings. The list of reading sets is now built once per settings change instead of on every poll (the server used 160 % CPU and 2.7 GB of memory with 5 000 devices; now about 9 % and 280 MB); each poll and each probe gets only the reading sets it needs; the Device view device list (65 s → 0.05 s) and the dashboard reading list (4.5 s → 0.03 s) answer at once; a very large settings file is written compactly. Up to 10 000 polled devices (was 2 000), within your licence.
+
 ## 1.99.9
 - Dashboard polling tiles: a device polled with a reading set chosen in its device settings (not its own readings) now shows its values. The dashboard only looked at readings made on the device itself, while the device page shows the set actually polled, so a tile said "no value" although the device page showed one.
 - Readings join across devices by name and unit without regard to upper/lower case or extra spaces.

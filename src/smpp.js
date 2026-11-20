@@ -20,7 +20,7 @@ function pdu(id, seq, body = Buffer.alloc(0), status = 0) {
   const b = Buffer.alloc(16 + body.length); b.writeUInt32BE(b.length, 0); b.writeUInt32BE(id >>> 0, 4); b.writeUInt32BE(status >>> 0, 8); b.writeUInt32BE(seq >>> 0, 12); body.copy(b, 16); return b;
 }
 
-/** "+971 50-123 4567" -> "971501234567"; null when it does not look like a phone number */
+/** "+44 1632 960 123" -> "441632960123"; null when it does not look like a phone number */
 function cleanNumber(s) { const d = String(s || '').replace(/[\s\-().]/g, '').replace(/^\+/, '').replace(/^00(?=[1-9])/, ''); return /^\d{6,16}$/.test(d) ? d : null; }
 
 /** the text as it goes on the wire */
@@ -82,7 +82,7 @@ function openSocket(c) {
 
 /**
  * c: { host, port, tls, allowSelfSigned, systemId, password, systemType, bind:'transceiver'|'transmitter', sourceAddr, sourceTon, sourceNpi, destTon, destNpi }
- * numbers: ['9715...']; text: string. With no numbers it only connects and binds (a connection test).
+ * numbers: ['44...']; text: string. With no numbers it only connects and binds (a connection test).
  * Returns { sent: n, failed: [{ to, error }], ids: [...] }; throws when the gateway cannot be reached or refuses the login.
  */
 async function sendSms(c, numbers, text) {

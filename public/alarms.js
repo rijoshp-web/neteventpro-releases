@@ -9,7 +9,7 @@ const dur = (ms) => { const m = Math.round(ms / 60000); return m < 90 ? `${m} mi
 const SRCN = (x) => (x === 'snmp' ? 'SNMP trap' : x === 'poll' ? 'SNMP polling' : 'Syslog');   // 1.99.6
 const ACOLS = {
   sev:     { label: 'Severity', sort: 'severity', cell: (a) => `<td><span class="sevtag"><i></i>${esc(SEV[a.severity] || a.severity)}</span></td>` },
-  device:  { label: 'Device', sort: 'device', cell: (a, o) => `<td class="nowrap"><span class="srcdot ${a.source === 'snmp' ? 'snmp' : a.source === 'poll' ? 'poll' : ''}" title="${SRCN(a.source)}"></span><a href="${a.source === 'snmp' ? '#traps' : '#logs'}" data-host="${esc(a.device)}" title="Show this device's messages">${esc(a.host)}</a>${a.port && !o.has('port') ? ` <span class="portchip" title="Port / item this alarm is about">${esc(a.port)}</span>` : ''}</td>` },
+  device:  { label: 'Device', sort: 'device', cell: (a, o) => `<td class="nowrap"><span class="srcdot ${a.source === 'snmp' ? 'snmp' : a.source === 'poll' ? 'poll' : ''}" title="${SRCN(a.source)}"></span>${a.pollId ? `<a href="#polling?d=${encodeURIComponent(a.pollId)}" title="Open this device in SNMP polling">${esc(a.host)}</a>` : `<a href="${a.source === 'snmp' ? '#traps' : '#logs'}" data-host="${esc(a.device)}" title="Show this device's messages">${esc(a.host)}</a>`}${a.port && !o.has('port') ? ` <span class="portchip" title="Port / item this alarm is about">${esc(a.port)}</span>` : ''}</td>` },
   port:    { label: 'Port / item', sort: 'port', cell: (a) => `<td class="nowrap">${a.port ? `<span class="portchip">${esc(a.port)}</span>` : '<span class="muted">—</span>'}</td>` },
   alarm:   { label: 'Alarm', sort: 'alarm', cell: (a) => `<td class="nowrap">${esc(a.rule)}${a.count > 1 ? ` <span class="muted" title="Repeated ${fmtN(a.count)} times">×${fmtN(a.count)}</span>` : ''}${a.escalated ? ' <span class="escmark" title="Nobody acknowledged it in time: an escalation e-mail was sent">⚠</span>' : ''}${a.notes.length ? ` <span class="muted" title="${a.notes.length} note(s)">✎${a.notes.length}</span>` : ''}</td>` },
   message: { label: 'Last message', sort: 'message', cell: (a) => `<td class="msgcell" title="${esc(a.message)}">${esc(a.message)}</td>` },
@@ -91,9 +91,13 @@ views.alarms = (el) => {
     const m = data.summary; if (!m) return; const o = m.oldestOpen;
     $('#alSum').innerHTML = hist() ? (m.cleared ? `Average time to clear <b>${esc(dur(m.avgClearMs))}</b> · longest <b>${esc(dur(m.maxClearMs))}</b>` : '') : (o ? `Oldest active alarm: <b>${esc(o.rule)}</b> on ${esc(o.host)} for ${esc(dur(Date.now() - o.first))}` : '');
   };
-  const csv = () => {
-    const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"', h = ['Severity', 'Source', 'Device', 'IP', 'Alarm', 'Port', 'Message', 'Raised', 'Acknowledged by', 'Acknowledged at', 'Escalated at', 'Cleared', 'Cleared by', 'Duration (min)'];
-    const rows = data.alarms.map((a) => [SEV[a.severity], SRCN(a.source), a.host, a.srcIp, a.rule, a.port, a.message, dateTime(a.first), a.ackBy, a.ackTs ? dateTime(a.ackTs) : '', a.escTs ? dateTime(a.escTs) : '', a.clearedTs ? dateTime(a.clearedTs) : '', a.clearedBy, Math.round(((a.clearedTs || Date.now()) - a.first) / 60000)]);
+  const csv = () => {   // 1.99.10 the CSV has the columns you chose on this page, in your order (Columns button)
+    const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const VAL = { sev: ['Severity', (a) => SEV[a.severity]], device: ['Device', (a) => a.host], ip: ['IP address', (a) => a.srcIp], port: ['Port / item', (a) => a.port], alarm: ['Alarm', (a) => a.rule], message: ['Last message', (a) => a.message],
+      raised: ['Raised', (a) => dateTime(a.first)], cleared: ['Cleared', (a) => (a.clearedTs ? dateTime(a.clearedTs) : '')], dur: ['Duration (min)', (a) => Math.round(((a.clearedTs || Date.now()) - a.first) / 60000)], source: ['Source', (a) => SRCN(a.source)],
+      ack: ['Acknowledged', (a) => (a.ackTs ? `${dateTime(a.ackTs)}${a.ackBy ? ' by ' + a.ackBy : ''}` : '')], esc: ['Escalated', (a) => (a.escTs ? dateTime(a.escTs) : '')], by: ['Cleared by', (a) => a.clearedBy] };
+    const cols = alarmColList().filter((c) => c.visible && VAL[c.id] && (!ACOLS[c.id].hist || hist())).map((c) => VAL[c.id]);
+    const h = cols.map((c) => c[0]), rows = data.alarms.map((a) => cols.map((c) => c[1](a)));
     const blob = new Blob(['\ufeff' + [h, ...rows].map((r) => r.map(q2).join(',')).join('\r\n')], { type: 'text/csv' }), u = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = u; a.download = `alarms-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000);
   };
@@ -184,7 +188,7 @@ views.maintenance = (el) => {
     ${wins.map((w, i) => { const s = w.schedule, once = s.type === 'once';
       return `<div class="rule ${w.enabled === false ? 'off' : ''}" data-i="${i}">
       <div class="toolbar" style="margin:0"><label class="chk"><input type="checkbox" data-k="enabled" ${w.enabled !== false ? 'checked' : ''}> On</label><input type="text" class="name" data-k="name" value="${esc(w.name)}" maxlength="100" aria-label="Window name"><span class="spacer"></span>${status[w.id] ? '<span class="pill warn">Active now</span>' : '<span class="muted">not active</span>'}<button class="danger" data-act="del">Delete</button></div>
-      <div class="row"><span class="k">Devices</span><input type="text" data-k="devices" style="width:100%;max-width:520px" placeholder="empty = all devices · names or addresses separated by commas · * allowed, e.g. SW-DXB-*, 10.30.3.10" value="${esc(w.devices || '')}"></div>
+      <div class="row"><span class="k">Devices</span><input type="text" data-k="devices" style="width:100%;max-width:520px" placeholder="empty = all devices · names or addresses separated by commas · * allowed, e.g. SW-CORE-*, 192.0.2.10" value="${esc(w.devices || '')}"></div>
       <div class="row"><span class="k">When</span><select data-k="schedule.type"><option value="once" ${once ? 'selected' : ''}>One time</option><option value="weekly" ${!once ? 'selected' : ''}>Repeats weekly</option></select>
         ${once ? `<input type="datetime-local" data-k="from" value="${esc(toLocal(s.from))}" aria-label="From"> to <input type="datetime-local" data-k="to" value="${esc(toLocal(s.to))}" aria-label="To">`
           : `${DOWS.map((n, d) => `<label class="chk"><input type="checkbox" data-day="${d}" ${(s.days || []).includes(d) ? 'checked' : ''}> ${n}</label>`).join('')} <input type="time" data-k="start" value="${esc(s.start || '22:00')}" aria-label="Start"> to <input type="time" data-k="end" value="${esc(s.end || '02:00')}" aria-label="End"> <span class="muted">may pass midnight</span>`}</div>

@@ -644,12 +644,12 @@ END`;
     for (const m of ['5/8 E1: Set: Major=LOS. Status: Major=LOS', '5/1 E1: Set: Major=LOS. Status: Major=LOS', '13/1 E+M: Set: Minor=AIS. Status: Minor=AIS']) await sendUdp(`<133>Oct 31 13:09:03 cmdev : Alarm: ${m}`);
     await sleep(1200); r = await api('/api/alarms?state=active&limit=200'); let ca = r.json.alarms.filter((a) => a.device === 'cmdev');
     check('three different cards/ports on one Connection Master are three alarms', ca.length === 3 && new Set(ca.map((a) => a.port)).size === 3, JSON.stringify(ca.map((a) => a.port)));
-    check('"severity from message" set Major to Critical and Minor to Warning', ca.find((a) => a.port === '5/8e1')?.severity === 2 && ca.find((a) => a.port === '13/1e+m')?.severity === 4, JSON.stringify(ca.map((a) => [a.port, a.severity])));
+    check('"severity from message" set Major to Critical and Minor to Warning', ca.find((a) => a.port === '5/8 E1')?.severity === 2 && ca.find((a) => a.port === '13/1 E+M')?.severity === 4, JSON.stringify(ca.map((a) => [a.port, a.severity])));
     await sendUdp('<133>Oct 31 13:10:03 cmdev : Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms'); await sleep(1000);
     r = await api('/api/alarms?state=active&limit=200'); ca = r.json.alarms.filter((a) => a.device === 'cmdev');
-    check('the same rule clears only its own port when the "all clear" message arrives', ca.length === 2 && !ca.some((a) => a.port === '5/8e1'), JSON.stringify(ca.map((a) => a.port)));
+    check('the same rule clears only its own port when the "all clear" message arrives', ca.length === 2 && !ca.some((a) => a.port === '5/8 E1'), JSON.stringify(ca.map((a) => a.port)));
     await sendUdp('<133>Oct 31 13:10:05 cmdev : Alarm: 5/1 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF'); await sleep(900);
-    r = await api('/api/alarms?state=active&limit=200'); ca = r.json.alarms.filter((a) => a.device === 'cmdev'); check('a changed fault on a port is a separate alarm line', ca.length === 3 && ca.filter((a) => a.port === '5/1e1').length === 2);
+    r = await api('/api/alarms?state=active&limit=200'); ca = r.json.alarms.filter((a) => a.device === 'cmdev'); check('a changed fault on a port is a separate alarm line', ca.length === 3 && ca.filter((a) => a.port === '5/1 E1').length === 2);
     await put({ rules: [] }); }
 
   // ---------- HTTPS certificate made by the app --------------------------------------------------------------------------------------

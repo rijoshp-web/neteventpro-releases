@@ -1170,8 +1170,12 @@ views.devices = (el) => {
     const sortTh = e.target.closest('th[data-sort]'); if (sortTh && !e.target.closest('.colrz') && !colDrag) { const k = sortTh.dataset.sort; if (sort.k === k) sort.dir = -sort.dir; else { sort.k = k; sort.dir = ['sys', 'traps', 'last', 'alarms', 'expect'].includes(k) ? -1 : 1; } visCache = null; page = 0; return draw(true); }
     const pg = e.target.closest('button[data-pg]'); if (pg) { const pages = Math.ceil(vis().length / per()); page = { first: 0, prev: page - 1, next: page + 1, last: pages - 1 }[pg.dataset.pg]; $('#devWrap').scrollTop = 0; return draw(true); }
     if (e.target.closest('#devCsv')) {
-      const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"', h = ['Device', 'Display name', 'Address', 'Vendor', 'Group', 'State', 'Syslog since start', 'Traps since start', 'Last heard', 'Open alarms', 'Expect every (min)', 'Note'];
-      const rows = vis().map((d) => [d.host, d.alias, d.srcIp, d.vendor, d.group, state(d), d.sys, d.traps, new Date(d.lastSeen).toLocaleString(), d.openAlarms, d.expectMin || '', d.note]);
+      // 1.99.10 the CSV follows the columns you chose (Columns button), in your order; the device's address and note always come with its name
+      const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const VAL = { state: [['State', (d) => state(d)]], device: [['Device', (d) => d.host], ['Display name', (d) => d.alias], ['Address', (d) => d.srcIp]], vendor: [['Vendor', (d) => d.vendor]], group: [['Group', (d) => d.group]], sys: [['Syslog since start', (d) => d.sys]], traps: [['Traps since start', (d) => d.traps]],
+        last: [['Last heard', (d) => new Date(d.lastSeen).toLocaleString()]], alarms: [['Open alarms', (d) => d.openAlarms]], mix: [], expect: [['Expect every (min)', (d) => d.expectMin || '']], actions: [] };
+      const cols = [...devColList().filter((c) => c.visible).flatMap((c) => VAL[c.id] || []), ['Note', (d) => d.note]];
+      const h = cols.map((c) => c[0]), rows = vis().map((d) => cols.map((c) => c[1](d)));
       const blob = new Blob(['﻿' + [h, ...rows].map((r) => r.map(q2).join(',')).join('\r\n')], { type: 'text/csv' }), u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = 'devices.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000); return;
     }
     if (e.target.closest('#devForgetAll')) {

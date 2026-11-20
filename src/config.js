@@ -178,7 +178,8 @@ class Config {
     const tmp = this.file + '.tmp';
     // config.json holds secrets (SMTP password, webhook URLs): owner-only where the OS supports it
     const out = structuredClone(this.data); eachSecret(out, (o, k) => { o[k] = this.box.seal(o[k]); });
-    fs.writeFileSync(tmp, JSON.stringify(out, null, 2), { mode: 0o600 });
+    let txt = JSON.stringify(out); if (txt.length < 2e6) txt = JSON.stringify(out, null, 2);   // 1.99.10 a very large settings file (thousands of polled devices) is written compact: faster, half the size
+    fs.writeFileSync(tmp, txt, { mode: 0o600 });
     restrictToAdmins(tmp);   // before the rename: the renamed file keeps the permissions of the temporary one
     fs.renameSync(tmp, this.file);
   }

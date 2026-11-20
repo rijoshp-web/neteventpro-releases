@@ -38,7 +38,7 @@ test('every card/port is its own alarm and the open ones match the last message 
 test('two ports of one card: clearing one leaves the other open', () => {
   const l = [{ host: '10.203.242.22', srcIp: '10.30.2.1', severity: 5, message: ': Alarm: 5/8 E1: Set: Major=LOS. Status: Major=LOS' }, { host: '10.203.242.22', srcIp: '10.30.2.1', severity: 5, message: ': Alarm: 5/1 E1: Set: Major=LOS. Status: Major=LOS' },
     { host: '10.203.242.22', srcIp: '10.30.2.1', severity: 5, message: ': Alarm: 5/8 E1:  Cleared: Major=LOS. Status: No alarms' }];
-  const a = replay(l); const act = a.list({ state: 'active' }).alarms; assert.strictEqual(act.length, 1); assert.strictEqual(act[0].port, '5/1e1'); assert.strictEqual(act[0].severity, 3, 'Major = Error');
+  const a = replay(l); const act = a.list({ state: 'active' }).alarms; assert.strictEqual(act.length, 1); assert.strictEqual(act[0].port, '5/1 E1');   // 1.99.10 shown as written (matching still uses 5/1e1) assert.strictEqual(act[0].severity, 3, 'Major = Error');
 });
 test('a changed fault on the same port is its own alarm line', () => {
   const l = [{ host: 'h', srcIp: '1.1.1.1', severity: 5, message: ': Alarm: 7/2 E1: Set: Major=LOS. Status: Major=LOS' }, { host: 'h', srcIp: '1.1.1.1', severity: 5, message: ': Alarm: 7/2 E1: Set: Major=LOF. Cleared: Major=LOS. Status: Major=LOF' }];

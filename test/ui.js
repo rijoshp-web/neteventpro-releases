@@ -91,6 +91,24 @@ fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     check('the severity picker in a dialog is drawn above the dialog', pv?.top, JSON.stringify(pv));
     check('the severity picker stays inside the window', pv?.inside, JSON.stringify(pv));
     await closeAll();
+    // 1.99.10 Device view: a view with devices that send syslog draws, shows names and states, opens a device panel, and can be edited
+    {
+      const H = { 'content-type': 'application/json', 'X-Requested-With': 'NetEventPro' };
+      const ch = (await (await fetch(B + '/api/views/choices', { headers: H })).json()).devices.filter((d) => d.src === 'dev').slice(0, 4);
+      const v = await (await fetch(B + '/api/views', { method: 'POST', headers: H, body: JSON.stringify({ name: 'UI test', bg: { mode: 'grid' }, items: ch.map((c, i) => ({ kind: 'device', src: 'dev', ref: c.ref, x: 300 + i * 300, y: 400, pic: 'icon:switch' })), links: [] }) })).json();
+      const e2 = errs.length; await p.goto(B + '/#devview?v=' + v.id); await sleep(3000);
+      const names = await p.$$eval('.dvi .dvname', (n) => n.map((x) => x.textContent));
+      check('Device view shows the placed devices with their names', names.length === ch.length && names.every((x) => x && x !== 'Device'), names.join(', '));
+      const cls = await p.$$eval('.dvi', (n) => n.map((x) => [...x.classList].find((c) => c.startsWith('st-'))));
+      check('Device view colours every device by its state', cls.length && cls.every(Boolean), cls.join(','));
+      await p.click('.dvi'); await sleep(1200); const pan = await p.evaluate(() => !!document.querySelector('.modal .dvpanel') && !/Loading/.test(document.querySelector('#pnA')?.textContent || 'Loading'));
+      check('clicking a device opens its panel with its open alarms', pan); await closeAll();
+      await p.click('#dvEdit'); await sleep(800); const box = await (await p.$('.dvi')).boundingBox();
+      await p.mouse.move(box.x + box.width / 2, box.y + 20); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 + 100, box.y + 80, { steps: 6 }); await p.mouse.up(); await p.click('#dvSave'); await sleep(1200);
+      const moved = (await (await fetch(B + '/api/views', { headers: H })).json()).views.find((x) => x.id === v.id).items[0];
+      check('a device dragged in edit mode keeps its new place after Save', Math.abs(moved.x - 300) > 40 && Math.abs(moved.y - 400) > 20, `${moved.x},${moved.y}`);
+      check('no script errors on the Device view', errs.length === e2, errs.slice(e2, e2 + 3).join(' | '));
+    }
     check('no script errors in the dashboard', !errs.length, errs.slice(0, 3).join(' | '));
   } catch (e) { check('the browser checks ran to the end', false, e.message.split('\n')[0]); }
   await b.close();

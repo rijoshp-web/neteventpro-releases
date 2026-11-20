@@ -245,6 +245,14 @@ module.exports = (Polling) => {
   };
 
   /** forget everything that belongs to a device that is removed */
+  /** 1.99.10 the readings, layouts, limits and value meanings of many devices removed in one config write */
+  P.dropReadingsMany = function (ids) {
+    const c = this.cfg, gone = new Set(ids);
+    for (const t of (c.thresholds || []).filter((x) => gone.has(x.owner))) this.clearAlarms('poll-' + t.id);
+    for (const l of (c.lookups || []).filter((x) => gone.has(x.owner))) for (const st of ['warn', 'crit']) this.clearAlarms(`poll-lk-${l.rk}-${st}`);
+    const readings = { ...(c.readings || {}) }, layouts = { ...(c.layouts || {}) }; for (const id of gone) { delete readings[id]; delete layouts[id]; }
+    this.config.update({ polling: { ...c, readings, layouts, thresholds: (c.thresholds || []).filter((t) => !gone.has(t.owner)), lookups: (c.lookups || []).filter((l) => !gone.has(l.owner)) } });
+  };
   P.dropReadings = function (id) {
     const c = this.cfg; if (!(c.readings || {})[id] && !(c.layouts || {})[id] && !(c.thresholds || []).some((t) => t.owner === id) && !(c.lookups || []).some((l) => l.owner === id)) return;
     for (const t of (c.thresholds || []).filter((x) => x.owner === id)) this.clearAlarms('poll-' + t.id);

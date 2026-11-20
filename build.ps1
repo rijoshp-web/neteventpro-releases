@@ -15,6 +15,7 @@
 #>
 param(
   [string]$NodeMajor = '22',
+  [string]$NodeMin = '22.23.5',   # 1.99.10 the oldest Node.js the installer may contain (the November 2026 security release); the build stops if nodejs.org offers an older one
   [string]$WinSWVersion = 'v2.12.0',
   [string]$WinSWSha256 = '',   # optional: pin the service wrapper download to this SHA-256 (see the value printed by a first build)
   [string]$IsccPath = '',
@@ -71,6 +72,8 @@ $rel = $index | Where-Object { $_.version -like "v$NodeMajor.*" -and $_.lts } | 
 if (-not $rel) { $rel = $index | Where-Object { $_.version -like "v$NodeMajor.*" } | Select-Object -First 1 }
 if (-not $rel) { throw "No Node.js $NodeMajor release found on nodejs.org" }
 $nodeVer = $rel.version
+if ([version]($nodeVer.TrimStart('v')) -lt [version]$NodeMin) { throw "Node.js $nodeVer is older than the required $NodeMin (security fixes). Try again later or set -NodeMin." }
+Write-Host "  Node.js $nodeVer (at least $NodeMin)"
 $zipName = "node-$nodeVer-win-x64.zip"
 $zipPath = Join-Path $Cache $zipName
 Get-File "https://nodejs.org/dist/$nodeVer/$zipName" $zipPath

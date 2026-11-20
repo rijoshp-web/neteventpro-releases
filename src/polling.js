@@ -47,16 +47,21 @@ class Polling {
 
   // ---------- profiles ----------
   profiles() {
-    const c = this.cfg, off = c.profileOff || {}, out = [];
+    // 1.99.10 built once per settings change (with 5 000 devices and their own readings it was rebuilt thousands of times a minute)
+    const c = this.cfg; if (this._prof && this._prof.cfg === c) return this._prof.list;
+    const off = c.profileOff || {}, out = [];
     for (const p of BUILTIN) out.push({ ...p, metrics: p.metrics.map((m) => ({ ...m, on: !(off[p.id] || []).includes(m.k) })) });
     for (const p of c.profiles || []) out.push({ ...p, builtin: false, metrics: (p.metrics || []).map((m) => ({ ...m, srcs: m.srcs || [{ t: m.t === 'walk' ? 'walk' : 'oid', oid: m.oid, agg: m.dtype === 'text' && m.t === 'walk' ? 'each' : m.agg || 'avg', nameOid: m.nameOid || '', scale: (m.scale ?? 1) * (m.dtype === 'ticks' ? 0.01 : 1), rate: !!m.rate || m.dtype === 'counter', text: m.dtype === 'text' }], on: m.on !== false })) });
     for (const p of this.ownProfiles()) out.push(p);
-    return out;
+    this._prof = { cfg: c, list: out, byId: new Map(out.map((p) => [p.id, p])) }; return out;
   }
-  profile(id) { return this.profiles().find((p) => p.id === id) || (id === 'cisco' || id === 'apc' ? this.profiles().find((p) => p.id === 'generic') : null) || this.profiles()[0]; }
+  profile(id) { const l = this.profiles(), m = this._prof.byId; return m.get(id) || (id === 'cisco' || id === 'apc' ? m.get('generic') : null) || l[0]; }
+  /** the profiles one poll needs: the device's own (or chosen) set and the standard one it falls back to */
+  profilesFor(d) { const want = d.profile && d.profile !== 'auto' ? d.profile : 'generic', p = this.profile(want); return p.id === 'generic' ? [p] : [p, this.profile('generic')]; }
   metricInfo(k) {
     if (String(k).startsWith('L:')) { const s2 = String(k).slice(2), i = s2.lastIndexOf('|'); return { label: s2.slice(0, i), unit: s2.slice(i + 1) }; }
-    for (const p of this.profiles()) for (const m of p.metrics) if (m.k === k) return { label: m.label || k, unit: m.unit || '', lookup: m.lookup || '', text: m.dtype === 'text' };
+    const P = (this.profiles(), this._prof) || { list: this.profiles() }; if (!P.mk) { P.mk = new Map(); for (const p of P.list) for (const m of p.metrics) if (!P.mk.has(m.k)) P.mk.set(m.k, m); }   // 1.99.10 one look-up table per settings change
+    { const m = P.mk.get(k); if (m) return { label: m.label || k, unit: m.unit || '', lookup: m.lookup || '', text: m.dtype === 'text' }; }
     const x = [...IF_KEYS, ...BASE_KEYS].find((y) => y.k === k); return x ? { label: x.label, unit: x.unit } : { label: k, unit: '' };
   }
   keyList() {
@@ -67,6 +72,7 @@ class Polling {
   }
   /** 1.99.2 readings for dashboards: the same name and unit on any device (any vendor, any OID) is one choice, key "L:<name>|<unit>" */
   dashKeys() {
+    { this.profiles(); if (this._prof?.dk) return this._prof.dk; }   // 1.99.10 cached per settings change
     // 1.99.8 a reading made by you, on the device itself or in a template (custom set) used by many devices, joins by name and unit
     // (not case sensitive); before, only readings made on the device joined, so devices using a template had no values on dashboards
     const seen = new Map(), byLow = new Map(), devs = this.devices(), users = new Map();
@@ -78,15 +84,18 @@ class Polling {
       let e = byLow.get(low); if (!e) { e = { k: `L:${label}|${unit}`, label, unit, text: m.dtype === 'text' && !m.lookup, devices: 0 }; byLow.set(low, e); seen.set(e.k, e); }
       e.devices += p.own ? 1 : users.get(p.id) || 0; if (!(m.dtype === 'text' && !m.lookup)) e.text = false;
     }
+    for (const [lk, e] of byLow) if (!e.devices) { byLow.delete(lk); seen.delete(e.k); }   // 1.99.10 a reading no device polls (only in an unused reading set) can never show a value: not offered
     for (const x of [...IF_KEYS, ...BASE_KEYS]) if (!seen.has(x.k)) seen.set(x.k, { k: x.k, label: x.label, unit: x.unit || '', text: false, devices: 0 });
-    return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+    return ((this._prof || {}).dk = [...seen.values()].sort((a, b) => a.label.localeCompare(b.label)));
   }
   /** the reading keys behind a dashboard key (several when it is a name and unit) */
   keysOf(dk) {
     if (!String(dk).startsWith('L:')) return [dk];
     const s = String(dk).slice(2), i = s.lastIndexOf('|'), label = s.slice(0, i), unit = s.slice(i + 1), out = new Set();
     const L = label.trim().toLowerCase(), U = unit.trim().toLowerCase();
-    for (const p of this.profiles()) if (p.own || p.builtin === false) for (const m of p.metrics) if (String(m.label || m.k).trim().toLowerCase() === L && String(m.unit || '').trim().toLowerCase() === U) out.add(m.k);   // 1.99.8 templates too, not case sensitive
+    const P = (this.profiles(), this._prof) || { list: this.profiles() };
+    if (!P.ko) { P.ko = new Map(); for (const p of P.list) if (p.own || p.builtin === false) for (const m of p.metrics) { const key = `${String(m.label || m.k).trim().toLowerCase()}|${String(m.unit || '').trim().toLowerCase()}`; (P.ko.get(key) || P.ko.set(key, new Set()).get(key)).add(m.k); } }   // 1.99.10 one table per settings change; 1.99.8 templates too, not case sensitive
+    for (const k of P.ko.get(`${L}|${U}`) || []) out.add(k);
     return [...out];
   }
   vendorOf(o) { return vendorOf(o); }
@@ -100,7 +109,7 @@ class Polling {
   async pollDevice(d) {
     const rt = this.state(d); rt.busy = true;
     const t0 = Date.now();
-    try { const res = this.pw ? await this.pw.collect(d, this.profiles(), this.client.gapMs) : await this.collector.collect(d, this.profiles()); return require('./busy').run('SNMP polling: storing readings', () => this.apply(d, res)); } finally { rt.busy = false; const ms = Date.now() - t0; this.pollMs = this.pollMs ? this.pollMs * 0.95 + ms * 0.05 : ms; }
+    try { const res = this.pw ? await this.pw.collect(d, this.profilesFor(d), this.client.gapMs) : await this.collector.collect(d, this.profilesFor(d)); return require('./busy').run('SNMP polling: storing readings', () => this.apply(d, res)); } finally { rt.busy = false; const ms = Date.now() - t0; this.pollMs = this.pollMs ? this.pollMs * 0.95 + ms * 0.05 : ms; }
   }
   /** takes what a poll found (made here or by a probe) into the state, the stored readings, the thresholds and the no-answer alarm */
   apply(d, res) {
@@ -188,7 +197,7 @@ class Polling {
   }
   textsOf(rt) { const o = {}; for (const [key, v] of (rt.texts || new Map())) { const i = key.indexOf('|'), k = key.slice(0, i), inst = key.slice(i + 1); (o[k] ||= {})[inst] = { s: v.s, ts: v.ts, since: v.since }; } return o; }
   lookupsUsed() { const o = {}; for (const [k, mi] of this.lookupMetrics()) { const l = this.lookup(mi.lookup); if (l) o[k] = { id: l.id, name: l.name, items: l.items }; } return o; }
-  lookupMetrics() { const out = new Map(); for (const p of this.profiles()) for (const m of p.metrics) if (m.lookup && m.on !== false && !out.has(m.k)) out.set(m.k, { lookup: m.lookup, label: m.label || m.k, unit: m.unit || '' }); return out; }
+  lookupMetrics() { const P = (this.profiles(), this._prof) || { list: this.profiles() }; if (P.lm) return P.lm; const out = new Map(); for (const p of P.list) for (const m of p.metrics) if (m.lookup && m.on !== false && !out.has(m.k)) out.set(m.k, { lookup: m.lookup, label: m.label || m.k, unit: m.unit || '' }); P.lm = out; return out; }   // 1.99.10 cached per settings change
   /** a value that has a lookup: its state (warn or crit) raises an alarm for that row, and it clears when the state is ok again */
   lookupAlarms(d, rt, ts, readings) {
     const lm = this.lookupMetrics(); if (!lm.size) return;
@@ -332,11 +341,36 @@ class Polling {
     const c = this.cfg, old = b.id ? this.devices().find((x) => x.id === b.id) : null; if (b.id && !old) { const e = new Error('No such device.'); e.status = 404; throw e; }
     const d = this.cleanDevice(b, old), list = old ? this.devices().map((x) => (x.id === old.id ? d : x)) : [...this.devices(), d];
     const cap = this.maxDevices?.(); if (!old && cap && list.length > cap) { const e = new Error(`Your licence allows ${cap} polled device${cap === 1 ? '' : 's'}. Remove one or ask your supplier for a larger licence.`); e.status = 402; throw e; }
-    if (list.length > 2000) { const e = new Error('At most 2000 polled devices.'); e.status = 400; throw e; }
+    if (list.length > 10000) { const e = new Error('At most 10 000 polled devices.'); e.status = 400; throw e; }
     if (old && lower(old.name) !== lower(d.name)) this.clearAlarms(null, lower(old.name));
     this.config.update({ polling: { ...c, devices: list } });
     const rt = this.state(d); rt.nextAt = 0; if (old && (old.host !== d.host || old.port !== d.port || old.version !== d.version)) { rt.misses = 0; this.client.sessions.clear(); this.pw?.reset(); }
     return d;
+  }
+  /** 1.99.10 one change for many devices at once: remove, on, off, via (probe id or '' = this server), group, interval, template (copies its readings) */
+  bulk(ids, act, val) {
+    const want = new Set((Array.isArray(ids) ? ids : []).map(String)), hit = this.devices().filter((d) => want.has(d.id)); if (!hit.length) return { count: 0 };
+    const bad = (m) => { const e = new Error(m); e.status = 400; throw e; };
+    if (act === 'remove') {   // one config write and one database transaction, however many devices
+      const gone = new Set(hit.map((d) => d.id));
+      this.config.update({ polling: { ...this.cfg, devices: this.devices().filter((x) => !gone.has(x.id)) } });
+      try { this.db.exec('BEGIN'); const a = this.db.prepare('DELETE FROM poll_readings WHERE dev = ?'), b = this.db.prepare('DELETE FROM poll_avg WHERE dev = ?'); for (const id of gone) { a.run(id); b.run(id); } this.db.exec('COMMIT'); } catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* none open */ } console.error('[polling] bulk delete', e.message); }
+      this.dropReadingsMany([...gone]);
+      for (const d of hit) { this.clearAlarms(null, lower(d.name)); this.rt.delete(d.id); this.collector.forget(d.id); this.pw?.forget(d.id); }
+      for (const k of [...this.fire.keys()]) if (gone.has(k.split('|')[1])) this.fire.delete(k);
+      return { count: hit.length, names: hit.map((d) => d.name) };
+    }
+    if (act === 'template') { const tid = String(val || ''); if (!tid) bad('Choose a template.'); let n = 0; for (const d of hit) { this.copyReadings(d.id, 'tpl:' + tid, false); n++; } return { count: n, names: hit.map((d) => d.name) }; }
+    let patch;
+    if (act === 'on' || act === 'off') patch = { enabled: act === 'on' };
+    else if (act === 'via') { const v = String(val || ''); if (v && !this.probeOk(v)) bad('No such probe.'); patch = { via: v }; }
+    else if (act === 'group') patch = { group: String(val || '').replace(/\s+/g, ' ').trim().slice(0, 40) };
+    else if (act === 'interval') patch = { intervalSec: num(val, this.cfg.defaultIntervalSec || 60, 10, 3600) };
+    else bad('Unknown action.');
+    const ids2 = new Set(hit.map((d) => d.id));
+    this.config.update({ polling: { ...this.cfg, devices: this.devices().map((d) => (ids2.has(d.id) ? { ...d, ...patch } : d)) } });
+    for (const d of hit) { const rt = this.state(d); rt.nextAt = 0; if ('via' in patch) rt.misses = 0; }
+    return { count: hit.length, names: hit.map((d) => d.name) };
   }
   deleteDevice(id) {
     const d = this.devices().find((x) => x.id === id); if (!d) return null;
@@ -420,7 +454,7 @@ class Polling {
     const devs = this.devices().filter((d) => d.via === probeId && d.enabled !== false).map((d) => ({ id: d.id, name: d.name, host: d.host, port: d.port, version: d.version, community: d.community, user: d.user, level: d.level, authProto: d.authProto, authPass: d.authPass, privProto: d.privProto, privPass: d.privPass,
       profile: d.profile, intervalSec: d.intervalSec, timeoutMs: d.timeoutMs, retries: d.retries, ping: !!d.ping, ifMode: d.ifMode, ifSelected: d.ifSelected }));
     const tasks = [...(this.tasks || new Map()).values()].filter((t) => t.probe === probeId && !t.done && !t.sent).map((t) => { t.sent = Date.now(); return { id: t.id, type: t.type, spec: t.spec }; });
-    return { enabled: this.cfg.enabled !== false, workers: num(this.cfg.workers, 5, 1, 50), gapMs: num(this.cfg.gapMs, 30, 0, 2000), devices: devs, profiles: this.profiles(), tasks, now: Date.now() };
+    return { enabled: this.cfg.enabled !== false, workers: num(this.cfg.workers, 5, 1, 50), gapMs: num(this.cfg.gapMs, 30, 0, 2000), devices: devs, profiles: (() => { const want = new Set(devs.map((d) => d.profile || 'generic')); want.add('generic'); want.add('basic'); return this.profiles().filter((p) => p.builtin !== false || want.has(p.id)); })(), tasks, now: Date.now() };   /* 1.99.10 only the profiles this probe's devices use */
   }
   /** results a probe sends: poll results of its devices (oldest first) and answers to jobs */
   ingestFromProbe(probeId, results, taskResults) {

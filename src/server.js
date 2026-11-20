@@ -122,7 +122,8 @@ async function main() {
   const maint = new Maintenance(config); engine.maint = maint;
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
-  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); { let pvc = { at: 0, m: null }; engine.polledVendors = () => { if (pvc.m && Date.now() - pvc.at < 30000) return pvc.m; const m = new Map(); for (const d of polling.devices()) { const v = polling.vendorOf(polling.rt.get(d.id)?.objectId || ''); if (!v) continue; for (const k of [d.host, d.name, polling.rt.get(d.id)?.sysName]) if (k) m.set(String(k).toLowerCase(), v); } pvc = { at: Date.now(), m }; return m; }; } engine.applyConfig(config.get()); polling.start();
+  const polling = new Polling(config, store, engine); const viewStore = new (require('./views').ViewStore)(config, store.db, { polling, engine, alarms });   // 1.99.10 Device view
+  health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); { let pm = { at: 0, m: null }; alarms.pollIdOf = (k) => { if (!pm.m || Date.now() - pm.at > 10000) { const m = new Map(); for (const d of polling.devices()) m.set(String(d.name || '').toLowerCase(), d.id); pm = { at: Date.now(), m }; } return pm.m.get(String(k)); }; } { let pvc = { at: 0, m: null }; engine.polledVendors = () => { if (pvc.m && Date.now() - pvc.at < 30000) return pvc.m; const m = new Map(); for (const d of polling.devices()) { const v = polling.vendorOf(polling.rt.get(d.id)?.objectId || ''); if (!v) continue; for (const k of [d.host, d.name, polling.rt.get(d.id)?.sysName]) if (k) m.set(String(k).toLowerCase(), v); } pvc = { at: Date.now(), m }; return m; }; } engine.applyConfig(config.get()); polling.start();
   reports.polling = polling; reports.dashFn = (body) => dashData(body);
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
@@ -457,6 +458,11 @@ async function main() {
         need('polling'); const b = await readJson(req); const d = wrap(() => polling.saveDevice(b));
         audit(who, `${b.id ? 'changed' : 'added'} the polled device "${d.name}" (${d.host}, SNMP ${d.version})`); return json(res, { ok: true, id: d.id });
       }
+      if (p === '/api/poll/bulk' && POST) {   // 1.99.10 one change for many polled devices
+        need('polling'); const b = await readJson(req), act = String(b.act || ''); const r = wrap(() => polling.bulk(b.ids, act, b.value));
+        const what = { remove: 'removed', on: 'switched polling on for', off: 'switched polling off for', via: b.value ? `moved to probe "${polling.probeName(String(b.value))}"` : 'moved to this server', group: `set the group "${str(b.value, 40)}" for`, interval: `set the poll interval ${clampInt(b.value, 10, 3600, 60)} s for`, template: 'applied a template to' }[act] || act;
+        audit(who, `${what} ${r.count} polled device${r.count === 1 ? '' : 's'}${r.names?.length ? ': ' + r.names.slice(0, 10).join(', ') + (r.names.length > 10 ? ' …' : '') : ''}`); return json(res, { ok: true, count: r.count });
+      }
       if (p === '/api/poll/delete' && POST) { need('polling'); const b = await readJson(req), d = polling.deleteDevice(String(b.id || '')); if (!d) throw new HttpError(404, 'No such device.'); audit(who, `removed the polled device "${d.name}"`); return json(res, { ok: true }); }
       if (p === '/api/poll/discover' && POST) { need('polling'); const b = await readJson(req); const id = wrap(() => polling.startDiscovery(b)); audit(who, `started an SNMP discovery of ${str(b.ranges, 120)}`); return json(res, { id }); }
       if (p === '/api/poll/discover' && req.method === 'GET') { need('polling'); const st = polling.discoveryStatus(url.searchParams.get('id') || ''); if (!st) throw new HttpError(404, 'No such discovery.'); return json(res, st); }
@@ -467,7 +473,7 @@ async function main() {
       if (p === '/api/poll/interfaces' && POST) { need('polling'); const b = await readJson(req); if (!polling.setInterfaces(String(b.id || ''), b.selected, b.mode)) throw new HttpError(404, 'No such device.'); audit(who, `changed the monitored interfaces of a polled device`); return json(res, { ok: true }); }
       if (p === '/api/poll/settings' && req.method === 'GET') { need('polling'); return json(res, polling.publicSettings()); }
       if (p === '/api/poll/settings' && POST) { need('polling'); const b = await readJson(req); polling.saveSettings(b); audit(who, 'changed the SNMP polling settings'); return json(res, { ok: true }); }
-      if (p === '/api/poll/profiles' && req.method === 'GET') { need('polling'); return json(res, { profiles: polling.profiles().filter((x) => !x.own), off: polling.cfg.profileOff || {} }); }
+      if (p === '/api/poll/profiles' && req.method === 'GET') { need('polling'); const used = {}; for (const d of polling.devices()) used[d.profile || 'basic'] = (used[d.profile || 'basic'] || 0) + 1; return json(res, { profiles: polling.profiles().filter((x) => !x.own).map((x) => ({ ...x, used: used[x.id] || 0 })), off: polling.cfg.profileOff || {} }); }   // 1.99.10 how many devices use each profile
       if (p === '/api/poll/profiles' && POST) { need('polling'); const b = await readJson(req); const out = polling.saveProfiles(b.profiles, b.off); audit(who, `saved the SNMP polling profiles (${out.length} custom)`); return json(res, { ok: true }); }
       if (p === '/api/poll/readings' && req.method === 'GET') { need('polling'); const r = polling.readingsInfo(url.searchParams.get('id') || ''); if (!r) throw new HttpError(404, 'No such device.'); return json(res, { ...r, notifProfiles: (cfg.notifProfiles || []).map((x) => ({ id: x.id, name: x.name })) }); }
       if (p === '/api/poll/readings' && POST) { need('polling'); const b = await readJson(req); const out = wrap(() => polling.saveReadings(String(b.id || ''), b.readings)); audit(who, `saved the SNMP readings of a polled device (${out.length})`); return json(res, { ok: true, readings: out }); }
@@ -739,6 +745,19 @@ async function main() {
     if (p === '/api/snmp/reset-missing' && req.method === 'POST') { need('settings'); traps.unres.clear(); traps.unk.clear(); return json(res, { ok: true }); }
 
     // ---- alarm console and maintenance windows ----
+    // ---- 1.99.10 Device view: pictures of devices with their live state ----
+    const vwrap = (fn) => { try { return fn(); } catch (e) { if (e.status) throw new HttpError(e.status, e.message); throw e; } };
+    if (p === '/api/views' && req.method === 'GET') { need('view'); return json(res, { views: viewStore.list(), canEdit: who.perms.has('polling') }); }
+    if (p === '/api/views/choices' && req.method === 'GET') { need('polling'); return json(res, { devices: viewStore.choices(), pictures: [] }); }
+    if (p === '/api/views/status' && req.method === 'GET') { need('view'); const st = viewStore.status(url.searchParams.get('id') || ''); if (!st) throw new HttpError(404, 'No such view.'); return json(res, st); }
+    if (p === '/api/views/alarms' && req.method === 'GET') { need('view'); const l = viewStore.itemAlarms(url.searchParams.get('id') || '', url.searchParams.get('item') || ''); if (!l) throw new HttpError(404, 'No such device in this view.'); return json(res, { alarms: l, canAct: who.perms.has('alarms') }); }
+    if (p === '/api/views' && req.method === 'POST') { need('polling'); const b = await readJson(req, 2e6); const v = vwrap(() => viewStore.save(b)); audit(who, `${b.id ? 'changed' : 'created'} the device view "${v.name}"`); return json(res, { ok: true, id: v.id, view: v }); }
+    if (p === '/api/views/delete' && req.method === 'POST') { need('polling'); const b = await readJson(req); const v = viewStore.remove(String(b.id || '')); if (!v) throw new HttpError(404, 'No such view.'); audit(who, `removed the device view "${v.name}"`); return json(res, { ok: true }); }
+    if (p === '/api/views/image' && req.method === 'POST') { need('polling'); const b = await readJson(req, 5e6); const id = vwrap(() => viewStore.saveImage(b.data)); return json(res, { ok: true, id }); }
+    if (p === '/api/views/image' && req.method === 'GET') {
+      need('view'); const im = viewStore.image(url.searchParams.get('id') || ''); if (!im) throw new HttpError(404, 'No such picture.');
+      res.writeHead(200, { 'content-type': im.type, 'content-length': im.buf.length, 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'" }); return res.end(im.buf);
+    }
     if (p === '/api/alarms' && req.method === 'GET') {
       need('view');
       return json(res, { ...alarms.list({ state: String(q.state || 'active'), q: String(q.q || '').slice(0, 100), sevs: parseSevs(q.sevs), limit: clampInt(q.limit, 1, 500, 200), offset: clampInt(q.offset, 0, 1e6, 0), source: String(q.source || ''), since: clampInt(q.since || q.from, 0, 9e15, 0), to: clampInt(q.to, 0, 9e15, 0), sort: String(q.sort || '') }), counts: alarms.counts(), summary: alarms.summary(clampInt(q.since || q.from, 0, 9e15, 0) || (q.since === '0' || q.from === '0' ? 1 : Date.now() - 86400000)), canAct: who.perms.has('alarms') });
@@ -1671,7 +1690,7 @@ async function sanitize(body, current) {
       if (webhook.on && !webhook.url) bad(`Profile "${name}": webhook is switched on but there is no address.`);
       const nums = String(sm.to || '').split(/[,;\n]+/).map((v) => v.trim()).filter(Boolean);
       if (nums.length > 20) bad(`Profile "${name}": at most 20 phone numbers.`);
-      for (const nn of nums) if (!cleanNumber(nn)) bad(`Profile "${name}": "${nn.slice(0, 30)}" is not a phone number (use the international form, for example +971501234567).`);
+      for (const nn of nums) if (!cleanNumber(nn)) bad(`Profile "${name}": "${nn.slice(0, 30)}" is not a phone number (use the international form, for example +441632960123).`);
       const sms = { on: !!sm.on, to: nums.join(', ') };
       if (sms.on && !nums.length) bad(`Profile "${name}": SMS is switched on but there is no phone number.`);
       return { id, name, enabled: x?.enabled !== false, email, webhook, sms };

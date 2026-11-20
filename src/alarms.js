@@ -13,25 +13,27 @@ const normPort = (v) => { let x = String(v).toLowerCase().replace(/\s+/g, ''); f
 const customRe = new Map();
 /** Which port / item of a device does this message talk about? '' = the device as a whole.
  *  spec 'port' = automatic (interface name such as Gi1/0/24, ifDescr / ifIndex of a trap, "port 24"); "/regex/" = first group (or the whole match) of your own pattern. */
-function instanceOf(msg, spec) {
-  if (!spec) return '';
+function instancePair(msg, spec) {
+  if (!spec) return ['', ''];
   const text = String(msg.message || '').slice(0, 2000);
   if (spec === 'port') {
-    let m = /ifDescr\.\d+\s*=\s*([^,\[\]]+?)\s*(?:,|\[|\]|$)/i.exec(text); if (m) return normPort(m[1]);
-    m = /\b((?:ten|twenty|forty|hundred)?(?:gigabit|gige|fast)?ethernet\s?\d+(?:\/\d+)*(?:\.\d+)?|(?:twe|hu|fo|te|gi|fa|eth|et|po|vl|vlan|tu|lo)\s?\d+(?:\/\d+)*(?:\.\d+)?|port-?channel\s?\d+|port\s+\d+(?:\/\d+)*)\b/i.exec(text); if (m) return normPort(m[1]);
-    m = /ifIndex\.(\d+)/i.exec(text); if (m) return 'ifindex' + m[1];
+    let m = /ifDescr\.\d+\s*=\s*([^,\[\]]+?)\s*(?:,|\[|\]|$)/i.exec(text); if (m) return [normPort(m[1]), m[1].trim()];
+    m = /\b((?:ten|twenty|forty|hundred)?(?:gigabit|gige|fast)?ethernet\s?\d+(?:\/\d+)*(?:\.\d+)?|(?:twe|hu|fo|te|gi|fa|eth|et|po|vl|vlan|tu|lo)\s?\d+(?:\/\d+)*(?:\.\d+)?|port-?channel\s?\d+|port\s+\d+(?:\/\d+)*)\b/i.exec(text); if (m) return [normPort(m[1]), m[1].trim()];
+    m = /ifIndex\.(\d+)/i.exec(text); if (m) return ['ifindex' + m[1], 'ifIndex ' + m[1]];
     // transmission and multiplexer gear name the port "card/port" followed by its type: "5/8 E1:", "13/1 SDH LP[1-1-1-1]:", "5/1 SDH LP[1-1-1-1] - Reason".
     // Card/port plus the type words are the key, so an LP, an SFP and an E1 of the same card number are different alarms and a clear message names the same one.
-    m = /(?:^|[\s:])(\d{1,3}\/\d{1,3}(?:\/\d{1,3})?(?:\s+[^\s:]+){0,3}?)(?=\s*(?::|\s-\s|$))/.exec(text); if (m) return normPort(m[1]);
-    m = /\bslot\s+(\d{1,3})\b/i.exec(text); if (m) return 'slot' + m[1];                   // "Unit Missing", "removed from unit slot 3"
-    m = /\bAlarm:\s*(\d{1,3}\s+[A-Za-z][^:]{0,30}?)\s*:/.exec(text); if (m) return normPort(m[1]);   // "Alarm: 1 POWER (BITS): ..."
-    return '';
+    m = /(?:^|[\s:])(\d{1,3}\/\d{1,3}(?:\/\d{1,3})?(?:\s+[^\s:]+){0,3}?)(?=\s*(?::|\s-\s|$))/.exec(text); if (m) return [normPort(m[1]), m[1].trim()];
+    m = /\bslot\s+(\d{1,3})\b/i.exec(text); if (m) return ['slot' + m[1], 'slot ' + m[1]];                   // "Unit Missing", "removed from unit slot 3"
+    m = /\bAlarm:\s*(\d{1,3}\s+[A-Za-z][^:]{0,30}?)\s*:/.exec(text); if (m) return [normPort(m[1]), m[1].trim()];   // "Alarm: 1 POWER (BITS): ..."
+    return ['', ''];
   }
-  const g = /^\/(.+)\/([gimsuy]*)$/.exec(String(spec)); if (!g) return '';
+  const g = /^\/(.+)\/([gimsuy]*)$/.exec(String(spec)); if (!g) return ['', ''];
   let re = customRe.get(spec);
   if (re === undefined) { try { re = checkRegexSource(g[1], g[2]) ? null : new RegExp(g[1], g[2].replace(/[gy]/g, '')); } catch { re = null; } if (customRe.size > 200) customRe.clear(); customRe.set(spec, re); }
-  const m = re && re.exec(text); return m ? String(m[1] ?? m[0]).toLowerCase().trim().slice(0, 80) : '';
+  const m = re && re.exec(text); if (!m) return ['', '']; const raw = String(m[1] ?? m[0]).trim().slice(0, 80); return [raw.toLowerCase(), raw];
 }
+/** the key that tells ports apart (lower case, abbreviations unified) */
+function instanceOf(msg, spec) { return instancePair(msg, spec)[0]; }
 
 class AlarmStore {
   constructor(store, mail) {
@@ -52,6 +54,7 @@ class AlarmStore {
     try { this.db.exec("ALTER TABLE alarms ADD COLUMN esc_prof TEXT NOT NULL DEFAULT ''"); } catch { /* already there */ }     // notification profiles to tell when it escalates / clears (1.37)
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN upd INTEGER NOT NULL DEFAULT 0'); this.db.exec('UPDATE alarms SET upd = MAX(last_ts, COALESCE(cleared_ts,0), COALESCE(ack_ts,0), COALESCE(esc_ts,0))'); } catch { /* already there */ }     // last change (1.38: what still has to be copied to SQL Server)
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN esc_clr INTEGER NOT NULL DEFAULT 1'); } catch { /* already there */ }     // e-mail again when an escalated alarm clears (1.36)
+    try { this.db.exec("ALTER TABLE alarms ADD COLUMN inst_txt TEXT NOT NULL DEFAULT ''"); } catch { /* already there */ }   // 1.99.10 the port / item as the message wrote it ("Battery voltage", "Gi1/0/24"); inst stays the matching key
     try { this.db.exec("ALTER TABLE alarms ADD COLUMN ntf_prof TEXT NOT NULL DEFAULT ''"); } catch { /* already there */ }   // 1.99.6 notification profiles told when it was raised: they are told again when it clears
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN esc_sent INTEGER NOT NULL DEFAULT 0'); this.db.exec("UPDATE alarms SET esc_sent = 1 WHERE esc_ts > 0 AND esc_min > 0 AND state != 'cleared'"); } catch { /* already there */ }   // the escalation e-mail was queued   // attach the 24-hour report to the escalation e-mail
     for (const r of this.db.prepare("SELECT * FROM alarms WHERE state != 'cleared'").all()) this.open.set(r.id, r);
@@ -71,16 +74,16 @@ class AlarmStore {
   prep(sql) { this._ps ||= new Map(); let st = this._ps.get(sql); if (!st) { st = this.db.prepare(sql); this._ps.set(sql, st); } return st; }   // statements are prepared once, not for every message
   raise(msg, rule) {
     // every matching message is its own alarm line (no merging, no repeat counter)
-    const a = rule.actions || {}, inst = instanceOf(msg, a.alarmBy), now = msg.ts || Date.now();
+    const a = rule.actions || {}, [inst, instTxt] = instancePair(msg, a.alarmBy), now = msg.ts || Date.now();
     if (this.open.size >= MAX_ACTIVE) { this.refused++; return null; }
     const row = {
-      rule_id: rule.id, rule_name: String(rule.name || '').slice(0, 100), dev: msg.devKey || msg.srcIp, host: String(msg.host || '').slice(0, 253), src_ip: String(msg.srcIp || ''), inst,
+      rule_id: rule.id, rule_name: String(rule.name || '').slice(0, 100), dev: msg.devKey || msg.srcIp, host: String(msg.host || '').slice(0, 253), src_ip: String(msg.srcIp || ''), inst, inst_txt: instTxt || '',
       severity: msg.severity, state: 'open', first_ts: now, last_ts: now, count: 1, message: String(msg.message).slice(0, 500), log_id: msg.id || 0,
       ack_by: '', ack_ts: 0, cleared_ts: 0, cleared_by: '', esc_ts: 0, esc_min: Math.max(0, +a.alarmEscMin || 0), esc_to: String(a.alarmEscTo || ''), esc_prof: (Array.isArray(a.alarmEscProfiles) ? a.alarmEscProfiles : []).map(String).join(','), auto_min: Math.max(0, +a.alarmAutoClearMin || 0), esc_rep: a.alarmEscReport === false ? 0 : 1, esc_clr: a.alarmEscClear === false ? 0 : 1, esc_sent: 0, ntf_prof: '', notes: '[]', source: msg.poll ? 'poll' : msg.source === 'snmp' ? 'snmp' : 'syslog'
     };
     row.upd = Date.now();
-    const r = this.prep(`INSERT INTO alarms (rule_id, rule_name, dev, host, src_ip, severity, state, first_ts, last_ts, count, message, log_id, ack_by, ack_ts, cleared_ts, cleared_by, esc_ts, esc_min, esc_to, esc_prof, notes, source, auto_min, inst, esc_rep, esc_clr, esc_sent, ntf_prof, upd)
-      VALUES (@rule_id,@rule_name,@dev,@host,@src_ip,@severity,@state,@first_ts,@last_ts,@count,@message,@log_id,@ack_by,@ack_ts,@cleared_ts,@cleared_by,@esc_ts,@esc_min,@esc_to,@esc_prof,@notes,@source,@auto_min,@inst,@esc_rep,@esc_clr,@esc_sent,@ntf_prof,@upd)`).run(row);
+    const r = this.prep(`INSERT INTO alarms (rule_id, rule_name, dev, host, src_ip, severity, state, first_ts, last_ts, count, message, log_id, ack_by, ack_ts, cleared_ts, cleared_by, esc_ts, esc_min, esc_to, esc_prof, notes, source, auto_min, inst, inst_txt, esc_rep, esc_clr, esc_sent, ntf_prof, upd)
+      VALUES (@rule_id,@rule_name,@dev,@host,@src_ip,@severity,@state,@first_ts,@last_ts,@count,@message,@log_id,@ack_by,@ack_ts,@cleared_ts,@cleared_by,@esc_ts,@esc_min,@esc_to,@esc_prof,@notes,@source,@auto_min,@inst,@inst_txt,@esc_rep,@esc_clr,@esc_sent,@ntf_prof,@upd)`).run(row);
     row.id = Number(r.lastInsertRowid); this.open.set(row.id, row); return row;
   }
 
@@ -118,11 +121,11 @@ class AlarmStore {
   /** what an alarm e-mail shows (raised / recovery) */
   facts(r, kind, now = Date.now()) {
     const rec = kind === 'recovery';
-    return { kind, title: rec ? `Cleared: ${r.rule_name}${r.inst ? ' ' + r.inst : ''}` : `${(SEV[r.severity] || 'Alarm').replace(/^./, (c) => c.toUpperCase())}: ${r.rule_name}${r.inst ? ' ' + r.inst : ''}`,
+    return { kind, title: rec ? `Cleared: ${r.rule_name}${r.inst ? ' ' + (r.inst_txt || r.inst) : ''}` : `${(SEV[r.severity] || 'Alarm').replace(/^./, (c) => c.toUpperCase())}: ${r.rule_name}${r.inst ? ' ' + (r.inst_txt || r.inst) : ''}`,
       subtitle: rec ? `The alarm on ${r.host} has cleared after ${spanText(now - r.first_ts)}${r.cleared_by ? ` (${String(r.cleared_by).replace(/^auto: /, 'automatically: ')})` : ''}.` : `A new alarm on ${r.host}.`,
-      severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst || '', state: rec ? 'Cleared' : 'Open', message: r.message, source: r.source,
+      severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst_txt || r.inst || '', state: rec ? 'Cleared' : 'Open', message: r.message, source: r.source,
       first: r.first_ts, last: r.last_ts, count: r.count, clearedTs: rec ? now : 0, notes: JSON.parse(r.notes || '[]'), escMin: r.esc_min,
-      others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst || '', since: x.first_ts })) };
+      others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst_txt || x.inst || '', since: x.first_ts })) };
   }
   save(r) {
     this.prep(`UPDATE alarms SET ntf_prof=?, esc_min=?, esc_to=?, esc_rep=?, esc_sent=?, upd=?, auto_min=?, severity=?, state=?, last_ts=?, count=?, message=?, log_id=?, ack_by=?, ack_ts=?, cleared_ts=?, cleared_by=?, esc_ts=?, notes=? WHERE id=?`)
@@ -184,7 +187,7 @@ class AlarmStore {
     this.flush(); const { limit = 200, offset = 0, sort = '' } = o, { w, args } = this._where(o);
     const rows = this.db.prepare(`SELECT * FROM alarms ${w} ORDER BY ${orderBy(sort)} LIMIT ? OFFSET ?`).all(...args, Math.min(500, limit), Math.max(0, offset));
     const total = this.db.prepare(`SELECT COUNT(*) AS n FROM alarms ${w}`).get(...args).n;
-    return { alarms: rows.map(view), total };
+    const pid = this.pollIdOf; return { alarms: rows.map((r) => { const v = view(r); if (r.source === 'poll' && pid) v.pollId = pid(r.dev) || ''; return v; }), total };   // 1.99.10 a polling alarm links to its device in SNMP polling
   }
   /** cleared alarms older than the retention period are removed so the alarm history cannot grow for ever (open alarms are never removed) */
   prune(days) {
@@ -193,7 +196,7 @@ class AlarmStore {
   }
   counts() {
     const c = { open: 0, ack: 0, worstOpen: 7, latest: null };
-    for (const r of this.open.values()) { if (r.state === 'open') { c.open++; if (SEVX.rank(r.severity) < SEVX.rank(c.worstOpen)) c.worstOpen = r.severity; if (!c.latest || r.first_ts > c.latest.ts) c.latest = { id: r.id, ts: r.first_ts, severity: r.severity, host: r.host, rule: r.rule_name, port: r.inst || '' }; } else c.ack++; }
+    for (const r of this.open.values()) { if (r.state === 'open') { c.open++; if (SEVX.rank(r.severity) < SEVX.rank(c.worstOpen)) c.worstOpen = r.severity; if (!c.latest || r.first_ts > c.latest.ts) c.latest = { id: r.id, ts: r.first_ts, severity: r.severity, host: r.host, rule: r.rule_name, port: r.inst_txt || r.inst || '' }; } else c.ack++; }
     c.clearedToday = this.db.prepare("SELECT COUNT(*) AS n FROM alarms WHERE state = 'cleared' AND cleared_ts > ?").get(Date.now() - 86400000).n;
     c.refused = this.refused;
     c.openSnmp = [...this.open.values()].filter((r) => r.state === 'open' && r.source === 'snmp').length;
@@ -229,9 +232,9 @@ class AlarmStore {
     if (!this.mail) return;
     try {
       const sum = this.summary(now - 86400000), c = this.counts();
-      const o = { title: 'Alarm not acknowledged', subtitle: `Nobody acknowledged this alarm within ${r.esc_min} minute${r.esc_min === 1 ? '' : 's'}.`, severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst || '',
+      const o = { title: 'Alarm not acknowledged', subtitle: `Nobody acknowledged this alarm within ${r.esc_min} minute${r.esc_min === 1 ? '' : 's'}.`, severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst_txt || r.inst || '',
         state: 'Open, not acknowledged', message: r.message, source: r.source, first: r.first_ts, last: r.last_ts, count: r.count, escMin: r.esc_min, notes: JSON.parse(r.notes || '[]'),
-        others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst || '', since: x.first_ts })),
+        others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst_txt || x.inst || '', since: x.first_ts })),
         sum: { raised: sum.raised, cleared: sum.cleared, open: c.open + c.ack, escalated: c.escalated, topDevices: sum.topDevices.map((x) => [x.host, x.n]), topRules: sum.topRules.map((x) => [x.rule, x.n]) } };
       if (r.esc_prof && this.notify) this.notify.dispatch(r.esc_prof.split(','), 'escalation', { o, report: r.esc_rep !== 0 });
       else this.mail.enqueueEscalation({ to: r.esc_to || '', report: r.esc_rep !== 0 }, o);
@@ -241,9 +244,9 @@ class AlarmStore {
   mailRecovery(r, now = Date.now()) {
     if (!this.mail) return;
     try {
-      const o = { title: 'Alarm cleared', subtitle: `This alarm was escalated and has now cleared after ${spanText(now - r.first_ts)} (${String(r.cleared_by || '').replace(/^auto: /, 'automatically: ') || 'cleared'}).`, severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst || '',
+      const o = { title: 'Alarm cleared', subtitle: `This alarm was escalated and has now cleared after ${spanText(now - r.first_ts)} (${String(r.cleared_by || '').replace(/^auto: /, 'automatically: ') || 'cleared'}).`, severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst_txt || r.inst || '',
         state: 'Cleared', message: r.message, source: r.source, first: r.first_ts, last: r.last_ts, count: r.count, clearedTs: now, notes: JSON.parse(r.notes || '[]'),
-        others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst || '', since: x.first_ts })) };
+        others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst_txt || x.inst || '', since: x.first_ts })) };
       if (r.esc_prof && this.notify) this.notify.dispatch(r.esc_prof.split(','), 'recovery', { o });
       else this.mail.enqueueRecovery({ to: r.esc_to || '' }, o);
     } catch (e) { console.error('[alarms] recovery e-mail:', e.message); }
@@ -321,6 +324,6 @@ function orderBy(sort) {
 const SEV = SEVX.NAMES;
 const spanText = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`; };
 const view = (r) => ({ id: r.id, ruleId: r.rule_id, rule: r.rule_name, device: r.dev, host: r.host, srcIp: r.src_ip, severity: r.severity, state: r.state, first: r.first_ts, last: r.last_ts, count: r.count,
-  message: r.message, logId: r.log_id, ackBy: r.ack_by, ackTs: r.ack_ts, clearedTs: r.cleared_ts, clearedBy: r.cleared_by, escalated: !!r.esc_ts, escTs: r.esc_ts || 0, escMin: r.esc_min, source: r.source || 'syslog', autoClearMin: r.auto_min || 0, port: r.inst || '', notes: JSON.parse(r.notes || '[]') });
+  message: r.message, logId: r.log_id, ackBy: r.ack_by, ackTs: r.ack_ts, clearedTs: r.cleared_ts, clearedBy: r.cleared_by, escalated: !!r.esc_ts, escTs: r.esc_ts || 0, escMin: r.esc_min, source: r.source || 'syslog', autoClearMin: r.auto_min || 0, port: r.inst_txt || r.inst || '', notes: JSON.parse(r.notes || '[]') });
 
 module.exports = { AlarmStore, instanceOf };

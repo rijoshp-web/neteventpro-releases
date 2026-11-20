@@ -48,9 +48,11 @@ function why(polling, t) {
   if (!ks.size) return `No polled device has a reading named "${name}" any more.`;
   const want = new Set(t.devs), has = new Set();
   { const pids = new Set((polling.profiles ? polling.profiles() : []).filter((p) => (p.own || p.builtin === false) && p.metrics.some((m) => ks.has(m.k))).map((p) => p.id)); for (const d of polling.devices()) if (pids.has(d.profile) || pids.has('dev-' + d.id)) has.add(d.id); }   // 1.99.8 own readings or a template
+  if (!String(t.k).startsWith('L:')) for (const d of polling.devices()) has.add(d.id);   // a standard value (answer time, uptime ...): every device can have it
+  if (!has.size) return `No polled device uses a reading named "${name}" (it is only in a reading set that no device uses). Choose the reading your devices have, for example the name shown on the device page in SNMP polling.`;   // 1.99.10
   const devs = polling.devices().filter((d) => !want.size || want.has(d.id)), parts = [];
-  const without = want.size ? devs.filter((d) => has.size && !has.has(d.id)) : [];   // only the ticked devices are worth naming
-  for (const d of devs.filter((x) => !has.size || has.has(x.id)).slice(0, 6)) {
+  const without = want.size ? devs.filter((d) => !has.has(d.id)) : [];   // only the ticked devices are worth naming
+  for (const d of devs.filter((x) => has.has(x.id)).slice(0, 6)) {
     const rt = polling.rt.get(d.id), nm = d.name || d.host;
     if (d.enabled === false) parts.push(`${nm}: polling is off`);
     else if (!rt || !rt.lastTry) parts.push(`${nm}: not polled yet`);

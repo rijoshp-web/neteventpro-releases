@@ -84,3 +84,16 @@ test('readings of a custom reading set join by name and unit, not case sensitive
   const r = Q.run(polling, req({ kind: 'top', k: k.k, devs: ['a', 'b'], per: 'device' }), ctx);
   assert.deepEqual(r.rows.map((x) => [x.name, x.n]).sort(), [['CUC-6 CM', 22], ['PTB CM', 25]]);
 });
+
+// 1.99.10 a reading that only an unused reading set has is not offered, and the tile says so plainly
+test('a reading no device polls is not offered; the empty tile says which devices lack it', () => {
+  const { Polling } = require('../src/polling');
+  const profiles = [{ id: 'generic', builtin: true, metrics: [] }, { id: 'pOld', builtin: false, metrics: [{ k: 'c9', label: 'CM Room Temperature', unit: '°C' }] }, { id: 'dev-a', own: true, metrics: [{ k: 'r1', label: 'Room Temperature', unit: '°C' }] }];
+  const polling = { profiles: () => profiles, devices: () => [{ id: 'a', name: 'CUC-6 CM', profile: 'dev-a' }], rt: new Map([['a', { lastTry: 1, lastOk: 1, last: new Map([['r1|', { v: 22, ts: 1 }]]) }]]), metricInfo: (k) => ({ label: k.slice(2).split('|')[0], unit: '°C' }) };
+  polling.keysOf = Polling.prototype.keysOf.bind(polling); polling.dashKeys = Polling.prototype.dashKeys.bind(polling);
+  const labels = polling.dashKeys().map((x) => x.label);
+  assert.ok(labels.includes('Room Temperature')); assert.ok(!labels.includes('CM Room Temperature'));
+  const e = Q.run(polling, req({ kind: 'top', k: 'L:CM Room Temperature|°C', devs: ['a'] }), ctx); assert.match(e.why, /No polled device uses a reading named/);
+  const ok = Q.run(polling, req({ kind: 'top', k: 'L:Room Temperature|°C', devs: ['a'] }), ctx); assert.equal(ok.rows[0].n, 22);
+  const rtt = Q.run(polling, req({ kind: 'count', k: 'rtt', devs: ['a'] }), ctx); assert.match(rtt.why, /CUC-6 CM: answers/);
+});
