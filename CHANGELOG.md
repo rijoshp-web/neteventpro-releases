@@ -2,6 +2,9 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.8
+- SNMP polling through a probe: readings with Type of value = Text (for example Power System Status) now get their value. The probe measured them, but the main server dropped every value that was not a number, so they stayed empty until the device was polled from the server.
+
 ## 1.99.7
 - Dashboard: "Number with trend line" and "Number" show the same alarm number for the same choice. The trend tile's Show has the same alarm numbers as the Number tile (active, open, acknowledged, escalated now; raised or cleared in the time range), its conflicting "Which alarms" choice is gone, a tile saved with "Which alarms" keeps that state, and switching visuals keeps the chosen numbers.
 - Dashboard: the severity picker and other pop-ups opened inside a dialog are drawn above the dialog (they were hidden behind it) and open upwards when there is no room below; messages are shown above dialogs too.
