@@ -216,7 +216,8 @@ class Polling {
 
   // ---------- thresholds and alarms ----------
   rules() {
-    const c = this.cfg, out = [], act = (profiles, extra = {}) => ({ alarm: true, notifyClear: true, profiles: Array.isArray(profiles) ? profiles : [], ...extra });
+    const c = this.cfg, out = [], esc = c.escMin > 0 && (c.escProfiles || []).length ? { alarmEscMin: c.escMin, alarmEscProfiles: c.escProfiles, alarmEscReport: c.escReport === true } : {},   /* 1.99.6 every polling alarm can escalate when nobody acknowledges it (Settings) */
+      act = (profiles, extra = {}) => ({ alarm: true, profiles: Array.isArray(profiles) ? profiles : [], ...esc, ...extra });
     out.push({ id: 'poll-noanswer', name: 'No SNMP answer', enabled: true, source: 'syslog', match: { tag: 'poll-noanswer' }, actions: act(c.noAnswerProfiles, { clearText: ['/^CLEARED:/'] }) });
     out.push({ id: 'poll-lookup', name: 'SNMP value state (lookup)', enabled: true, source: 'syslog', match: { tag: 'poll-lookup' }, actions: act(c.lookupProfiles ?? c.noAnswerProfiles, { alarmBy: '/^\\[([^\\]]*)\\]/', clearText: ['/CLEARED:/'] }) });
     for (const l of c.lookups || []) {   /* a reading with its own value meanings: warning and critical each have their own rule, so each can tell different people */
@@ -435,7 +436,7 @@ class Polling {
   // ---------- settings, profiles, thresholds (saved by the API) ----------
   saveSettings(b) {
     const c = this.cfg; const s = { enabled: b.enabled !== false, workers: Math.round(num(b.workers, c.workers || 5, 1, 50)), workersAuto: b.workersAuto === undefined ? c.workersAuto !== false : b.workersAuto !== false, gapMs: Math.round(num(b.gapMs, c.gapMs ?? 30, 0, 2000)), defaultIntervalSec: num(b.defaultIntervalSec, 60, 10, 3600), keepRawDays: Math.round(num(b.keepRawDays, 7, 1, 90)), keepAvgDays: Math.round(num(b.keepAvgDays, 365, 7, 3650)),
-      missesBeforeDown: Math.round(num(b.missesBeforeDown, 3, 1, 20)), noAnswerSeverity: Math.round(num(b.noAnswerSeverity, 3, 0, 7)), noAnswerProfiles: Array.isArray(b.noAnswerProfiles) ? b.noAnswerProfiles.map(String).slice(0, 20) : c.noAnswerProfiles || [], alarmsInSyslog: b.alarmsInSyslog === undefined ? c.alarmsInSyslog !== false : b.alarmsInSyslog !== false };
+      missesBeforeDown: Math.round(num(b.missesBeforeDown, 3, 1, 20)), noAnswerSeverity: Math.round(num(b.noAnswerSeverity, 3, 0, 7)), noAnswerProfiles: Array.isArray(b.noAnswerProfiles) ? b.noAnswerProfiles.map(String).slice(0, 20) : c.noAnswerProfiles || [], escMin: b.escMin === undefined ? (c.escMin || 0) : Math.round(num(b.escMin, 0, 0, 10080)), escProfiles: Array.isArray(b.escProfiles) ? b.escProfiles.map(String).slice(0, 20) : c.escProfiles || [], escReport: b.escReport === undefined ? c.escReport === true : b.escReport === true, alarmsInSyslog: b.alarmsInSyslog === undefined ? c.alarmsInSyslog !== false : b.alarmsInSyslog !== false };
     this.config.update({ polling: { ...c, ...s } }); return s;
   }
   saveProfiles(list, off) {
@@ -529,7 +530,7 @@ class Polling {
     const c = { total: devs.length, up: devs.filter((x) => x.state === 'up').length, down: devs.filter((x) => x.state === 'down').length, unknown: devs.filter((x) => x.state === 'unknown' || x.state === 'stale').length, off: devs.filter((x) => x.state === 'off').length, alarms: devs.reduce((a, x) => a + x.alarms, 0) };
     return { enabled: this.cfg.enabled !== false, counts: c, devices: devs, recent: this.recent.slice(0, 40), settings: this.publicSettings(), capacity: this.capacity() };
   }
-  publicSettings() { const c = this.cfg; return { enabled: c.enabled !== false, workers: c.workers, workersAuto: c.workersAuto !== false, workersNow: this.workersNow(), gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [], alarmsInSyslog: c.alarmsInSyslog !== false }; }
+  publicSettings() { const c = this.cfg; return { escMin: c.escMin || 0, escProfiles: c.escProfiles || [], escReport: c.escReport === true, enabled: c.enabled !== false, workers: c.workers, workersAuto: c.workersAuto !== false, workersNow: this.workersNow(), gapMs: c.gapMs ?? 30, defaultIntervalSec: c.defaultIntervalSec, keepRawDays: c.keepRawDays, keepAvgDays: c.keepAvgDays, missesBeforeDown: c.missesBeforeDown, noAnswerSeverity: c.noAnswerSeverity, noAnswerProfiles: c.noAnswerProfiles || [], alarmsInSyslog: c.alarmsInSyslog !== false }; }
   detail(id) {
     const d = this.devices().find((x) => x.id === id); if (!d) return null; const rt = this.state(d), vals = {}, inst = {};
     const prof = this.profile(d.profile && d.profile !== 'auto' ? d.profile : rt.detected || 'generic'), known = new Set(prof.metrics.map((m) => m.k));   /* a removed reading must not leave its values on the page */

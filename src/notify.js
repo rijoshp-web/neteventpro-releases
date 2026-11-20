@@ -47,7 +47,7 @@ class Notifier {
         head: `[${sev.toUpperCase()}] ${one(m.host)} ${m.app ? one(m.app) + ': ' : ''}${one(m.message)}` + (ctx.suppressed ? `\n(+${ctx.suppressed} similar alerts suppressed in the last cooldown window)` : ''), sms: `${sev.toUpperCase()} ${one(m.host)}: ${one(m.message)}` };
     }
     const o = ctx.o, sev = String(SEVX.label(o.severity) || o.severityName || ''), esc = kind === 'escalation';
-    const tag = esc ? 'ESCALATION' : 'CLEARED', what = `${one(o.rule)}${o.port ? ' ' + one(o.port) : ''}`;
+    const tag = esc ? 'ESCALATION' : kind === 'raised' ? 'ALARM' : 'CLEARED', what = `${one(o.rule)}${o.port ? ' ' + one(o.port) : ''}`;
     return { kind, severity: o.severity, sevName: sev, host: one(o.host), srcIp: one(o.srcIp), rule: one(o.rule), port: one(o.port), message: String(o.message ?? ''), app: '', facility: '', source: o.source || 'syslog', time: Date.now(), suppressed: 0,
       head: `[${tag}] ${sev.toUpperCase()} on ${one(o.host)}: ${what}${esc ? ` (not acknowledged for ${o.escMin} min)` : ''}\n${one(o.message)}`, sms: `${tag} ${sev.toUpperCase()} ${one(o.host)}: ${what}` };
   }
@@ -59,7 +59,7 @@ class Notifier {
     if (format === 'slack') return { text: f.head };
     if (format !== 'teams') return generic;
     const colour = f.kind === 'recovery' ? 'Good' : f.severity <= 3 ? 'Attention' : f.severity === 4 ? 'Warning' : 'Accent';
-    const title = f.kind === 'recovery' ? `Cleared: ${f.host}` : f.kind === 'escalation' ? `Escalation: ${f.sevName} on ${f.host}` : `${f.sevName[0]?.toUpperCase() || ''}${f.sevName.slice(1)} on ${f.host}`;
+    const title = f.kind === 'recovery' ? `Cleared: ${f.host}` : f.kind === 'raised' ? `Alarm: ${f.sevName} on ${f.host}` : f.kind === 'escalation' ? `Escalation: ${f.sevName} on ${f.host}` : `${f.sevName[0]?.toUpperCase() || ''}${f.sevName.slice(1)} on ${f.host}`;
     const facts = [['Device', f.host + (f.srcIp && f.srcIp !== f.host ? ` (${f.srcIp})` : '')], ['Severity', f.sevName], ['Rule', f.rule + (f.port ? ' ' + f.port : '')], ['Time', new Date(f.time).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'], ['Source', f.source === 'snmp' ? 'SNMP trap' : 'Syslog']];
     return { ...generic, type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', contentUrl: null, content: { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4',
       body: [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', color: colour, wrap: true }, { type: 'FactSet', facts: facts.map(([title2, value]) => ({ title: title2, value: value || '-' })) }, { type: 'TextBlock', text: f.message.slice(0, 1500), wrap: true }] } }] };
@@ -97,7 +97,7 @@ class Notifier {
       try {
         if (p.email?.on) {
           const info = { rule: ctx.rule || { name: f.rule }, suppressed: ctx.suppressed || 0, to: p.email.to || '', cc: p.email.cc || '', report: !!ctx.report, noDefault: true, meta: { ...meta, channel: 'email', to: p.email.to || '' } };
-          if (kind === 'alert') this.mail.enqueue(info, ctx.msg); else if (kind === 'escalation') this.mail.enqueueEscalation(info, ctx.o); else this.mail.enqueueRecovery(info, ctx.o);
+          if (kind === 'alert') this.mail.enqueue(info, ctx.msg); else if (kind === 'raised') this.mail.enqueueRaised(info, ctx.o); else if (kind === 'escalation') this.mail.enqueueEscalation(info, ctx.o); else this.mail.enqueueRecovery(info, ctx.o);
         }
         if (p.webhook?.on && p.webhook.url) this.postWebhook(p.webhook.url, p.webhook.format, f).then(() => this.record({ ...meta, channel: 'webhook', to: hostOf(p.webhook.url), ok: true, error: '' }), (e) => this.record({ ...meta, channel: 'webhook', to: hostOf(p.webhook.url), ok: false, error: e.message }));
         if (p.sms?.on) this.textTo(p, f, meta);

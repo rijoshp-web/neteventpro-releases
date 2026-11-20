@@ -228,7 +228,16 @@ class AlertMailer {
     this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] ESCALATION: ${o.severityName.toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'escalation' }, report: !!info.report, meta: info.meta });
     this.pump();
   }
-  /** the recovery e-mail of an escalated alarm that has cleared */
+  /** 1.99.6 a new alarm (from the Alarms section): the same page as escalation and recovery */
+  enqueueRaised(info, o) {
+    if (require('./ha').passive()) return;
+    if (this.blocked?.()) return;
+    const ok = this.admit(info); if (!ok) return;
+    const cfg = this.config.get(); o.zone = cfg.ntp?.zone || ''; o.link = dashboardLink(cfg, '#alarms'); { const b = require('./brand').brand(cfg); o.brand = { name: b.name, footer: b.footer }; }
+    this.queue.push({ to: ok.to, cc: info.noDefault ? (info.cc || '') : (info.cc || ok.smtp.cc || ''), subject: `[NetEventPro] ALARM: ${String(o.severityName || '').toUpperCase()} on ${oneLine(o.host)}: ${oneLine(o.rule)}${o.port ? ' ' + oneLine(o.port) : ''}`.slice(0, 200), text: '', o: { ...o, kind: 'raised' }, report: !!info.report, meta: info.meta });
+    this.pump();
+  }
+  /** the recovery e-mail of an alarm that has cleared */
   enqueueRecovery(info, o) {
     if (require('./ha').passive()) return;
     if (this.blocked?.()) return;

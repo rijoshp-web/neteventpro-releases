@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.6
+- Alarm notifications now come from the Alarms section. When a rule or SNMP polling raises an alarm, the e-mail describes the alarm (device, alarm, port/item, severity, source, state, how long it has been open, other open alarms on the device) instead of the internal message ("Source: syslog, Process: snmp-poll" is gone). The same people get a "CLEARED" e-mail when the alarm clears, however it clears (by the device, automatically or by hand).
+- SNMP polling alarms show "SNMP polling" as their source on the Alarms page (column, filter, CSV) and in e-mails.
+- SNMP polling → Settings → Escalate: a polling alarm nobody acknowledged within the minutes you set is escalated to the chosen profiles, shows as Escalated on the Alarms page, and those people are told when it clears.
+- The wait between alarm e-mails (5 minutes by default) is now per device and port: a second device with the same alarm is told at once instead of being held back by the first.
+
 ## 1.99.5
 - SNMP polling alarms now tell their notification profiles when the alarm clears (an e-mail starting with "CLEARED:"), as the polling page says. Before, only the raise was sent; the clear went out only for escalated alarms. Nothing is sent during a maintenance window.
 - The SNMP polling help text no longer mentions built-in profiles.

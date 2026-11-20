@@ -52,6 +52,7 @@ class AlarmStore {
     try { this.db.exec("ALTER TABLE alarms ADD COLUMN esc_prof TEXT NOT NULL DEFAULT ''"); } catch { /* already there */ }     // notification profiles to tell when it escalates / clears (1.37)
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN upd INTEGER NOT NULL DEFAULT 0'); this.db.exec('UPDATE alarms SET upd = MAX(last_ts, COALESCE(cleared_ts,0), COALESCE(ack_ts,0), COALESCE(esc_ts,0))'); } catch { /* already there */ }     // last change (1.38: what still has to be copied to SQL Server)
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN esc_clr INTEGER NOT NULL DEFAULT 1'); } catch { /* already there */ }     // e-mail again when an escalated alarm clears (1.36)
+    try { this.db.exec("ALTER TABLE alarms ADD COLUMN ntf_prof TEXT NOT NULL DEFAULT ''"); } catch { /* already there */ }   // 1.99.6 notification profiles told when it was raised: they are told again when it clears
     try { this.db.exec('ALTER TABLE alarms ADD COLUMN esc_sent INTEGER NOT NULL DEFAULT 0'); this.db.exec("UPDATE alarms SET esc_sent = 1 WHERE esc_ts > 0 AND esc_min > 0 AND state != 'cleared'"); } catch { /* already there */ }   // the escalation e-mail was queued   // attach the 24-hour report to the escalation e-mail
     for (const r of this.db.prepare("SELECT * FROM alarms WHERE state != 'cleared'").all()) this.open.set(r.id, r);
     this.flapEv = new Map(); this.flapOn = new Map(); this.flapCfg = new Map();   // flap detection (1.40): events per alarm key, keys that are flapping now, settings per rule
@@ -75,11 +76,11 @@ class AlarmStore {
     const row = {
       rule_id: rule.id, rule_name: String(rule.name || '').slice(0, 100), dev: msg.devKey || msg.srcIp, host: String(msg.host || '').slice(0, 253), src_ip: String(msg.srcIp || ''), inst,
       severity: msg.severity, state: 'open', first_ts: now, last_ts: now, count: 1, message: String(msg.message).slice(0, 500), log_id: msg.id || 0,
-      ack_by: '', ack_ts: 0, cleared_ts: 0, cleared_by: '', esc_ts: 0, esc_min: Math.max(0, +a.alarmEscMin || 0), esc_to: String(a.alarmEscTo || ''), esc_prof: (Array.isArray(a.alarmEscProfiles) ? a.alarmEscProfiles : []).map(String).join(','), auto_min: Math.max(0, +a.alarmAutoClearMin || 0), esc_rep: a.alarmEscReport === false ? 0 : 1, esc_clr: a.alarmEscClear === false ? 0 : 1, esc_sent: 0, notes: '[]', source: msg.source === 'snmp' ? 'snmp' : 'syslog'
+      ack_by: '', ack_ts: 0, cleared_ts: 0, cleared_by: '', esc_ts: 0, esc_min: Math.max(0, +a.alarmEscMin || 0), esc_to: String(a.alarmEscTo || ''), esc_prof: (Array.isArray(a.alarmEscProfiles) ? a.alarmEscProfiles : []).map(String).join(','), auto_min: Math.max(0, +a.alarmAutoClearMin || 0), esc_rep: a.alarmEscReport === false ? 0 : 1, esc_clr: a.alarmEscClear === false ? 0 : 1, esc_sent: 0, ntf_prof: '', notes: '[]', source: msg.poll ? 'poll' : msg.source === 'snmp' ? 'snmp' : 'syslog'
     };
     row.upd = Date.now();
-    const r = this.prep(`INSERT INTO alarms (rule_id, rule_name, dev, host, src_ip, severity, state, first_ts, last_ts, count, message, log_id, ack_by, ack_ts, cleared_ts, cleared_by, esc_ts, esc_min, esc_to, esc_prof, notes, source, auto_min, inst, esc_rep, esc_clr, esc_sent, upd)
-      VALUES (@rule_id,@rule_name,@dev,@host,@src_ip,@severity,@state,@first_ts,@last_ts,@count,@message,@log_id,@ack_by,@ack_ts,@cleared_ts,@cleared_by,@esc_ts,@esc_min,@esc_to,@esc_prof,@notes,@source,@auto_min,@inst,@esc_rep,@esc_clr,@esc_sent,@upd)`).run(row);
+    const r = this.prep(`INSERT INTO alarms (rule_id, rule_name, dev, host, src_ip, severity, state, first_ts, last_ts, count, message, log_id, ack_by, ack_ts, cleared_ts, cleared_by, esc_ts, esc_min, esc_to, esc_prof, notes, source, auto_min, inst, esc_rep, esc_clr, esc_sent, ntf_prof, upd)
+      VALUES (@rule_id,@rule_name,@dev,@host,@src_ip,@severity,@state,@first_ts,@last_ts,@count,@message,@log_id,@ack_by,@ack_ts,@cleared_ts,@cleared_by,@esc_ts,@esc_min,@esc_to,@esc_prof,@notes,@source,@auto_min,@inst,@esc_rep,@esc_clr,@esc_sent,@ntf_prof,@upd)`).run(row);
     row.id = Number(r.lastInsertRowid); this.open.set(row.id, row); return row;
   }
 
@@ -98,11 +99,34 @@ class AlarmStore {
   _clear(row, by, now = Date.now()) {
     row.state = 'cleared'; row.cleared_ts = now; row.cleared_by = String(by).slice(0, 80);
     this.open.delete(row.id); this.dirty.delete(row.id); this.save(row);
-    if (row.esc_sent && row.esc_clr !== 0) this.mailRecovery(row, now);
+    this.tellCleared(row, now);
+  }
+  /** 1.99.6 alarm notifications come from the alarm itself, so the e-mail shows what the Alarms page shows (device, alarm, port, source, open for ...) */
+  tellRaised(row, profiles, report = false) {
+    if (!row || !this.notify || !profiles?.length) return false;
+    row.ntf_prof = profiles.map(String).join(','); this.save(row);
+    try { this.notify.dispatch(profiles, 'raised', { o: this.facts(row, 'raised'), report }); } catch (e) { console.error('[alarms] alarm notification:', e.message); }
+    return true;
+  }
+  /** cleared: the profiles told when it was raised and, after an escalation, the escalation's recipients get one "cleared" notice */
+  tellCleared(row, now = Date.now()) {
+    const esc = row.esc_sent && row.esc_clr !== 0, ids = new Set(String(row.ntf_prof || '').split(',').filter(Boolean));
+    if (esc) for (const x of String(row.esc_prof || '').split(',').filter(Boolean)) ids.add(x);
+    if (ids.size && this.notify) { try { this.notify.dispatch([...ids], 'recovery', { o: this.facts(row, 'recovery', now) }); } catch (e) { console.error('[alarms] cleared notification:', e.message); } if (esc && row.esc_to && !row.esc_prof) this.mailRecovery(row, now); return; }
+    if (esc) this.mailRecovery(row, now);
+  }
+  /** what an alarm e-mail shows (raised / recovery) */
+  facts(r, kind, now = Date.now()) {
+    const rec = kind === 'recovery';
+    return { kind, title: rec ? `Cleared: ${r.rule_name}${r.inst ? ' ' + r.inst : ''}` : `${(SEV[r.severity] || 'Alarm').replace(/^./, (c) => c.toUpperCase())}: ${r.rule_name}${r.inst ? ' ' + r.inst : ''}`,
+      subtitle: rec ? `The alarm on ${r.host} has cleared after ${spanText(now - r.first_ts)}${r.cleared_by ? ` (${String(r.cleared_by).replace(/^auto: /, 'automatically: ')})` : ''}.` : `A new alarm on ${r.host}.`,
+      severity: r.severity, severityName: SEV[r.severity] || '', host: r.host, srcIp: r.src_ip, rule: r.rule_name, port: r.inst || '', state: rec ? 'Cleared' : 'Open', message: r.message, source: r.source,
+      first: r.first_ts, last: r.last_ts, count: r.count, clearedTs: rec ? now : 0, notes: JSON.parse(r.notes || '[]'), escMin: r.esc_min,
+      others: [...this.open.values()].filter((x) => x !== r && x.dev === r.dev).sort((x, y) => SEVX.rank(x.severity) - SEVX.rank(y.severity) || x.first_ts - y.first_ts).slice(0, 5).map((x) => ({ severity: x.severity, rule: x.rule_name, port: x.inst || '', since: x.first_ts })) };
   }
   save(r) {
-    this.prep(`UPDATE alarms SET esc_min=?, esc_to=?, esc_rep=?, esc_sent=?, upd=?, auto_min=?, severity=?, state=?, last_ts=?, count=?, message=?, log_id=?, ack_by=?, ack_ts=?, cleared_ts=?, cleared_by=?, esc_ts=?, notes=? WHERE id=?`)
-      .run(r.esc_min || 0, r.esc_to || '', r.esc_rep === 0 ? 0 : 1, r.esc_sent ? 1 : 0, Date.now(), r.auto_min || 0, r.severity, r.state, r.last_ts, r.count, r.message, r.log_id, r.ack_by, r.ack_ts, r.cleared_ts, r.cleared_by, r.esc_ts, r.notes, r.id);
+    this.prep(`UPDATE alarms SET ntf_prof=?, esc_min=?, esc_to=?, esc_rep=?, esc_sent=?, upd=?, auto_min=?, severity=?, state=?, last_ts=?, count=?, message=?, log_id=?, ack_by=?, ack_ts=?, cleared_ts=?, cleared_by=?, esc_ts=?, notes=? WHERE id=?`)
+      .run(r.ntf_prof || '', r.esc_min || 0, r.esc_to || '', r.esc_rep === 0 ? 0 : 1, r.esc_sent ? 1 : 0, Date.now(), r.auto_min || 0, r.severity, r.state, r.last_ts, r.count, r.message, r.log_id, r.ack_by, r.ack_ts, r.cleared_ts, r.cleared_by, r.esc_ts, r.notes, r.id);
   }
   flush() {
     if (!this.dirty.size) return; const ids = [...this.dirty]; this.dirty.clear();
@@ -148,7 +172,7 @@ class AlarmStore {
   _where({ state = 'active', q = '', sevs = null, source = '', since = 0, to = 0 } = {}) {
     const where = [], args = [];
     if (state === 'active') where.push("state != 'cleared'"); else if (state === 'escalated') where.push("state != 'cleared' AND esc_ts > 0"); else if (state === 'open' || state === 'ack' || state === 'cleared') { where.push('state = ?'); args.push(state); }
-    if (source === 'syslog' || source === 'snmp') { where.push('source = ?'); args.push(source); }
+    if (source === 'syslog' || source === 'snmp' || source === 'poll') { where.push('source = ?'); args.push(source); }
     // a period keeps every alarm that existed during it: raised before its end and not cleared before its start (open alarms always count)
     if (since > 0) { where.push('(cleared_ts IS NULL OR cleared_ts = 0 OR cleared_ts >= ?)'); args.push(since); }
     if (to > 0) { where.push('first_ts <= ?'); args.push(to); }

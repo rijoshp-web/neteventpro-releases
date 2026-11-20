@@ -6,16 +6,17 @@ const agoMs = (ts) => ago(Math.max(0, (Date.now() - ts) / 1000));
 const dur = (ms) => { const m = Math.round(ms / 60000); return m < 90 ? `${m} min` : m < 2880 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} days`; };
 
 // ---- alarm table columns: every column can be shown, hidden and moved (Columns button); clicking a heading sorts ----
+const SRCN = (x) => (x === 'snmp' ? 'SNMP trap' : x === 'poll' ? 'SNMP polling' : 'Syslog');   // 1.99.6
 const ACOLS = {
   sev:     { label: 'Severity', sort: 'severity', cell: (a) => `<td><span class="sevtag"><i></i>${esc(SEV[a.severity] || a.severity)}</span></td>` },
-  device:  { label: 'Device', sort: 'device', cell: (a, o) => `<td class="nowrap"><span class="srcdot ${a.source === 'snmp' ? 'snmp' : ''}" title="${a.source === 'snmp' ? 'SNMP trap' : 'Syslog'}"></span><a href="${a.source === 'snmp' ? '#traps' : '#logs'}" data-host="${esc(a.device)}" title="Show this device's messages">${esc(a.host)}</a>${a.port && !o.has('port') ? ` <span class="portchip" title="Port / item this alarm is about">${esc(a.port)}</span>` : ''}</td>` },
+  device:  { label: 'Device', sort: 'device', cell: (a, o) => `<td class="nowrap"><span class="srcdot ${a.source === 'snmp' ? 'snmp' : a.source === 'poll' ? 'poll' : ''}" title="${SRCN(a.source)}"></span><a href="${a.source === 'snmp' ? '#traps' : '#logs'}" data-host="${esc(a.device)}" title="Show this device's messages">${esc(a.host)}</a>${a.port && !o.has('port') ? ` <span class="portchip" title="Port / item this alarm is about">${esc(a.port)}</span>` : ''}</td>` },
   port:    { label: 'Port / item', sort: 'port', cell: (a) => `<td class="nowrap">${a.port ? `<span class="portchip">${esc(a.port)}</span>` : '<span class="muted">—</span>'}</td>` },
   alarm:   { label: 'Alarm', sort: 'alarm', cell: (a) => `<td class="nowrap">${esc(a.rule)}${a.count > 1 ? ` <span class="muted" title="Repeated ${fmtN(a.count)} times">×${fmtN(a.count)}</span>` : ''}${a.escalated ? ' <span class="escmark" title="Nobody acknowledged it in time: an escalation e-mail was sent">⚠</span>' : ''}${a.notes.length ? ` <span class="muted" title="${a.notes.length} note(s)">✎${a.notes.length}</span>` : ''}</td>` },
   message: { label: 'Last message', sort: 'message', cell: (a) => `<td class="msgcell" title="${esc(a.message)}">${esc(a.message)}</td>` },
   raised:  { label: 'Raised', sort: 'raised', cell: (a) => `<td class="nowrap">${dateOf(a.first)} ${timeOf(a.first, false)}</td>` },
   cleared: { label: 'Cleared', hist: true, sort: 'cleared', cell: (a) => `<td class="nowrap">${a.clearedTs ? dateOf(a.clearedTs) + ' ' + timeOf(a.clearedTs, false) : '<span class="muted">—</span>'}</td>` },
   dur:     { label: 'Duration', sort: 'duration', cell: (a) => `<td class="muted nowrap">${esc(dur((a.clearedTs || Date.now()) - a.first))}</td>` },
-  source:  { label: 'Source', sort: 'source', cell: (a) => `<td class="nowrap">${a.source === 'snmp' ? 'SNMP trap' : 'Syslog'}</td>` },
+  source:  { label: 'Source', sort: 'source', cell: (a) => `<td class="nowrap">${SRCN(a.source)}</td>` },
   ack:     { label: 'Acknowledged', sort: 'ack', cell: (a) => `<td class="nowrap">${a.ackTs ? `<span class="pill warn" title="Acknowledged by ${esc(a.ackBy)}">✓ ${esc(String(a.ackBy || '').slice(0, 16))}</span> <span class="muted">${timeOf(a.ackTs, false)}</span>` : '<span class="faint" title="Not acknowledged">–</span>'}</td>` },
   esc:     { label: 'Escalated', sort: 'esc', cell: (a) => `<td class="nowrap">${a.escTs ? `<span class="pill bad" title="Nobody acknowledged it in ${a.escMin} min: an escalation e-mail was sent">⚠ Escalated</span> <span class="muted">${timeOf(a.escTs, false)}</span>` : '<span class="faint" title="Not escalated">–</span>'}</td>` },
   by:      { label: 'Cleared by', sort: 'clearedby', hist: true, cell: (a) => `<td class="nowrap muted">${esc(/^auto/.test(a.clearedBy) ? 'auto' : a.clearedBy || '')}</td>` },
@@ -57,7 +58,7 @@ views.alarms = (el) => {
       <select id="alState" aria-label="Show"><option value="active">All active alarms</option><option value="open">Not acknowledged</option><option value="ack">Acknowledged</option><option value="escalated">Escalated</option></select>
       <select id="alRange" aria-label="Time range">${RANGES.map(([v, n]) => `<option value="${v}">${v === '0' ? 'All time (everything stored)' : n}</option>`).join('')}</select>
       ${dayNavHtml('alDay', day)}<span id="alCustom" ${range === 'custom' && state === 'cleared' ? '' : 'hidden'}><input type="datetime-local" id="alFrom" aria-label="From" value="${esc(cFrom)}"> to <input type="datetime-local" id="alTo" aria-label="To (leave empty for now)" value="${esc(cTo)}"></span>
-      <select id="alSrc" aria-label="Source"><option value="">All sources</option><option value="syslog">Syslog</option><option value="snmp">SNMP traps</option></select>
+      <select id="alSrc" aria-label="Source"><option value="">All sources</option><option value="syslog">Syslog</option><option value="snmp">SNMP traps</option><option value="poll">SNMP polling</option></select>
       <button id="alSev" aria-haspopup="dialog" title="Choose one or more severities"></button>
       <input type="search" id="alQ" class="grow" placeholder="Search device, alarm name or message" value="${esc(q)}">
       <button id="alGo" class="ib">${ico('search')}<span class="bt">Search</span></button>
@@ -92,7 +93,7 @@ views.alarms = (el) => {
   };
   const csv = () => {
     const q2 = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"', h = ['Severity', 'Source', 'Device', 'IP', 'Alarm', 'Port', 'Message', 'Raised', 'Acknowledged by', 'Acknowledged at', 'Escalated at', 'Cleared', 'Cleared by', 'Duration (min)'];
-    const rows = data.alarms.map((a) => [SEV[a.severity], a.source, a.host, a.srcIp, a.rule, a.port, a.message, dateTime(a.first), a.ackBy, a.ackTs ? dateTime(a.ackTs) : '', a.escTs ? dateTime(a.escTs) : '', a.clearedTs ? dateTime(a.clearedTs) : '', a.clearedBy, Math.round(((a.clearedTs || Date.now()) - a.first) / 60000)]);
+    const rows = data.alarms.map((a) => [SEV[a.severity], SRCN(a.source), a.host, a.srcIp, a.rule, a.port, a.message, dateTime(a.first), a.ackBy, a.ackTs ? dateTime(a.ackTs) : '', a.escTs ? dateTime(a.escTs) : '', a.clearedTs ? dateTime(a.clearedTs) : '', a.clearedBy, Math.round(((a.clearedTs || Date.now()) - a.first) / 60000)]);
     const blob = new Blob(['\ufeff' + [h, ...rows].map((r) => r.map(q2).join(',')).join('\r\n')], { type: 'text/csv' }), u = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = u; a.download = `alarms-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000);
   };

@@ -1,25 +1,41 @@
 'use strict';
-// 1.99.5 an SNMP polling alarm tells its notification profiles when it is raised AND when it clears
+// 1.99.6 alarm notifications come from the Alarms section: raised -> 'raised' notice with the alarm's facts, cleared -> 'recovery'
+// to the same profiles (and the escalation recipients), source "SNMP polling" for polling alarms, and the wait between alerts is per device
 const test = require('node:test');
 const assert = require('node:assert');
+const { DatabaseSync } = require('node:sqlite');
+const { AlarmStore } = require('../src/alarms');
 const { RuleEngine } = require('../src/rules');
 
-const rule = (extra) => ({ id: 'poll-t1', name: 'Battery low', enabled: true, source: 'syslog', match: { tag: 'poll-t1' }, actions: { alarm: true, profiles: ['ops'], clearText: ['/CLEARED:/'], ...extra } });
-const msg = (t) => ({ message: t, tags: ['poll', 'poll-t1'], severity: 3, host: 'rect', srcIp: '10.0.0.1', devKey: 'rect', source: 'syslog' });
+const mk = () => { const told = []; const a = new AlarmStore({ db: new DatabaseSync(':memory:') }, { enqueueRecovery: () => told.push({ legacy: true }) }); a.notify = { dispatch: (ids, kind, ctx) => told.push({ ids, kind, o: ctx.o }) }; a.stop(); return { a, told }; };
+const rule = { id: 'poll-t1', name: 'Battery low', actions: { alarm: true, profiles: ['ops'], clearText: ['/CLEARED:/'], alarmBy: '/^\\[([^\\]]*)\\]/' } };
+const msg = (t, dev = 'rect1') => ({ ts: Date.now(), message: t, tags: ['poll', 'poll-t1'], severity: 2, host: dev, srcIp: '10.0.0.1', devKey: dev, source: 'syslog', poll: true });
 
-test('a polling alarm notifies on raise and on clear', () => {
-  const r = new RuleEngine(); r.load([rule({ notifyClear: true })]);
-  assert.strictEqual(r.apply(msg('[Battery low] Battery voltage 44 V')).notifs.length, 1);
-  const c = r.apply(msg('[Battery low] CLEARED: Battery voltage 53 V'));
-  assert.strictEqual(c.clears.length, 1); assert.strictEqual(c.notifs.length, 1); assert.deepStrictEqual(c.notifs[0].profiles, ['ops']);
+test('a polling alarm is told when raised and when cleared, with source SNMP polling', () => {
+  const { a, told } = mk();
+  const row = a.raise(msg('[Battery] Battery voltage 44 V'), rule);
+  assert.strictEqual(row.source, 'poll');
+  assert.ok(a.tellRaised(row, ['ops']));
+  assert.strictEqual(told[0].kind, 'raised'); assert.deepStrictEqual(told[0].ids, ['ops']); assert.strictEqual(told[0].o.source, 'poll'); assert.strictEqual(told[0].o.port.toLowerCase(), 'battery');
+  a.clearBy('poll-t1', msg('[Battery] CLEARED: 53 V'), 'Battery low', rule.actions.alarmBy);
+  assert.strictEqual(told[1].kind, 'recovery'); assert.deepStrictEqual(told[1].ids, ['ops']); assert.strictEqual(told[1].o.state, 'Cleared');
+  assert.strictEqual(a.list({ state: 'cleared', source: 'poll' }).total, 1);
 });
-test('no clear notice in a maintenance window, nor for rules without notifyClear', () => {
-  const r = new RuleEngine(); r.load([rule({ notifyClear: true })]);
-  assert.strictEqual(r.apply(msg('CLEARED: x'), true).notifs.length, 0);
-  const r2 = new RuleEngine(); r2.load([rule({})]);
-  assert.strictEqual(r2.apply(msg('CLEARED: x')).notifs.length, 0);
+test('an escalated alarm tells the escalation profiles once when it clears, together with the raise profiles', () => {
+  const { a, told } = mk();
+  const row = a.raise(msg('[Battery] low'), { ...rule, actions: { ...rule.actions, alarmEscMin: 1, alarmEscProfiles: ['boss'] } }); a.tellRaised(row, ['ops']);
+  a.escalate(Date.now() + 120000); assert.strictEqual(told.filter((x) => x.kind === 'escalation').length, 1); assert.ok(a.list({ state: 'escalated' }).total >= 1);
+  a.clearBy('poll-t1', msg('[Battery] CLEARED'), 'x', rule.actions.alarmBy);
+  const rec = told.filter((x) => x.kind === 'recovery'); assert.strictEqual(rec.length, 1); assert.deepStrictEqual(rec[0].ids.sort(), ['boss', 'ops']);
+  assert.ok(!told.some((x) => x.legacy));
 });
-test('polling builds its rules with notifyClear', () => {
-  const src = require('node:fs').readFileSync(require.resolve('../src/polling'), 'utf8');
-  assert.match(src, /alarm: true, notifyClear: true/);
+test('nobody told when raised = nothing when it clears', () => {
+  const { a, told } = mk(); a.raise(msg('[B] low'), rule); a.clearBy('poll-t1', msg('[B] CLEARED'), 'x', rule.actions.alarmBy); assert.strictEqual(told.length, 0);
+});
+test('the wait between alerts of an alarm rule is per device: a second device is told at once', () => {
+  const r = new RuleEngine(); r.load([{ ...rule, enabled: true, source: 'syslog', match: { tag: 'poll-t1' } }]);
+  assert.strictEqual(r.apply(msg('[Battery] low', 'rect1')).notifs.length, 1);
+  assert.strictEqual(r.apply(msg('[Battery] low', 'rect2')).notifs.length, 1);
+  assert.strictEqual(r.apply(msg('[Battery] low again', 'rect1')).notifs.length, 0);   // same device within the wait
+  assert.strictEqual(r.apply(msg('[Battery] CLEARED', 'rect1')).notifs.length, 0);     // the clear notice comes from the alarm, not the rule
 });

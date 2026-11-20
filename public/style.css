@@ -439,7 +439,7 @@ table.alarms td { white-space: nowrap; }
 table.alarms td.msgcell { max-width: 0; width: 100%; min-width: 180px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 table.alarms .pill { padding: 0 8px; font-size: 11.5px; }
 table.alarms .acts { text-align: right; white-space: nowrap; width: 1%; } table.alarms .acts button.ib { display: inline-block; vertical-align: middle; } table.alarms .acts button.ib { padding: 2px 6px; min-width: 0; }
-.srcdot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--muted); } .srcdot.snmp { background: var(--accent); }
+.srcdot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--muted); } .srcdot.snmp { background: var(--accent); } .srcdot.poll { background: var(--ok); border-radius: 50%; }
 .portchip { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--panel2, rgba(128,128,128,.15)); color: var(--muted); border: 1px solid var(--line2); }
 .escmark { color: #f5a524; }
 table.log th.selc, table.log td.selc { width: 30px; text-align: center; padding: 0; }

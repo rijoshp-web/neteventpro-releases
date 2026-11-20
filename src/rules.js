@@ -32,12 +32,13 @@
 //   flapCount / flapMin / flapQuiet  flap detection: flapCount changes of the same alarm key within flapMin minutes = one "(flapping)" alarm, quiet for flapQuiet minutes = it clears (1.40)
 //   alarmAutoClearMin number  the alarm clears itself when it did not repeat for this many minutes
 //   clearsRule string   id of another rule: its alarms for the same device are cleared when this rule matches (link up clears link down)
-//   notifyClear bool     with clearText: the rule's notification profiles are also told when its clear message arrives (1.99.5)
+//   (1.99.6) a rule with alarm + notification profiles tells them when its alarm is raised and again when it clears; the wait between alerts (cooldownSec) is per device and port
 //   clearText   [text or /regex/, ...] a message of this rule's device that matches ANY of these clears this rule's own alarm (same port when alarmBy is set) instead of raising it: one rule can raise and clear
 //   sevMap      [{ text, severity }] first entry whose text matches sets the message severity (e.g. "Status: Major" -> 3), used by the alarm
 //   cooldownSec number  min seconds between webhook / email alerts for this rule (default 60, or 300 when emailing)
 
 const { parseSevs } = require('./query');
+const { instanceOf } = require('./alarms');
 const SEVX = require('./sev');
 const { SourceFilter } = require('./acl');
 const { checkRegexSource, MAX_REGEX_INPUT } = require('./safe-regex');
@@ -119,8 +120,6 @@ class RuleEngine {
       const id = c.rule.id;
       if (c.clear && c.clear.some((f) => f(msg.message))) {   // "all clear" message: clear this rule's own alarm (the same port when alarmBy is set) instead of raising one
         this.hits.set(id, (this.hits.get(id) || 0) + 1); out.clears.push({ id, by: c.rule.name, alarmBy: a.alarmBy || '' });
-        // 1.99.5 notifyClear: the same notification profiles are told when it clears (SNMP polling alarms promise this); no cooldown, a clear is never swallowed
-        if (a.notifyClear && !quiet && Array.isArray(a.profiles) && a.profiles.length) out.notifs.push({ profiles: a.profiles, rule: c.rule, suppressed: 0, report: false });
         continue;
       }
       if (c.text && !c.text(msg.message)) continue;
@@ -144,16 +143,18 @@ class RuleEngine {
         // one shared cooldown per rule for webhook + email; emails default to 5 minutes so a noisy device cannot flood an inbox
         const now = Date.now();
         const cd = (a.cooldownSec === undefined || a.cooldownSec === '' ? (a.email || (hasP && this.noisy && this.noisy(a.profiles)) ? 300 : 60) : +a.cooldownSec) * 1000;
-        const last = this.lastFired.get(id) || 0;
+        const fk = a.alarm ? `${id}|${msg.devKey || msg.srcIp}|${instanceOf(msg, a.alarmBy)}` : id;   // 1.99.6 alarms: each device and port has its own wait, so a second device is not held back by the first
+        if (this.lastFired.size > 50000) { this.lastFired.clear(); this.suppressed.clear(); }   // bounded: many devices × ports
+        const last = this.lastFired.get(fk) || 0;
         if (now - last >= cd) {
-          const suppressed = this.suppressed.get(id) || 0;
+          const suppressed = this.suppressed.get(fk) || 0;
           if (hasP) out.notifs.push({ profiles: a.profiles, rule: c.rule, suppressed, report: !!a.emailReport });
           if (a.webhook) out.webhooks.push({ hook: a.webhook, rule: c.rule, suppressed });
           if (a.email) out.emails.push({ rule: c.rule, suppressed, to: a.emailTo || '', cc: a.emailCc || '', report: !!a.emailReport });
-          this.lastFired.set(id, now);
-          this.suppressed.set(id, 0);
+          this.lastFired.set(fk, now);
+          this.suppressed.set(fk, 0);
         } else {
-          this.suppressed.set(id, (this.suppressed.get(id) || 0) + 1);
+          this.suppressed.set(fk, (this.suppressed.get(fk) || 0) + 1);
         }
       }
       if (a.stop) break;

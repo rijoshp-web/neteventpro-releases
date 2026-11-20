@@ -34,7 +34,7 @@ function renderHtml(o) {
     row('Device', `<b>${esc(o.host)}</b>${o.srcIp && o.srcIp !== o.host ? ` <span style="color:#6b7785">(${esc(o.srcIp)})</span>` : ''}`),
     row('Alarm', esc(o.rule)), row('Port / item', o.port ? esc(o.port) : ''),
     row('Severity', `<span style="display:inline-block;background:${col};color:#fff;border-radius:10px;padding:1px 10px;font-size:12px;font-weight:600">${esc(SEV_NAMES[sev])}</span>`),
-    row('Source', o.source === 'snmp' ? 'SNMP trap' : o.source ? 'Syslog' : ''),
+    row('Source', o.source === 'snmp' ? 'SNMP trap' : o.source === 'poll' ? 'SNMP polling' : o.source ? 'Syslog' : ''),
     row('State', o.state ? esc(o.state) : ''),
     row('Raised', o.first ? `${esc(stamp(o.first, z))} <span style="color:#6b7785">· ${rec ? 'was open for' : 'open for'} ${esc(span((rec && o.clearedTs ? o.clearedTs : Date.now()) - o.first))}</span>` : ''),
     row('Cleared', rec && o.clearedTs ? esc(stamp(o.clearedTs, z)) : ''),
@@ -52,7 +52,7 @@ function renderHtml(o) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf2"><tr><td align="center" style="padding:24px 10px">
 <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #d9dfe7">
  <tr><td style="background:${col};padding:22px 28px;color:#ffffff">
-   <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.85">${esc(bname(o))} · ${esc24 ? 'Escalation' : rec ? 'Recovery' : 'Alert'}</div>
+   <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.85">${esc(bname(o))} · ${esc24 ? 'Escalation' : rec ? 'Recovery' : o.kind === 'raised' ? 'Alarm' : 'Alert'}</div>
    <div style="font-size:23px;font-weight:700;margin-top:6px;line-height:1.25">${esc(o.title)}</div>
    ${o.subtitle ? `<div style="font-size:14px;margin-top:6px;opacity:.95">${esc(o.subtitle)}</div>` : ''}
  </td></tr>
@@ -127,7 +127,7 @@ function renderText(o) {
   L.push(o.title.toUpperCase()); if (o.subtitle) L.push(o.subtitle); L.push('');
   const kv = (k, v) => { if (v !== '' && v !== undefined && v !== null) L.push(`${(k + ':').padEnd(13)}${v}`); };
   kv('Device', one(o.host) + (o.srcIp && o.srcIp !== o.host ? ` (${one(o.srcIp)})` : '')); kv('Alarm', one(o.rule)); kv('Port / item', one(o.port)); kv('Severity', `${SEV_NAMES[Math.min(9, Math.max(0, +o.severity || 0))]} (${o.severity})`);
-  kv('Facility', o.facility && o.facility !== '-' ? o.facility : ''); kv('Process', o.process); kv('Source', o.source === 'snmp' ? 'SNMP trap' : o.source ? 'Syslog' : ''); kv('State', one(o.state));
+  kv('Facility', o.facility && o.facility !== '-' ? o.facility : ''); kv('Process', o.process); kv('Source', o.source === 'snmp' ? 'SNMP trap' : o.source === 'poll' ? 'SNMP polling' : o.source ? 'Syslog' : ''); kv('State', one(o.state));
   kv('Raised', o.first ? `${stamp(o.first, z)} (${o.kind === 'recovery' ? 'was open for' : 'open for'} ${span((o.kind === 'recovery' && o.clearedTs ? o.clearedTs : Date.now()) - o.first)})` : o.time ? stamp(o.time, z) : ''); kv('Cleared', o.kind === 'recovery' && o.clearedTs ? stamp(o.clearedTs, z) : ''); kv('Last repeat', o.last && o.count > 1 ? stamp(o.last, z) : ''); kv('Repeats', o.count > 1 ? `${o.count} times` : '');
   L.push('', 'Message:', String(o.message ?? ''));
   if (o.suppressed) L.push('', `(${o.suppressed} similar alert(s) were not e-mailed since the previous e-mail for this rule.)`);

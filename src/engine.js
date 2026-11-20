@@ -133,10 +133,20 @@ class Engine extends EventEmitter {
     const alertMsg = (rule) => (rule && flap.get(rule.id) === 'start' ? { ...msg, message: `FLAPPING (many changes in a short time): ${msg.message}` } : msg);
     for (const w of res.webhooks) if (!held(w.rule)) this.callWebhook(w, msg);
     for (const e of res.emails) if (!held(e.rule)) this.mail.enqueue(e, msg);
-    for (const n of res.notifs) if (!held(n.rule)) this.notify.dispatch(n.profiles, 'alert', { rule: n.rule, suppressed: n.suppressed, msg: alertMsg(n.rule), report: n.report });
+    // 1.99.6 a rule that raises an alarm tells its profiles about the alarm (raised, escalated, cleared) from the Alarms section, not about the message
+    const byAlarm = new Map();
+    for (const n of res.notifs) {
+      if (held(n.rule)) continue;
+      if (this.alarms && n.rule?.actions?.alarm && res.alarms.includes(n.rule)) { byAlarm.set(n.rule.id, n); continue; }
+      this.notify.dispatch(n.profiles, 'alert', { rule: n.rule, suppressed: n.suppressed, msg: alertMsg(n.rule), report: n.report });
+    }
     if (this.alarms) {
       for (const c of res.clears) this.alarms.clearBy(c.id, msg, c.by, c.alarmBy);
-      for (const r of res.alarms) { const f = flap.get(r.id); if (f) this.alarms.flapRaise(msg, r, f === 'start'); else this.alarms.raise(msg, r); }
+      for (const r of res.alarms) {
+        const f = flap.get(r.id), row = f ? this.alarms.flapRaise(msg, r, f === 'start') : this.alarms.raise(msg, r), n = byAlarm.get(r.id);
+        if (!n || (f && f !== 'start')) continue;
+        if (!this.alarms.tellRaised(row, n.profiles, n.report)) this.notify.dispatch(n.profiles, 'alert', { rule: n.rule, suppressed: n.suppressed, msg: alertMsg(n.rule), report: n.report });   // the alarm was refused (too many open): still tell
+      }
     }
   }
 
