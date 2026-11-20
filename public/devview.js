@@ -8,6 +8,14 @@
   const SEVN = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Info', 'Debug'];
   const ICONS = () => (window.NEPIcons ? window.NEPIcons.list() : []);
   const iconSvg = (name, size) => (window.NEPIcons ? window.NEPIcons.tile(name, size) || window.NEPIcons.tile('server', size) : '');
+  // 1.99.12 modern device pictures (devpics.js, made from assets/stencils), shown without a frame; older views keep working through LEGACY
+  const DP = () => window.NEPDevPics;
+  const LEGACY = { server: 'server-2u', switch: 'switch-24port', router: 'router', shield: 'firewall', lock: 'firewall', battery: 'battery-bank', plug: 'pdu-strip', bolt: 'rectifier-shelf', voltage: 'rectifier-shelf', current: 'rectifier-shelf', sun: 'rectifier-shelf', generator: 'generator', antenna: 'microwave-dish', satellite: 'microwave-dish', signal: 'antenna-omni', clock: 'gps-clock', snowflake: 'air-conditioner', fan: 'air-conditioner', thermometer: 'sensor-temperature', flame: 'sensor-temperature', droplet: 'sensor-temperature', location: 'building', network: 'multiplexer', globe: 'internet-globe', cloud: 'cloud', phone: 'phone-ip', door: 'sensor-door', disk: 'storage-nas', cpu: 'server-1u', memory: 'server-1u', pulse: 'audio-processor', speed: 'encoder', arrows: 'switch-48port', user: 'pc-desktop', mail: 'pc-desktop', warning: 'smoke-detector', bell: 'smoke-detector' };
+  /** the picture for an item: a modern one by its key; an icon from before 1.99.12 first by the device's name (rectifier, UPS …), then by the old icon */
+  const devKey = (pic, name) => { const n = String(pic || '').replace(/^icon:/, ''); if (DP()?.has(n)) return n; const g = name ? guessName(name) : ''; return g || LEGACY[n] || 'server-2u'; };
+  const devImg = (pic, name) => (DP() ? `<img class="dvdp" src="${DP().url(devKey(pic, name))}" alt="" draggable="false">` : iconSvg(String(pic).slice(5), 48));
+  const GUESS = [[/\bups\b/, 'ups'], [/rect|\bdc\b|power plant/, 'rectifier-shelf'], [/batt/, 'battery-bank'], [/pdu/, 'pdu-strip'], [/generat|genset/, 'generator'], [/\bfw\b|firewall/, 'firewall'], [/wi-?fi|wlan|\bap\b|access point/, 'wifi-access-point'], [/switch|\bsw\b/, 'switch-24port'], [/router|\brtr\b|\bgw\b|gateway/, 'router'], [/micro|\bmw\b|radio|link/, 'microwave-dish'], [/gps|ntp|time|clock/, 'gps-clock'], [/air ?con|hvac|cool|crac|\bac\b/, 'air-conditioner'], [/camera|\bcam\b|cctv/, 'camera'], [/\bmux|multiplex|sdh|\be1\b/, 'multiplexer'], [/transmit|\btx\b/, 'transmitter'], [/nas\b|storage|\bsan\b/, 'storage-nas'], [/audio|processor/, 'audio-processor'], [/encod/, 'encoder'], [/sensor|environment|temp/, 'sensor-temperature'], [/smoke|fire/, 'smoke-detector'], [/door/, 'sensor-door'], [/phone/, 'phone-ip'], [/printer/, 'printer'], [/plc|controller/, 'controller-plc'], [/odf|patch/, 'odf-patch-panel'], [/desktop|\bpc\b|workstation/, 'pc-desktop'], [/laptop/, 'laptop']];
+  const guessName = (n) => { const x = String(n).toLowerCase(), t = GUESS.find(([re]) => re.test(x)); return t ? t[1] : ''; };
   const imgUrl = (id) => `/api/views/image?id=${encodeURIComponent(id)}`;
   const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem('nep.dv.' + k); localStorage.setItem('nep.dv.' + k, v); } catch { return null; } return null; };
   /** the colour class of an item: down or a Critical alarm = red, Error = orange, Warning = amber, fine = green, unknown = grey */
@@ -41,8 +49,8 @@
       const st = status[it.id];
       if (it.kind === 'label') return `<div class="dvi dvlabel${sel === it.id ? ' sel' : ''}" data-id="${esc(it.id)}" style="left:${it.x}px;top:${it.y}px;font-size:${it.size}px">${esc(it.text || 'Text')}</div>`;
       const pic = String(it.pic || 'icon:server'), s = it.size || 96, mk = pic === 'none';
-      const picHtml = mk ? '' : pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="" draggable="false">` : iconSvg(pic.slice(5), Math.round(s * 0.55));
       const name = it.name || (it.kind === 'view' ? (list.find((v) => v.id === it.view)?.name || 'View') : (choices?.find((c) => c.src === it.src && c.ref === it.ref)?.name || st?.name || 'Device'));
+      const picHtml = mk ? '' : pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="" draggable="false">` : devImg(pic, it.kind === 'device' ? name : '');
       return `<div class="dvi ${cls(st)}${st && st.unack && cls(st) === 'st-crit' ? ' pulse' : ''}${sel === it.id ? ' sel' : ''}${linkFrom === it.id ? ' linkfrom' : ''}" data-id="${esc(it.id)}" style="left:${it.x}px;top:${it.y}px;--s:${s}px;--h:${mk ? (it.h || s) : s}px" title="${esc(stText(st))}" tabindex="0" role="button" aria-label="${esc(name)}: ${esc(stText(st))}">
         <div class="dvpic${pic.startsWith('img:') ? ' isimg' : ''}${mk ? ' marker' : ''}">${picHtml}${it.kind === 'view' ? '<span class="dvsub">open ›</span>' : ''}</div>
         <button type="button" class="dvbadge" ${st && st.open ? '' : 'hidden'} title="Show the open alarms" aria-label="Open alarms">${st ? st.open : ''}</button>
@@ -63,11 +71,19 @@
       const tools = edit ? `<div class="toolbar dvtools"><button id="dvAdd" class="primary">Add device</button><button id="dvAddL">Add text</button><button id="dvAddV" ${list.length > 1 ? '' : 'disabled title="Make a second view first"'}>Add box to another view</button><button id="dvLink" class="${linkFrom !== null ? 'on' : ''}" title="Click two devices to join them with a line; click a line to remove it">${linkFrom !== null ? 'Click the second device…' : 'Draw line'}</button><button id="dvBg">Background…</button><button id="dvRen">Rename</button><span class="spacer"></span><button id="dvDel" class="danger">Delete view</button><button id="dvCancel">Cancel</button><button id="dvSave" class="primary">Save</button></div>`
         : `<div class="toolbar"><span class="muted" id="dvSum"></span><span class="spacer"></span>${v ? '<button id="dvWall" title="Show this view on the whole screen, for a wall screen (the details panel works there too)">Wall screen</button>' : ''}${canEdit ? `${v ? '<button id="dvEdit">Edit</button>' : ''}<button id="dvNew" class="${v ? '' : 'primary'}">New view</button>` : ''}</div>`;
       el.innerHTML = `<div class="page-head"><h1>Device view</h1><span class="muted">Your devices as pictures with their live state</span></div>${tabsH}${tools}
-        ${v ? `<div class="dvlayout${(edit && sel) || (!edit && info) ? ' withside' : ''}" id="dvStage">${canvasHtml(v)}${edit && sel ? `<aside class="panel dvside" id="dvSide">${sideHtml()}</aside>` : ''}${!edit && info ? `<aside class="panel dvside dvinfo" id="dvInfo" aria-live="polite"><div class="muted">Loading…</div></aside>` : ''}${edit ? '' : '<button class="dvwallx" id="dvWallX" title="Leave the wall screen">Leave wall screen</button>'}</div>
+        ${v ? `<div class="dvlayout${(edit && sel) || (!edit && info) ? ' withside' : ''}" id="dvStage">${stageInner(v)}</div>
           ${edit ? '<p class="muted" style="margin:6px 0 0">Drag pictures to move them. Click one to change it. Lines and boxes follow the devices.</p>' : '<div class="dvlegend muted"><span class="lg st-ok"></span>OK <span class="lg st-warn"></span>Warning <span class="lg st-err"></span>Error <span class="lg st-crit"></span>Critical or no answer <span class="lg st-unk"></span>Unknown or off</div>'}`
         : `<div class="empty steps"><b>No device view yet</b>${canEdit ? '<ol class="emsteps"><li><b>Make a view</b><span>For a room, a rack, a site or your whole network.</span></li><li><b>Place your devices</b><span>Polled devices and devices that send syslog or traps; pick a picture for each.</span></li><li><b>Watch it live</b><span>Each picture turns amber or red with its alarms, and shows up to three readings.</span></li></ol><button class="primary" id="dvNew2">New view</button>' : 'An administrator can make views here.'}</div>`}`;
       fit(); wire(); paintStatus(); requestAnimationFrame(fit);
     };
+    const isWall = () => { const st = $('#dvStage', el); return !!st && (document.fullscreenElement === st || st.classList.contains('wall')); };
+    const stageInner = (v) => `${canvasHtml(v)}${edit && sel ? `<aside class="panel dvside" id="dvSide">${sideHtml()}</aside>` : ''}${!edit && info ? `<aside class="panel dvside dvinfo" id="dvInfo" aria-live="polite"><div class="muted">Loading…</div></aside>` : ''}${edit ? '' : '<button class="dvwallx" id="dvWallX" title="Leave the wall screen">Leave wall screen</button>'}`;
+    /** 1.99.12 redraws only the inside of the stage, so the wall screen (the stage is the full-screen element) stays on */
+    const drawStage = () => {
+      const st = $('#dvStage', el), v = view(); if (!st || !v) return draw();
+      st.classList.toggle('withside', !!((edit && sel) || (!edit && info))); st.innerHTML = stageInner(v); fit(); wire(); paintStatus(); requestAnimationFrame(fit);
+    };
+    const setInfo = (id) => { info = id; drawStage(); };
     const fit = () => {
       const c = $('#dvCanvas', el), w = $('#dvWrap', el), st = $('#dvStage', el); if (!c || !w) return;
       if (st && (document.fullscreenElement === st || st.classList.contains('wall'))) {   // wall screen: as large as fits next to the panel
@@ -84,6 +100,7 @@
         n.classList.toggle('pulse', !!(st && st.unack && c === 'st-crit')); n.title = stText(st);
         const b = $('.dvbadge', n); if (b) { b.hidden = !(st && st.open); b.textContent = st ? st.open : ''; }
         { const h = readHtml(st); let r = $('.dvread', n); if (h && !r) { r = document.createElement('div'); r.className = 'dvread'; n.appendChild(r); } if (r && r.innerHTML !== h) r.innerHTML = h; }
+        if (it.kind === 'device' && DP() && String(it.pic || '').startsWith('icon:') && !DP().has(String(it.pic).slice(5))) { const im = $('.dvdp', n), u = DP().url(devKey(it.pic, it.name || st?.name || '')); if (im && im.getAttribute('src') !== u) im.setAttribute('src', u); }   // older icons follow the device name once it is known
         if (!it.name && st?.name) { const nm = $('.dvname', n); if (nm && nm.textContent !== st.name) { nm.textContent = st.name; n.setAttribute('aria-label', `${st.name}: ${stText(st)}`); } }
       }
       const svg = $('.dvlinks', el); if (svg) { const pos = new Map(v.items.map((i) => [i.id, i])); $$('line:not(.hit)', svg).forEach((ln) => { const l = v.links[+ln.dataset.l]; if (!l) return; ln.classList.toggle('down', [status[l.a], status[l.b]].some((x) => x && x.state === 'down')); void pos; }); }
@@ -96,13 +113,14 @@
       const it = selItem(); if (!it) return '';
       if (it.kind === 'label') return `<h3>Text</h3><div class="form"><div class="field"><label for="sdT">Text</label><div><input type="text" id="sdT" value="${esc(it.text || '')}" maxlength="120"></div></div><div class="field"><label for="sdS">Size <output id="sdSo" class="dvnum">${it.size || 18}</output></label><div><input type="range" id="sdS" min="10" max="72" value="${it.size || 18}"></div></div></div><button id="sdDel" class="danger">Remove</button>`;
       const ch = it.kind === 'device' ? choices?.find((c) => c.src === it.src && c.ref === it.ref) : null;
-      const pics = ICONS().map((x) => `<button class="dvpick${it.pic === 'icon:' + x.k ? ' on' : ''}" data-pic="icon:${x.k}" title="${esc(x.label)}">${iconSvg(x.k, 22)}</button>`).join('');
+      const curK = String(it.pic || '').startsWith('icon:') ? devKey(it.pic, ch?.name || it.name) : '';
+      const pics = (DP() ? DP().list() : ICONS()).map((x) => `<button class="dvpick dp${curK === x.k ? ' on' : ''}" data-pic="icon:${x.k}" title="${esc(x.label)}">${DP() ? `<img src="${DP().url(x.k)}" alt="">` : iconSvg(x.k, 22)}</button>`).join('');
       return `<h3>${it.kind === 'view' ? 'Box to another view' : esc(ch?.name || 'Device')}</h3>${ch ? `<div class="muted" style="margin:-6px 0 8px">${esc(ch.host)} · ${ch.src === 'poll' ? 'SNMP polling' : 'syslog / traps'}</div>` : ''}
         <div class="form"><div class="field"><label for="sdN">Shown name</label><div><input type="text" id="sdN" value="${esc(it.name || '')}" placeholder="${esc(ch?.name || '')}" maxlength="60"></div></div>
         ${it.kind === 'view' ? `<div class="field"><label for="sdV">Opens</label><div><select id="sdV">${list.filter((v) => v.id !== draft.id).map((v) => `<option value="${esc(v.id)}" ${it.view === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></div></div>` : ''}
         <div class="field"><label for="sdS">${markerOnly(it) ? 'Width' : 'Size'} <output id="sdSo" class="dvnum">${it.size || 96}</output></label><div><input type="range" id="sdS" min="${markerOnly(it) ? 16 : 40}" max="${markerOnly(it) ? 600 : 240}" value="${it.size || 96}"></div></div>
         ${markerOnly(it) ? `<div class="field"><label for="sdH">Height <output id="sdHo" class="dvnum">${it.h || it.size || 96}</output></label><div><input type="range" id="sdH" min="16" max="600" value="${it.h || it.size || 96}"></div></div><label class="chk"><input type="checkbox" id="sdHN" ${it.hideName ? 'checked' : ''}> Hide the name (the drawing already shows it)</label>` : ''}</div>
-        <div class="dvpicks" role="group" aria-label="Picture">${it.kind === 'device' ? `<button class="dvpick mk${markerOnly(it) ? ' on' : ''}" data-pic="none" title="Marker only: no picture, just a live coloured frame and alarm count. Put it over a device in your background drawing (for example a Visio drawing saved as SVG).">▢</button>` : ''}${pics}${it.kind === 'device' ? `<label class="dvpick upl" title="Your own picture (PNG, JPEG, WebP or SVG, up to 8 MB). More device drawings are in the NetEventPro folder under app\\assets\\stencils.">＋<input type="file" id="sdUp" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden></label>` : ''}</div>
+        <div class="dvpicks" role="group" aria-label="Picture">${it.kind === 'device' ? `<button class="dvpick mk${markerOnly(it) ? ' on' : ''}" data-pic="none" title="Marker only: no picture, just a live coloured frame and alarm count. Put it over a device in your background drawing (for example a Visio drawing saved as SVG).">▢<span>Marker</span></button>` : ''}${pics}${it.kind === 'device' ? `<label class="dvpick upl" title="Your own picture (PNG, JPEG, WebP or SVG, up to 8 MB). More device drawings are in the NetEventPro folder under app\\assets\\stencils.">＋<input type="file" id="sdUp" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden></label>` : ''}</div>
         ${it.kind === 'device' ? '<p class="muted" style="margin:8px 0 0;font-size:12px">The device\'s readings show in the details panel when you click it (outside edit mode).</p>' : ''}
         <div class="toolbar" style="margin-top:12px"><button id="sdDel" class="danger">Remove from view</button></div>`;
     };
@@ -123,12 +141,12 @@
       on('dvRen', async () => { const n = await askText('Name of this view', draft.name); if (n && n.trim()) { draft.name = n.trim().slice(0, 60); dirty = true; draw(); } });
       on('dvAdd', addDevice);
       on('dvAddL', () => { const it = { id: 'i' + Math.random().toString(36).slice(2, 10), kind: 'label', x: W / 2, y: 60, size: 22, text: 'Text' }; draft.items.push(it); sel = it.id; dirty = true; draw(); });
-      on('dvAddV', () => { const other = list.find((v) => v.id !== draft.id); if (!other) return; const it = { id: 'i' + Math.random().toString(36).slice(2, 10), kind: 'view', view: other.id, x: W / 2, y: H / 2, size: 96, pic: 'icon:location', name: '' }; draft.items.push(it); sel = it.id; dirty = true; draw(); });
+      on('dvAddV', () => { const other = list.find((v) => v.id !== draft.id); if (!other) return; const it = { id: 'i' + Math.random().toString(36).slice(2, 10), kind: 'view', view: other.id, x: W / 2, y: H / 2, size: 96, pic: 'icon:building', name: '' }; draft.items.push(it); sel = it.id; dirty = true; draw(); });
       on('dvLink', () => { linkFrom = linkFrom === null ? '' : null; draw(); });
       on('dvBg', background);
       const wrap = $('#dvWrap', el); if (!wrap) return;
       if (!edit) {
-        wrap.onclick = (e) => { const n = e.target.closest('.dvi'); if (!n) { if (info) { info = null; draw(); } return; } const it = cur.items.find((i) => i.id === n.dataset.id); if (!it) return; if (it.kind === 'view') { const v = list.find((x) => x.id === it.view); if (v) { cur = v; info = null; pref('last', v.id); status = {}; draw(); poll(); } } else if (it.kind === 'device') { if (e.target.closest('.dvbadge')) return alarmWindow(it); info = it.id; draw(); } };
+        wrap.onclick = (e) => { const n = e.target.closest('.dvi'); if (!n) { if (info) setInfo(null); return; } const it = cur.items.find((i) => i.id === n.dataset.id); if (!it) return; if (it.kind === 'view') { const v = list.find((x) => x.id === it.view); if (v) { cur = v; info = null; pref('last', v.id); status = {}; if (isWall()) drawStage(); else draw(); poll(); } } else if (it.kind === 'device') { if (e.target.closest('.dvbadge')) return alarmWindow(it); if (info !== it.id) setInfo(it.id); } };
         wrap.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.dvi')) { e.preventDefault(); e.target.click(); } };
         return;
       }
@@ -184,13 +202,13 @@
       dl.$('#adOk').onclick = () => {
         let i = 0; const n = picked.size, cols = Math.max(1, Math.min(10, n)), gap = Math.min(150, (W - 160) / cols);
         for (const key of picked) { const [src, ...rest] = key.split('|'), ref = rest.join('|'); const c = choices.find((x) => x.src === src && x.ref === ref); const guess = guessIcon(c?.name || '');
-          draft.items.push({ id: 'i' + Math.random().toString(36).slice(2, 10), kind: 'device', src, ref, x: Math.round(80 + gap / 2 + (i % cols) * gap), y: Math.round(160 + Math.floor(i / cols) * 170), size: 96, pic: 'icon:' + guess, name: '', readings: c?.readings?.length > 1 ? [c.readings[1].k] : [] }); i++; }
+          draft.items.push({ id: 'i' + Math.random().toString(36).slice(2, 10), kind: 'device', src, ref, x: Math.round(80 + gap / 2 + (i % cols) * gap), y: Math.round(160 + Math.floor(i / cols) * 170), size: 120, pic: 'icon:' + guess, name: '', readings: c?.readings?.length > 1 ? [c.readings[1].k] : [] }); i++; }
         dl.close(); if (n) { dirty = true; draw(); toast(`${n} device${n === 1 ? '' : 's'} added`); }
       };
       paint(); dl.$('#adQ').focus();
     };
     /** a first picture from the device's name (the user can change it): words that most device names contain */
-    const guessIcon = (n) => { const x = n.toLowerCase(); return /rect|ups|batt|power|pdu/.test(x) ? 'battery' : /gen/.test(x) ? 'generator' : /fw|firewall/.test(x) ? 'shield' : /sw|switch/.test(x) ? 'switch' : /rtr|router|gw/.test(x) ? 'router' : /ap\b|wifi|wlan|radio|mw|micro/.test(x) ? 'antenna' : /gps|ntp|time|clock/.test(x) ? 'clock' : /ac\b|hvac|cool|crac/.test(x) ? 'snowflake' : /cam/.test(x) ? 'location' : /mux|sdh|e1|tx/.test(x) ? 'network' : 'server'; };
+    const guessIcon = (n) => guessName(n) || 'server-2u';
     const background = () => {
       const bg = draft.bg || { mode: 'grid' };
       const dl = dialog('Background', `<div class="form"><div class="field"><label>Kind</label><div><label class="chk"><input type="radio" name="bgm" value="grid" ${bg.mode === 'grid' ? 'checked' : ''}> Grid</label> <label class="chk"><input type="radio" name="bgm" value="plain" ${bg.mode === 'plain' ? 'checked' : ''}> Plain</label> <label class="chk"><input type="radio" name="bgm" value="image" ${bg.mode === 'image' ? 'checked' : ''}> Picture</label></div></div>
@@ -221,24 +239,44 @@
     };
     const ago = (ts) => { if (!ts) return 'never'; const s2 = Math.round((Date.now() - ts) / 1000); return s2 < 60 ? `${s2} s ago` : s2 < 3600 ? `${Math.round(s2 / 60)} min ago` : s2 < 86400 ? `${Math.round(s2 / 3600)} h ago` : `${Math.round(s2 / 86400)} d ago`; };
     const upText = (cs) => { if (cs === null || cs === undefined || !Number.isFinite(+cs)) return '–'; const s2 = Math.floor(cs / 100), d = Math.floor(s2 / 86400), h = Math.floor(s2 % 86400 / 3600), m = Math.floor(s2 % 3600 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
+    const openR = new Set();   // 1.99.12 readings opened in the details table (kept while the panel refreshes)
+    /** the readings as a table, each row opens to its 24-hour trend or its per-port values */
+    const rTable = (d) => {
+      const rs = d.readings || []; if (!rs.length) return d.kind === 'poll' ? '<h4>Readings</h4><p class="muted">This device has no readings yet. Add them on its page in SNMP polling.</p>' : '';
+      const openable = (r) => !!(r.rows?.length || (r.spark && r.spark.filter((x) => x !== null).length > 1));
+      const allOpen = rs.filter(openable).every((r) => openR.has(r.k));
+      const body = rs.map((r) => {
+        const on = openR.has(r.k), canOpen = openable(r);
+        const nums = (r.spark || []).filter((x) => x !== null && Number.isFinite(x)), unit = r.unit ? ' ' + r.unit : '';
+        const detail = r.rows?.length ? `<table class="dvsubt"><tbody>${r.rows.map((x) => `<tr><td>${esc(x.inst)}</td><td class="${x.state ? 'r-' + esc(x.state) : ''}">${esc(x.text)}</td></tr>`).join('')}${r.more ? `<tr><td colspan="2" class="muted">+${r.more} more on the SNMP polling page</td></tr>` : ''}</tbody></table>`
+          : nums.length > 1 ? `<div class="dvtrend">${spark(r.spark)}<div class="dvmm"><span>Lowest <b>${esc(String(+Math.min(...nums).toFixed(2)))}${esc(unit)}</b></span><span>Highest <b>${esc(String(+Math.max(...nums).toFixed(2)))}${esc(unit)}</b></span><span class="muted">last 24 h</span></div></div>` : '';
+        return `<tbody class="${on ? 'open' : ''}"><tr class="rh${r.state ? ' r-' + esc(r.state) : ''}">
+          <td class="ri">${rIcon(r)}</td><td class="rl" title="${esc(r.label)}">${esc(r.label)}</td><td class="rv">${esc(r.text)}</td>
+          <td class="rx">${canOpen ? `<button type="button" class="ib" data-rk="${esc(r.k)}" aria-expanded="${on}" title="Show more" aria-label="Show more about ${esc(r.label)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>` : ''}</td></tr>
+          ${canOpen ? `<tr class="rd"><td colspan="4">${detail}</td></tr>` : ''}</tbody>`;
+      }).join('');
+      return `<div class="dvrhead"><h4>Readings <span class="muted">${rs.length}</span></h4><button type="button" id="dvREx" class="linkbtn">${allOpen ? 'Collapse all' : 'Expand all'}</button></div><table class="dvrtab">${body}</table>`;
+    };
     const fillInfo = async () => {
       clearTimeout(infoTimer); const box = $('#dvInfo', el); if (!box || !info || edit) return;
       const it = cur.items.find((i) => i.id === info); if (!it) return;
       let d; try { d = await api(`/api/views/item?id=${encodeURIComponent(cur.id)}&item=${encodeURIComponent(it.id)}`); } catch (e) { box.innerHTML = `<div class="muted">${esc(e.message)}</div>`; return; }
       if (!alive || info !== it.id || !$('#dvInfo', el)) return;
       const st = status[it.id] || { state: d.state, sev: d.sev, open: d.alarms, unack: d.unack }, c = cls(st);
-      const pic = String(it.pic || 'icon:server'), picH = pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="">` : iconSvg(pic === 'none' ? 'server' : pic.slice(5), 30);
+      const pic = String(it.pic || 'icon:server'), picH = pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="">` : devImg(pic === 'none' ? 'icon:' + guessIcon(d.name || '') : pic, d.name || '');
       const kpis = d.kind === 'poll' ? [['pulse', 'Answer time', d.rtt === null || d.rtt === undefined ? '–' : `${d.rtt} ms`, ''], ['clock', 'Uptime', upText(d.uptime), ''], ['bell', 'Open alarms', String(d.alarms || 0), d.alarms ? 'alarms' : '']]
         : [['clock', 'Last heard', ago(d.lastSeen), ''], ['list', 'Syslog', String(d.sys || 0), ''], ['bell', 'Open alarms', String(d.alarms || 0), d.alarms ? 'alarms' : '']];
       const sc = box.scrollTop;
       box.innerHTML = `<div class="dvih ${c}"><div class="dvihpic">${picH}</div><div class="dvihtxt"><h3>${esc(d.name || '')}</h3><div class="muted">${esc([d.host, d.group, d.kind === 'poll' ? (d.via ? 'probe ' + d.via : 'SNMP ' + (d.version || '')) : (d.vendor || 'syslog / traps')].filter(Boolean).join(' · '))}</div></div><button class="ib dvix" id="dvInfoX" title="Close" aria-label="Close the details">✕</button></div>
         <div class="dvstate ${c}">${esc(stText(st))}${d.error && st.state === 'down' ? ` · ${esc(d.error)}` : ''}</div>
         <div class="dvkpis">${kpis.map(([ic, l, v, act]) => `<${act ? 'button type="button" data-act="alarms"' : 'div'} class="dvkpi${act ? ' click' : ''}">${iconSvg(ic, 18)}<span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></${act ? 'button' : 'div'}>`).join('')}</div>
-        ${d.readings && d.readings.length ? `<h4>Readings</h4><div class="dvrlist">${d.readings.map((r) => `<div class="dvr${r.state ? ' r-' + esc(r.state) : ''}"><span class="ri">${rIcon(r)}</span><span class="rl" title="${esc(r.label)}">${esc(r.label)}</span><span class="rv">${esc(r.text)}</span>${r.spark ? `<span class="rs">${spark(r.spark)}</span>` : ''}${r.rows ? `<div class="rrows">${r.rows.map((x) => `<span class="${x.state ? 'r-' + esc(x.state) : ''}"><i>${esc(x.inst)}</i> ${esc(x.text)}</span>`).join('')}${r.more ? `<span class="muted">+${r.more} more</span>` : ''}</div>` : ''}</div>`).join('')}</div>` : d.kind === 'poll' ? '<p class="muted">This device has no readings yet. Add them on its page in SNMP polling.</p>' : ''}
         ${d.sysDescr ? `<p class="muted dvdescr" title="${esc(d.sysDescr)}">${esc(d.sysDescr)}</p>` : ''}
-        <div class="toolbar dvlinksbar">${d.poll ? `<button data-go="#polling?d=${encodeURIComponent(d.poll)}">Open in SNMP polling</button>` : ''}${d.alarms ? '<button data-act="alarms">Show alarms</button>' : ''}</div>`;
+        <div class="toolbar dvlinksbar">${d.poll ? `<button data-go="#polling?d=${encodeURIComponent(d.poll)}">Open in SNMP polling</button>` : ''}${d.alarms ? '<button data-act="alarms">Show alarms</button>' : ''}</div>
+        ${rTable(d)}`;
       box.scrollTop = sc;
-      $('#dvInfoX', box).onclick = () => { info = null; draw(); };
+      $$('[data-rk]', box).forEach((b) => { b.onclick = () => { const k2 = b.dataset.rk; if (openR.has(k2)) openR.delete(k2); else openR.add(k2); const on = openR.has(k2); b.setAttribute('aria-expanded', String(on)); b.closest('tbody')?.classList.toggle('open', on); }; });
+      { const ea = $('#dvREx', box); if (ea) ea.onclick = () => { const all = (d.readings || []).filter((r) => r.rows?.length || r.spark).map((r) => r.k), anyClosed = all.some((k2) => !openR.has(k2)); openR.clear(); if (anyClosed) all.forEach((k2) => openR.add(k2)); fillInfo(); }; }
+      $('#dvInfoX', box).onclick = () => setInfo(null);
       $$('[data-act="alarms"]', box).forEach((b) => { b.onclick = () => alarmWindow(it); });
       $$('[data-go]', box).forEach((b) => { b.onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); location.hash = b.dataset.go; }; });
       infoTimer = setTimeout(fillInfo, document.hidden ? 30000 : 10000);
@@ -261,7 +299,8 @@
     };
 
     const onResize = () => fit(); addEventListener('resize', onResize);
-    const onFs = () => { if (!document.fullscreenElement) { document.body.classList.remove('dv-wall'); } fit(); setTimeout(fit, 60); setTimeout(fit, 400); }; document.addEventListener('fullscreenchange', onFs);
+    let wasFs = false;
+    const onFs = () => { if (!document.fullscreenElement) { document.body.classList.remove('dv-wall'); if (wasFs && alive && !edit) { wasFs = false; draw(); } } else wasFs = true; fit(); setTimeout(fit, 60); setTimeout(fit, 400); }; document.addEventListener('fullscreenchange', onFs);
     const ro = window.ResizeObserver ? new ResizeObserver(() => fit()) : null; if (ro) ro.observe(el);   // 1.99.11 the canvas follows any change of size (wall screen, panel opening, window)
     const onVis = () => { if (!document.hidden) poll(); }; document.addEventListener('visibilitychange', onVis);
     load();

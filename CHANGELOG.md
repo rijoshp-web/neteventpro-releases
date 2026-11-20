@@ -2,6 +2,13 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.12
+- Device view: the built-in pictures are now modern device drawings (the same 39 as in app\assets\stencils), shown without the frame around them. A device's state shows as a coloured glow around its picture and a coloured dot before its name; critical alarms make the glow pulse. Frames are kept only for "Marker only" items (placing devices on a drawing). Older views get a matching modern picture automatically, chosen from the device name (rectifier, UPS, switch, router …).
+- Device view: the wall screen stays on when you click a device, close the details panel, open the alarm window or open another view.
+- Device view follows the colour theme; the round alarm count now shows in every theme (it was invisible in the Light theme).
+- Details panel: the readings are a table at the end of the panel; each row opens (arrow) to its 24-hour trend with lowest and highest value, or to its per-port values; "Expand all / Collapse all". Open rows stay open while the panel refreshes.
+- New devices placed on a view start a little larger (120).
+
 ## 1.99.11
 - Maintenance windows now also hold back CLEARED e-mails (an alarm raised before the window that cleared during it was still e-mailed) and escalations (they wait until the window ends, if the alarm is still not acknowledged).
 - SNMP polling device page: the Reading column shows only the reading names (the OID and calculation are in the tooltip); value meanings show only the word ("Normal", "Error"), also in the Status section, with the number in the tooltip.

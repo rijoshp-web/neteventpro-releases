@@ -2201,3 +2201,44 @@ button.dvbadge { border: 0; cursor: pointer; } button.dvbadge:hover { filter: br
 #dvStage:fullscreen .dvwallx, #dvStage.wall .dvwallx { display: block; } #dvStage:fullscreen .dvwallx:hover { opacity: 1; }
 #dvStage:fullscreen.withside .dvwallx { right: 370px; }
 #dvStage:fullscreen .modal-back { position: fixed; }
+/* 1.99.12 Device view: modern pictures without a frame (the state shows as a glow and a dot by the name; frames are only for "Marker only"),
+   alarm counts that every theme shows, and the readings table in the details panel */
+.dvpic:not(.marker) { background: none; border: 0; border-radius: 0; box-shadow: none; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .22)); transition: filter .3s, opacity .3s; }
+.dvpic:not(.marker) img, .dvpic:not(.marker) .dvdp { width: 100%; height: 100%; object-fit: contain; border-radius: 0; pointer-events: none; }
+.dvpic.isimg:not(.marker) { padding: 0; }
+.dvi.st-warn .dvpic:not(.marker), .dvi.st-err .dvpic:not(.marker), .dvi.st-crit .dvpic:not(.marker) { filter: drop-shadow(0 0 3px var(--st)) drop-shadow(0 0 12px var(--st)); }
+.dvi.st-unk .dvpic:not(.marker) { opacity: .55; filter: grayscale(.7) drop-shadow(0 6px 8px rgba(0, 0, 0, .18)); }
+.dvi.pulse .dvpic:not(.marker) { animation: dvglow 1.6s ease-in-out infinite; }
+@keyframes dvglow { 0%, 100% { filter: drop-shadow(0 0 3px var(--st)) drop-shadow(0 0 8px var(--st)); } 50% { filter: drop-shadow(0 0 6px var(--st)) drop-shadow(0 0 22px var(--st)); } }
+@media (prefers-reduced-motion: reduce) { .dvi.pulse .dvpic:not(.marker) { animation: none; } }
+.dvi:not(.dvlabel) .dvname::before { content: ""; display: inline-block; width: 9px; height: 9px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--st); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st) 25%, transparent); vertical-align: middle; }
+.dvsub { bottom: -2px; padding: 1px 8px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.dvwrap .dvi > button.dvbadge { background: var(--st) !important; color: #fff !important; border: 2px solid var(--panel) !important; box-shadow: 0 2px 8px rgba(0, 0, 0, .35) !important; padding: 3px 7px; min-width: 26px; font: 700 13px/1 var(--ui, system-ui) !important; }
+.dvwrap .dvi.st-ok > button.dvbadge, .dvwrap .dvi.st-unk > button.dvbadge { background: var(--s4, #e0a526) !important; }
+.dvpicks { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+.dvpick.dp { height: 52px; padding: 4px; background: var(--panel2, var(--panel)); }
+.dvpick.dp img { width: 100%; height: 100%; object-fit: contain; }
+.dvpick.mk { height: 52px; flex-direction: column; font-size: 16px; line-height: 1; gap: 2px; display: flex; align-items: center; justify-content: center; } .dvpick.mk span { font-size: 10px; }
+.dvihpic { border: 0; background: none; border-radius: 0; }
+.dvihpic img { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .25)); }
+.dvrhead { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.dvrhead h4 { margin: 0 0 6px !important; } .dvrhead .linkbtn { padding-bottom: 0; }
+.dvrtab { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dvrtab tbody { border-bottom: 1px solid var(--line); }
+.dvrtab tbody:last-child { border-bottom: 0; }
+.dvrtab td { padding: 7px 4px; vertical-align: middle; }
+.dvrtab .ri { width: 26px; color: var(--accent); } .dvrtab .ri svg { display: block; }
+.dvrtab .rl { color: var(--muted); max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dvrtab .rv { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+.dvrtab .rx { width: 28px; text-align: right; } .dvrtab .rx .ib { width: 26px; height: 26px; padding: 0; display: inline-grid; place-items: center; }
+.dvrtab .rx svg { transition: transform .2s; } .dvrtab tbody.open .rx svg { transform: rotate(90deg); }
+.dvrtab tr.rd { display: none; } .dvrtab tbody.open tr.rd { display: table-row; }
+.dvrtab tr.rd > td { padding: 0 4px 10px 30px; }
+.dvrtab tr.rh.r-ok .rv, .dvsubt .r-ok { color: var(--ok); } .dvrtab tr.rh.r-warn .rv, .dvsubt .r-warn { color: var(--s4, #e0a526); } .dvrtab tr.rh.r-crit .rv, .dvsubt .r-crit { color: var(--bad); }
+.dvrtab tr.rh.r-crit .ri { color: var(--bad); } .dvrtab tr.rh.r-warn .ri { color: var(--s4, #e0a526); }
+.dvsubt { width: 100%; border-collapse: collapse; background: var(--panel2, var(--panel)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.dvsubt td { padding: 5px 9px; border-top: 1px solid var(--line); } .dvsubt tr:first-child td { border-top: 0; }
+.dvsubt td:last-child { text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+.dvtrend { padding: 8px 10px; border-radius: 8px; background: var(--panel2, var(--panel)); border: 1px solid var(--line); color: var(--accent); }
+.dvtrend .dvspark { height: 44px; }
+.dvmm { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; color: var(--muted); } .dvmm b { color: var(--text); }
