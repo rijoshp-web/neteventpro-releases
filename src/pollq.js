@@ -47,7 +47,7 @@ function why(polling, t) {
   const ks = new Set(polling.keysOf ? polling.keysOf(t.k) : [t.k]);
   if (!ks.size) return `No polled device has a reading named "${name}" any more.`;
   const want = new Set(t.devs), has = new Set();
-  for (const p of (polling.profiles ? polling.profiles() : [])) if (p.own && p.metrics.some((m) => ks.has(m.k))) has.add(String(p.id).replace(/^dev-/, ''));
+  { const pids = new Set((polling.profiles ? polling.profiles() : []).filter((p) => (p.own || p.builtin === false) && p.metrics.some((m) => ks.has(m.k))).map((p) => p.id)); for (const d of polling.devices()) if (pids.has(d.profile) || pids.has('dev-' + d.id)) has.add(d.id); }   // 1.99.8 own readings or a template
   const devs = polling.devices().filter((d) => !want.size || want.has(d.id)), parts = [];
   const without = want.size ? devs.filter((d) => has.size && !has.has(d.id)) : [];   // only the ticked devices are worth naming
   for (const d of devs.filter((x) => !has.size || has.has(x.id)).slice(0, 6)) {
@@ -57,7 +57,7 @@ function why(polling, t) {
     else if (!rt.lastOk) parts.push(`${nm}: no SNMP answer (${String(rt.error || 'no answer').slice(0, 80)})`);
     else {
       const anyKey = [...rt.last.keys(), ...(rt.texts ? rt.texts.keys() : [])].some((key) => ks.has(key.slice(0, key.indexOf('|'))));
-      if (!anyKey) parts.push(`${nm}: answers, but gave no value for this reading (check its OID)`);
+      if (!anyKey) parts.push(`${nm}: answers${d.via ? ` (through probe ${(polling.probeName && polling.probeName(d.via)) || d.via})` : ''}, but has no value for this reading yet: open the device in SNMP polling and use Test read on the reading`);
       else if (t.inst !== '*') parts.push(`${nm}: no instance named "${t.inst}"`);
       else { const tx = rt.texts && [...rt.texts].find(([key]) => ks.has(key.slice(0, key.indexOf('|')))); parts.push(`${nm}: the value is text${tx ? ` ("${String(tx[1].s).slice(0, 40)}")` : ''}, not a number`); }
     }

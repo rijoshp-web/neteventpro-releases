@@ -2,6 +2,11 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.9
+- Dashboard polling tiles: a device polled with a reading set chosen in its device settings (not its own readings) now shows its values. The dashboard only looked at readings made on the device itself, while the device page shows the set actually polled, so a tile said "no value" although the device page showed one.
+- Readings join across devices by name and unit without regard to upper/lower case or extra spaces.
+- An empty polling tile says when a device is polled through a probe, and points to Test read on the reading.
+
 ## 1.99.8
 - SNMP polling through a probe: readings with Type of value = Text (for example Power System Status) now get their value. The probe measured them, but the main server dropped every value that was not a number, so they stayed empty until the device was polled from the server.
 

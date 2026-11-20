@@ -67,19 +67,26 @@ class Polling {
   }
   /** 1.99.2 readings for dashboards: the same name and unit on any device (any vendor, any OID) is one choice, key "L:<name>|<unit>" */
   dashKeys() {
-    const seen = new Map(), devOf = new Map(Object.entries(this.cfg.readings || {}).flatMap(([id, l]) => l.map((r) => [r.k, id])));
+    // 1.99.8 a reading made by you, on the device itself or in a template (custom set) used by many devices, joins by name and unit
+    // (not case sensitive); before, only readings made on the device joined, so devices using a template had no values on dashboards
+    const seen = new Map(), byLow = new Map(), devs = this.devices(), users = new Map();
+    for (const d of devs) users.set(d.profile, (users.get(d.profile) || 0) + 1);
     for (const p of this.profiles()) for (const m of p.metrics) {
-      if (m.on === false) continue; const own = !!p.own, key = own ? `L:${(m.label || m.k).trim()}|${m.unit || ''}` : m.k;
-      const e = seen.get(key) || { k: key, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text' && !m.lookup, devices: 0 };   /* 1.99.7 a text reading with value meanings holds numbers: dashboards can show it */ if (own) e.devices++; seen.set(key, e);
+      if (m.on === false) continue; const mine = !!p.own || p.builtin === false;
+      if (!mine) { if (!seen.has(m.k)) seen.set(m.k, { k: m.k, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text' && !m.lookup, devices: 0 }); continue; }
+      const label = String(m.label || m.k).trim(), unit = String(m.unit || '').trim(), low = `${label.toLowerCase()}|${unit.toLowerCase()}`;
+      let e = byLow.get(low); if (!e) { e = { k: `L:${label}|${unit}`, label, unit, text: m.dtype === 'text' && !m.lookup, devices: 0 }; byLow.set(low, e); seen.set(e.k, e); }
+      e.devices += p.own ? 1 : users.get(p.id) || 0; if (!(m.dtype === 'text' && !m.lookup)) e.text = false;
     }
     for (const x of [...IF_KEYS, ...BASE_KEYS]) if (!seen.has(x.k)) seen.set(x.k, { k: x.k, label: x.label, unit: x.unit || '', text: false, devices: 0 });
-    void devOf; return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+    return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
   }
   /** the reading keys behind a dashboard key (several when it is a name and unit) */
   keysOf(dk) {
     if (!String(dk).startsWith('L:')) return [dk];
     const s = String(dk).slice(2), i = s.lastIndexOf('|'), label = s.slice(0, i), unit = s.slice(i + 1), out = new Set();
-    for (const p of this.profiles()) if (p.own) for (const m of p.metrics) if ((m.label || m.k).trim() === label && (m.unit || '') === unit) out.add(m.k);
+    const L = label.trim().toLowerCase(), U = unit.trim().toLowerCase();
+    for (const p of this.profiles()) if (p.own || p.builtin === false) for (const m of p.metrics) if (String(m.label || m.k).trim().toLowerCase() === L && String(m.unit || '').trim().toLowerCase() === U) out.add(m.k);   // 1.99.8 templates too, not case sensitive
     return [...out];
   }
   vendorOf(o) { return vendorOf(o); }

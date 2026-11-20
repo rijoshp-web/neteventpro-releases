@@ -64,5 +64,23 @@ test('an empty polling tile explains why; a numeric text value is used', () => {
   assert.deepStrictEqual(e.rows, []); assert.match(e.why, /Rect: no reading named/);
   rt.get('a').texts = new Map(); rt.get('a').last = new Map();
   const g = pq.run(polling, { kind: 'top', k: 'L:Room temp|°C', devs: ['a'], inst: '*', pagg: 'avg', per: 'device', n: 5 }, {});
-  assert.match(g.why, /CM-1: answers, but gave no value/);
+  assert.match(g.why, /CM-1: answers, but has no value/);
+});
+
+// 1.99.9 a device that is polled with a custom reading set (not its own readings) still feeds the dashboard by reading name
+test('readings of a custom reading set join by name and unit, not case sensitive', () => {
+  const { Polling } = require('../src/polling');
+  const profiles = [
+    { id: 'generic', builtin: true, metrics: [{ k: 'cpu', label: 'CPU' }] },
+    { id: 'pCM', builtin: false, metrics: [{ k: 'c1', label: 'CM Room Temperature', unit: '°C' }] },
+    { id: 'dev-b', own: true, metrics: [{ k: 'r2', label: 'cm room temperature ', unit: '°C' }] }
+  ];
+  const devs = [{ id: 'a', name: 'CUC-6 CM', profile: 'pCM' }, { id: 'b', name: 'PTB CM', profile: 'dev-b' }];
+  const polling = { profiles: () => profiles, devices: () => devs, rt: new Map([['a', { lastTry: 1, lastOk: 1, last: new Map([['c1|', { v: 22, ts: 1 }]]) }], ['b', { lastTry: 1, lastOk: 1, last: new Map([['r2|', { v: 25, ts: 1 }]]) }]]),
+    metricInfo: () => ({ label: 'CM Room Temperature', unit: '°C' }) };
+  polling.keysOf = Polling.prototype.keysOf.bind(polling); polling.dashKeys = Polling.prototype.dashKeys.bind(polling);
+  const k = polling.dashKeys().find((x) => x.label.toLowerCase() === 'cm room temperature');
+  assert.equal(k.devices, 2);
+  const r = Q.run(polling, req({ kind: 'top', k: k.k, devs: ['a', 'b'], per: 'device' }), ctx);
+  assert.deepEqual(r.rows.map((x) => [x.name, x.n]).sort(), [['CUC-6 CM', 22], ['PTB CM', 25]]);
 });
