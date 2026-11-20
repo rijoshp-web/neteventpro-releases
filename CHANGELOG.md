@@ -2,6 +2,17 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.11
+- Maintenance windows now also hold back CLEARED e-mails (an alarm raised before the window that cleared during it was still e-mailed) and escalations (they wait until the window ends, if the alarm is still not acknowledged).
+- SNMP polling device page: the Reading column shows only the reading names (the OID and calculation are in the tooltip); value meanings show only the word ("Normal", "Error"), also in the Status section, with the number in the tooltip.
+- Menu: Dashboard, Alarms, Syslogs, Traps, Devices, Device view, then the rest. System health left the menu (Health in the title bar opens it). SNMP polling moved into Devices, which now has two tabs: Reporting devices and SNMP polling devices.
+- Dashboard: the wall display and menu buttons at the top right are the same size.
+- Device view: clicking a device opens a details panel on the right (state, answer time, uptime, open alarms, every enabled reading with an icon, value and 24-hour trend line, port/instance values, description). It also shows on the wall screen, beside the drawing. Readings are no longer printed under the pictures.
+- Device view: the small round alarm count opens a window with that device's open alarms only (Acknowledge / Clear), also on the wall screen.
+- Device view: "Marker only" picture (a live coloured frame with its own width and height, name can be hidden) to place over shapes in a background drawing; SVG accepted for pictures and backgrounds (up to 8 MB), so a Visio drawing exported as SVG or PNG can be the background.
+- Device view: the size sliders show their number.
+- New folder app\assets\stencils with 39 original device drawings in a modern flat style (racks, servers, switches, routers, firewall, rectifier shelf, batteries, UPS, PDU, generator, multiplexer, ODF, microwave dish, tower, GPS clock, audio processor, encoder, transmitter, camera, access point, sensors, building, cloud …) and a README. Not built into the app: pick one with the picture upload when needed.
+
 ## 1.99.10
 - Dashboard polling tiles: the Reading list only offers readings that a device actually polls. A name kept only in an unused reading set (for example "CM Room Temperature") was offered but could never show a value.
 - An empty polling tile now names each ticked device that has no reading with the chosen name, instead of wrongly saying the device "has no value for this reading yet".

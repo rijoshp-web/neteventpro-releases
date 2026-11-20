@@ -101,8 +101,11 @@ fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
       check('Device view shows the placed devices with their names', names.length === ch.length && names.every((x) => x && x !== 'Device'), names.join(', '));
       const cls = await p.$$eval('.dvi', (n) => n.map((x) => [...x.classList].find((c) => c.startsWith('st-'))));
       check('Device view colours every device by its state', cls.length && cls.every(Boolean), cls.join(','));
-      await p.click('.dvi'); await sleep(1200); const pan = await p.evaluate(() => !!document.querySelector('.modal .dvpanel') && !/Loading/.test(document.querySelector('#pnA')?.textContent || 'Loading'));
-      check('clicking a device opens its panel with its open alarms', pan); await closeAll();
+      await p.click('.dvi .dvpic'); await sleep(1500);
+      const pan = await p.evaluate(() => { const i = document.querySelector('#dvInfo'); if (!i || i.hidden) return null; const r = i.getBoundingClientRect(), c = document.querySelector('.dvwrap')?.getBoundingClientRect(); return { right: !c || r.left >= c.right - 2, text: /Open alarms/.test(i.innerText) && !/Loading/.test(i.innerText) }; });
+      check('1.99.11 clicking a device opens its details panel on the right', pan?.right && pan?.text, JSON.stringify(pan));
+      if (await p.evaluate(() => { const b = document.querySelector('.dvi button.dvbadge'); if (b) b.click(); return !!b; })) { await sleep(1200); const aw = await p.evaluate(() => { const m = document.querySelector('.modal'); return m ? { alarms: /Open alarms/.test(m.innerText), noReadings: !m.querySelector('.dvr, .dvrlist') } : null; });
+        check('1.99.11 the alarm count opens a window with alarms only, no readings', aw?.alarms && aw?.noReadings, JSON.stringify(aw)); await closeAll(); }
       await p.click('#dvEdit'); await sleep(800); const box = await (await p.$('.dvi')).boundingBox();
       await p.mouse.move(box.x + box.width / 2, box.y + 20); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 + 100, box.y + 80, { steps: 6 }); await p.mouse.up(); await p.click('#dvSave'); await sleep(1200);
       const moved = (await (await fetch(B + '/api/views', { headers: H })).json()).views.find((x) => x.id === v.id).items[0];

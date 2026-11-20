@@ -7,7 +7,7 @@
 const crypto = require('node:crypto');
 const { matchItem } = require('./readings');
 
-const W = 1600, H = 900, MAX_VIEWS = 50, MAX_ITEMS = 500, MAX_LINKS = 1000, MAX_IMG = 3 * 1048576;
+const W = 1600, H = 900, MAX_VIEWS = 50, MAX_ITEMS = 500, MAX_LINKS = 1000, MAX_IMG = 8 * 1048576;   // 1.99.11 8 MB: drawings saved from Visio can be large
 const s = (v, n) => String(v ?? '').slice(0, n);
 const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
 const idOk = (v) => /^[a-z0-9]{4,24}$/i.test(String(v || ''));
@@ -19,6 +19,8 @@ function imageType(buf) {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return { ext: 'png', type: 'image/png' };
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { ext: 'jpg', type: 'image/jpeg' };
   if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return { ext: 'webp', type: 'image/webp' };
+  // 1.99.11 SVG (a Visio drawing saved as SVG): shown only as a picture (<img>), where scripts never run; served with a policy that blocks them anyway
+  { const head = buf.subarray(0, 2048).toString('utf8').replace(/^\uFEFF/, '').replace(/<\?xml[^>]*\?>/, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<!DOCTYPE[^>]*>/i, '').trimStart(); if (/^<svg[\s>]/i.test(head)) return { ext: 'svg', type: 'image/svg+xml' }; }
   return null;
 }
 
@@ -41,11 +43,12 @@ class ViewStore {
     for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, MAX_ITEMS)) {
       const kind = ['device', 'label', 'view'].includes(it.kind) ? it.kind : 'device';
       const id = idOk(it.id) && !seen.has(it.id) ? String(it.id) : newId('i'); seen.add(id);
-      const o = { id, kind, x: Math.round(num(it.x, 0, W, 100)), y: Math.round(num(it.y, 0, H, 100)), size: Math.round(num(it.size, 40, 240, 96)), name: s(it.name, 60) };
+      const o = { id, kind, x: Math.round(num(it.x, 0, W, 100)), y: Math.round(num(it.y, 0, H, 100)), size: Math.round(num(it.size, 16, 600, 96)), name: s(it.name, 60) };
       if (kind === 'device') {
         o.src = it.src === 'dev' ? 'dev' : 'poll'; o.ref = s(it.ref, 260); if (!o.ref) continue;
-        o.pic = /^(icon:[a-z]{2,20}|img:[a-z0-9]{4,24})$/i.test(String(it.pic || '')) ? String(it.pic) : 'icon:server';
-        o.readings = (Array.isArray(it.readings) ? it.readings : []).slice(0, 3).map((r) => s(r, 120)).filter(Boolean);
+        o.pic = /^(icon:[a-z]{2,20}|img:[a-z0-9]{4,24}|none)$/i.test(String(it.pic || '')) ? String(it.pic) : 'icon:server';   // none = marker only: a live ring over a shape of the background drawing
+        o.h = Math.round(num(it.h, 20, 600, o.size)); o.hideName = it.hideName === true;
+        o.readings = [];
       } else if (kind === 'label') { o.text = s(it.text, 120); o.size = Math.round(num(it.size, 10, 72, 18)); }
       else { o.view = idOk(it.view) ? String(it.view) : ''; o.pic = /^(icon:[a-z]{2,20})$/.test(String(it.pic || '')) ? String(it.pic) : 'icon:location'; }
       items.push(o);
@@ -67,11 +70,11 @@ class ViewStore {
 
   // ---------- pictures ----------
   saveImage(dataUrl) {
-    const m = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(dataUrl || ''));
+    const m = /^data:image\/(png|jpeg|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(dataUrl || ''));
     const bad = (t) => { const e = new Error(t); e.status = 400; throw e; };
-    if (!m) bad('Choose a PNG, JPEG or WebP picture.');
-    const buf = Buffer.from(m[2], 'base64'); if (buf.length > MAX_IMG) bad('The picture is larger than 3 MB. Make it smaller first.');
-    const t = imageType(buf); if (!t) bad('This file is not a PNG, JPEG or WebP picture.');
+    if (!m) bad('Choose a PNG, JPEG, WebP or SVG picture.');
+    const buf = Buffer.from(m[2], 'base64'); if (buf.length > MAX_IMG) bad('The picture is larger than 8 MB. Make it smaller first.');
+    const t = imageType(buf); if (!t) bad('This file is not a PNG, JPEG, WebP or SVG picture.');
     const id = 'm' + crypto.randomBytes(6).toString('hex');
     this.db.prepare('INSERT INTO view_images (id, type, data, ts) VALUES (?, ?, ?, ?)').run(id, t.type, buf, Date.now()); return id;
   }
@@ -157,5 +160,37 @@ ViewStore.prototype.itemAlarms = function (viewId, itemId) {
   else keys.add(it.ref);
   return [...this.alarms.open.values()].filter((r) => keys.has(r.dev) || (r.src_ip && ips.has(r.src_ip))).sort((a, b) => b.first_ts - a.first_ts).slice(0, 50)
     .map((r) => ({ id: r.id, severity: r.severity, state: r.state, rule: r.rule_name, port: r.inst_txt || r.inst || '', message: r.message, first: r.first_ts, ackBy: r.ack_by || '' }));
+};
+/** 1.99.11 everything the details panel shows for one device item: who it is, how it answers, every enabled reading (value,
+ *  meaning, a small 24-hour graph for single values) and the open alarm count. Readings are no longer drawn under the pictures. */
+ViewStore.prototype.itemDetail = function (viewId, itemId) {
+  const v = this.get(viewId), it = v && v.items.find((x) => x.id === itemId); if (!it || it.kind !== 'device') return null;
+  const st = (this.status(viewId)?.items || {})[itemId] || {};
+  if (it.src !== 'poll') {
+    const d = this.engine?.deviceList().find((x) => x.key === it.ref); if (!d) return { kind: 'dev', name: it.name || it.ref, state: 'gone', alarms: st.open || 0, readings: [] };
+    return { kind: 'dev', name: it.name || d.name || d.host, host: d.srcIp || '', vendor: d.vendor || '', group: d.group || '', state: st.state, sev: st.sev ?? null, alarms: st.open || 0, unack: st.unack || 0, lastSeen: d.lastSeen || 0, sys: d.sys || 0, traps: d.traps || 0, overdue: !!d.overdue, dev: d.key, readings: [] };
+  }
+  const det = this.polling?.detail(it.ref); if (!det) return { kind: 'poll', name: it.name || 'Device', state: 'gone', alarms: 0, readings: [] };
+  const lk = this.polling.lookupMetrics(), lks = new Map(this.polling.lookups().map((l) => [l.id, l])), now = Date.now();
+  const fmt = (x) => (x === null || x === undefined || !Number.isFinite(+x) ? '–' : Math.abs(x) >= 1000 ? String(Math.round(x)) : Math.abs(x) >= 100 ? String(Math.round(x * 10) / 10) : String(Math.round(x * 100) / 100));
+  const word = (k, x) => { const l = lk.get(k), items = l ? lks.get(l.lookup)?.items || [] : []; return items.length && Number.isFinite(+x) ? matchItem(items, +x) : null; };
+  const readings = [];
+  for (const m of det.profile.metrics.slice(0, 80)) {
+    const r = { k: m.k, label: m.label || m.k, unit: m.unit || '', text: '–', state: '', spark: null, rows: null };
+    if (det.insts[m.k]) {
+      const ent = Object.entries(det.insts[m.k]); r.rows = ent.slice(0, 12).map(([i, x]) => { const w = word(m.k, x); return { inst: i, text: w ? w.label : `${fmt(x)}${m.unit ? ' ' + m.unit : ''}`, state: w?.state || '' }; });
+      r.text = `${ent.length} value${ent.length === 1 ? '' : 's'}`; r.more = Math.max(0, ent.length - 12);
+    } else if (det.values[m.k] !== undefined) {
+      const x = det.values[m.k], w = word(m.k, x); r.text = w ? w.label : `${fmt(x)}${m.unit ? ' ' + m.unit : ''}`; r.state = w?.state || ''; r.value = x;
+      if (!w) { try { r.spark = this.polling.series(it.ref, m.k, '', now - 86400000, now, 48).map((p) => (p.v === null || p.v === undefined ? null : Math.round(p.v * 1000) / 1000)); } catch { r.spark = null; } }
+    } else if (det.texts[m.k]) {
+      const t = det.texts[m.k][''] || Object.values(det.texts[m.k])[0]; const sv = String(t?.s ?? ''); const w = /^\s*-?\d+(\.\d+)?\s*$/.test(sv) ? word(m.k, +sv) : null;
+      r.text = w ? w.label : sv.slice(0, 80) || '–'; r.state = w?.state || '';
+    }
+    readings.push(r);
+  }
+  const d = det.device;
+  return { kind: 'poll', name: it.name || d.name, host: d.host, port: d.port, version: d.version, group: d.group || '', via: det.via || '', state: det.state, sev: st.sev ?? null, alarms: st.open || 0, unack: st.unack || 0,
+    rtt: det.rtt, lastOk: det.lastOk, error: det.error || '', downSince: det.downSince || 0, sysName: det.sysName, sysDescr: String(det.sysDescr || '').slice(0, 200), uptime: det.values.uptime ?? null, poll: d.id, readings };
 };
 module.exports = { ViewStore, imageType, W, H };

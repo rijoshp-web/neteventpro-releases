@@ -20,8 +20,9 @@
   const stText = (st) => (!st ? 'Waiting…' : st.state === 'gone' ? (st.title || 'Removed') : st.state === 'off' ? 'Polling is off' : st.state === 'down' ? 'No answer' : st.state === 'stale' ? 'Probe not reporting' : st.state === 'unknown' ? 'Waiting for the first answer' : st.open ? `${st.open} open alarm${st.open === 1 ? '' : 's'}${st.sev !== null ? ' · worst ' + SEVN[st.sev] : ''}` : 'OK');
 
   views.devview = (el) => {
-    let list = [], cur = null, edit = false, draft = null, status = {}, choices = null, canEdit = false, timer = 0, alive = true, sel = null, linkFrom = null, dirty = false;
+    let list = [], cur = null, edit = false, draft = null, status = {}, choices = null, canEdit = false, timer = 0, alive = true, sel = null, linkFrom = null, dirty = false, info = null, infoTimer = 0;   // info: the item whose details panel is open
     const k = () => { const w = $('.dvwrap', el); return w ? w.clientWidth / W : 1; };
+    const markerOnly = (it) => it.pic === 'none';
 
     const load = async (keepId) => {
       try { const r = await api('/api/views'); list = r.views || []; canEdit = !!r.canEdit; } catch (e) { el.innerHTML = `<div class="page-head"><h1>Device view</h1></div><div class="empty"><b>Could not load</b>${esc(e.message)}</div>`; return; }
@@ -39,35 +40,42 @@
     const itemHtml = (it) => {
       const st = status[it.id];
       if (it.kind === 'label') return `<div class="dvi dvlabel${sel === it.id ? ' sel' : ''}" data-id="${esc(it.id)}" style="left:${it.x}px;top:${it.y}px;font-size:${it.size}px">${esc(it.text || 'Text')}</div>`;
-      const pic = String(it.pic || 'icon:server'), s = it.size || 96;
-      const picHtml = pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="" draggable="false">` : iconSvg(pic.slice(5), Math.round(s * 0.55));
+      const pic = String(it.pic || 'icon:server'), s = it.size || 96, mk = pic === 'none';
+      const picHtml = mk ? '' : pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="" draggable="false">` : iconSvg(pic.slice(5), Math.round(s * 0.55));
       const name = it.name || (it.kind === 'view' ? (list.find((v) => v.id === it.view)?.name || 'View') : (choices?.find((c) => c.src === it.src && c.ref === it.ref)?.name || st?.name || 'Device'));
-      return `<div class="dvi ${cls(st)}${st && st.unack && cls(st) === 'st-crit' ? ' pulse' : ''}${sel === it.id ? ' sel' : ''}${linkFrom === it.id ? ' linkfrom' : ''}" data-id="${esc(it.id)}" style="left:${it.x}px;top:${it.y}px;--s:${s}px" title="${esc(stText(st))}" tabindex="0" role="button" aria-label="${esc(name)}: ${esc(stText(st))}">
-        <div class="dvpic${pic.startsWith('img:') ? ' isimg' : ''}">${picHtml}${it.kind === 'view' ? '<span class="dvsub">open ›</span>' : ''}</div>
-        <span class="dvbadge" ${st && st.open ? '' : 'hidden'}>${st ? st.open : ''}</span>
-        <div class="dvname">${esc(name)}</div><div class="dvread">${readHtml(st)}</div></div>`;
+      return `<div class="dvi ${cls(st)}${st && st.unack && cls(st) === 'st-crit' ? ' pulse' : ''}${sel === it.id ? ' sel' : ''}${linkFrom === it.id ? ' linkfrom' : ''}" data-id="${esc(it.id)}" style="left:${it.x}px;top:${it.y}px;--s:${s}px;--h:${mk ? (it.h || s) : s}px" title="${esc(stText(st))}" tabindex="0" role="button" aria-label="${esc(name)}: ${esc(stText(st))}">
+        <div class="dvpic${pic.startsWith('img:') ? ' isimg' : ''}${mk ? ' marker' : ''}">${picHtml}${it.kind === 'view' ? '<span class="dvsub">open ›</span>' : ''}</div>
+        <button type="button" class="dvbadge" ${st && st.open ? '' : 'hidden'} title="Show the open alarms" aria-label="Open alarms">${st ? st.open : ''}</button>
+        ${mk && it.hideName ? '' : `<div class="dvname">${esc(name)}</div>`}${st && st.down ? `<div class="dvread"><span class="r-crit">${st.down} without answer</span></div>` : ''}</div>`;
     };
-    const readHtml = (st) => (st?.readings || []).map((r) => `<span class="${r.state ? 'r-' + esc(r.state) : ''}" title="${esc(r.label)}">${esc(r.text)}</span>`).join(' · ') + (st && st.down ? `${st.readings?.length ? ' · ' : ''}<span class="r-crit">${st.down} without answer</span>` : '');
+    const readHtml = (st) => (st && st.down ? `<span class="r-crit">${st.down} without answer</span>` : '');
     const linkSvg = (v) => {
       const pos = new Map(v.items.map((i) => [i.id, i]));
       return `<svg class="dvlinks" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${v.links.map((l, i) => { const a = pos.get(l.a), b = pos.get(l.b); if (!a || !b) return ''; const down = [status[l.a], status[l.b]].some((x) => x && x.state === 'down');
         return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${down ? 'down' : ''}" data-l="${i}"/>${edit ? `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hit" data-l="${i}"/>` : ''}`; }).join('')}</svg>`;
     };
     const bgHtml = (v) => (v.bg?.mode === 'image' && v.bg.img ? `<img class="dvbg" src="${imgUrl(v.bg.img)}" alt="" draggable="false">${v.bg.dim ? `<div class="dvdim" style="opacity:${v.bg.dim / 100}"></div>` : ''}` : '');
-    const canvasHtml = (v) => `<div class="dvwrap ${v.bg?.mode === 'grid' ? 'grid' : v.bg?.mode === 'plain' ? 'plain' : 'pic'}${edit ? ' editing' : ''}" id="dvWrap"><div class="dvcanvas" id="dvCanvas">${bgHtml(v)}${linkSvg(v)}${v.items.map(itemHtml).join('')}</div>${edit ? '' : '<button class="dvwallx" id="dvWallX" title="Leave the wall screen">Close</button>'}</div>`;
+    const canvasHtml = (v) => `<div class="dvwrap ${v.bg?.mode === 'grid' ? 'grid' : v.bg?.mode === 'plain' ? 'plain' : 'pic'}${edit ? ' editing' : ''}" id="dvWrap"><div class="dvcanvas" id="dvCanvas">${bgHtml(v)}${linkSvg(v)}${v.items.map(itemHtml).join('')}</div>${edit ? '' : ''}</div>`;
 
     const draw = () => {
       if (!alive) return; const v = view();
       const tabsH = list.length ? `<div class="gchips" role="tablist">${list.map((x) => `<button class="gchip${cur && x.id === cur.id ? ' on' : ''}" data-v="${esc(x.id)}" role="tab" ${edit ? 'disabled' : ''}>${esc(x.name)}</button>`).join('')}</div>` : '';
       const tools = edit ? `<div class="toolbar dvtools"><button id="dvAdd" class="primary">Add device</button><button id="dvAddL">Add text</button><button id="dvAddV" ${list.length > 1 ? '' : 'disabled title="Make a second view first"'}>Add box to another view</button><button id="dvLink" class="${linkFrom !== null ? 'on' : ''}" title="Click two devices to join them with a line; click a line to remove it">${linkFrom !== null ? 'Click the second device…' : 'Draw line'}</button><button id="dvBg">Background…</button><button id="dvRen">Rename</button><span class="spacer"></span><button id="dvDel" class="danger">Delete view</button><button id="dvCancel">Cancel</button><button id="dvSave" class="primary">Save</button></div>`
-        : `<div class="toolbar"><span class="muted" id="dvSum"></span><span class="spacer"></span>${v ? '<button id="dvWall" title="Show this view on the whole screen, for a wall screen">Wall screen</button>' : ''}${canEdit ? `${v ? '<button id="dvEdit">Edit</button>' : ''}<button id="dvNew" class="${v ? '' : 'primary'}">New view</button>` : ''}</div>`;
+        : `<div class="toolbar"><span class="muted" id="dvSum"></span><span class="spacer"></span>${v ? '<button id="dvWall" title="Show this view on the whole screen, for a wall screen (the details panel works there too)">Wall screen</button>' : ''}${canEdit ? `${v ? '<button id="dvEdit">Edit</button>' : ''}<button id="dvNew" class="${v ? '' : 'primary'}">New view</button>` : ''}</div>`;
       el.innerHTML = `<div class="page-head"><h1>Device view</h1><span class="muted">Your devices as pictures with their live state</span></div>${tabsH}${tools}
-        ${v ? `<div class="dvlayout${edit && sel ? ' withside' : ''}">${canvasHtml(v)}${edit && sel ? `<aside class="panel dvside" id="dvSide">${sideHtml()}</aside>` : ''}</div>
+        ${v ? `<div class="dvlayout${(edit && sel) || (!edit && info) ? ' withside' : ''}" id="dvStage">${canvasHtml(v)}${edit && sel ? `<aside class="panel dvside" id="dvSide">${sideHtml()}</aside>` : ''}${!edit && info ? `<aside class="panel dvside dvinfo" id="dvInfo" aria-live="polite"><div class="muted">Loading…</div></aside>` : ''}${edit ? '' : '<button class="dvwallx" id="dvWallX" title="Leave the wall screen">Leave wall screen</button>'}</div>
           ${edit ? '<p class="muted" style="margin:6px 0 0">Drag pictures to move them. Click one to change it. Lines and boxes follow the devices.</p>' : '<div class="dvlegend muted"><span class="lg st-ok"></span>OK <span class="lg st-warn"></span>Warning <span class="lg st-err"></span>Error <span class="lg st-crit"></span>Critical or no answer <span class="lg st-unk"></span>Unknown or off</div>'}`
         : `<div class="empty steps"><b>No device view yet</b>${canEdit ? '<ol class="emsteps"><li><b>Make a view</b><span>For a room, a rack, a site or your whole network.</span></li><li><b>Place your devices</b><span>Polled devices and devices that send syslog or traps; pick a picture for each.</span></li><li><b>Watch it live</b><span>Each picture turns amber or red with its alarms, and shows up to three readings.</span></li></ol><button class="primary" id="dvNew2">New view</button>' : 'An administrator can make views here.'}</div>`}`;
-      fit(); wire(); paintStatus();
+      fit(); wire(); paintStatus(); requestAnimationFrame(fit);
     };
-    const fit = () => { const c = $('#dvCanvas', el); if (c) c.style.transform = `scale(${k()})`; };
+    const fit = () => {
+      const c = $('#dvCanvas', el), w = $('#dvWrap', el), st = $('#dvStage', el); if (!c || !w) return;
+      if (st && (document.fullscreenElement === st || st.classList.contains('wall'))) {   // wall screen: as large as fits next to the panel
+        const side = $('.dvside', st), aw = st.clientWidth - (side ? side.offsetWidth + 12 : 0) - 24, ah = st.clientHeight - 24, ww = Math.max(200, Math.min(aw, ah * W / H));
+        w.style.width = ww + 'px'; w.style.height = (ww * H / W) + 'px';
+      } else { w.style.width = ''; w.style.height = ''; }
+      c.style.transform = `scale(${k()})`;
+    };
     const paintStatus = () => {
       const v = view(); if (!v || edit) { if (!v) return; }
       for (const it of v.items) {
@@ -75,7 +83,7 @@
         const c = cls(st); if (!n.classList.contains(c)) { n.classList.remove('st-ok', 'st-warn', 'st-err', 'st-crit', 'st-unk'); n.classList.add(c); }
         n.classList.toggle('pulse', !!(st && st.unack && c === 'st-crit')); n.title = stText(st);
         const b = $('.dvbadge', n); if (b) { b.hidden = !(st && st.open); b.textContent = st ? st.open : ''; }
-        const r = $('.dvread', n), h = readHtml(st); if (r && r.innerHTML !== h) r.innerHTML = h;
+        { const h = readHtml(st); let r = $('.dvread', n); if (h && !r) { r = document.createElement('div'); r.className = 'dvread'; n.appendChild(r); } if (r && r.innerHTML !== h) r.innerHTML = h; }
         if (!it.name && st?.name) { const nm = $('.dvname', n); if (nm && nm.textContent !== st.name) { nm.textContent = st.name; n.setAttribute('aria-label', `${st.name}: ${stText(st)}`); } }
       }
       const svg = $('.dvlinks', el); if (svg) { const pos = new Map(v.items.map((i) => [i.id, i])); $$('line:not(.hit)', svg).forEach((ln) => { const l = v.links[+ln.dataset.l]; if (!l) return; ln.classList.toggle('down', [status[l.a], status[l.b]].some((x) => x && x.state === 'down')); void pos; }); }
@@ -86,15 +94,16 @@
     const selItem = () => draft?.items.find((i) => i.id === sel);
     const sideHtml = () => {
       const it = selItem(); if (!it) return '';
-      if (it.kind === 'label') return `<h3>Text</h3><div class="form"><div class="field"><label for="sdT">Text</label><div><input type="text" id="sdT" value="${esc(it.text || '')}" maxlength="120"></div></div><div class="field"><label for="sdS">Size</label><div><input type="range" id="sdS" min="10" max="72" value="${it.size || 18}"></div></div></div><button id="sdDel" class="danger">Remove</button>`;
+      if (it.kind === 'label') return `<h3>Text</h3><div class="form"><div class="field"><label for="sdT">Text</label><div><input type="text" id="sdT" value="${esc(it.text || '')}" maxlength="120"></div></div><div class="field"><label for="sdS">Size <output id="sdSo" class="dvnum">${it.size || 18}</output></label><div><input type="range" id="sdS" min="10" max="72" value="${it.size || 18}"></div></div></div><button id="sdDel" class="danger">Remove</button>`;
       const ch = it.kind === 'device' ? choices?.find((c) => c.src === it.src && c.ref === it.ref) : null;
       const pics = ICONS().map((x) => `<button class="dvpick${it.pic === 'icon:' + x.k ? ' on' : ''}" data-pic="icon:${x.k}" title="${esc(x.label)}">${iconSvg(x.k, 22)}</button>`).join('');
       return `<h3>${it.kind === 'view' ? 'Box to another view' : esc(ch?.name || 'Device')}</h3>${ch ? `<div class="muted" style="margin:-6px 0 8px">${esc(ch.host)} · ${ch.src === 'poll' ? 'SNMP polling' : 'syslog / traps'}</div>` : ''}
         <div class="form"><div class="field"><label for="sdN">Shown name</label><div><input type="text" id="sdN" value="${esc(it.name || '')}" placeholder="${esc(ch?.name || '')}" maxlength="60"></div></div>
         ${it.kind === 'view' ? `<div class="field"><label for="sdV">Opens</label><div><select id="sdV">${list.filter((v) => v.id !== draft.id).map((v) => `<option value="${esc(v.id)}" ${it.view === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></div></div>` : ''}
-        <div class="field"><label for="sdS">Size</label><div><input type="range" id="sdS" min="40" max="240" value="${it.size || 96}"></div></div></div>
-        <div class="dvpicks" role="group" aria-label="Picture">${pics}${it.kind === 'device' ? `<label class="dvpick upl" title="Your own picture (PNG, JPEG or WebP, up to 3 MB)">＋<input type="file" id="sdUp" accept="image/png,image/jpeg,image/webp" hidden></label>` : ''}</div>
-        ${it.kind === 'device' && ch?.readings?.length ? `<div class="field" style="display:block;margin-top:10px"><b>Readings under the picture</b> <span class="muted">(up to 3)</span><div class="dvrd">${ch.readings.map((r) => `<label class="chk"><input type="checkbox" class="sdR" value="${esc(r.k)}" ${(it.readings || []).includes(r.k) ? 'checked' : ''}> ${esc(r.label)}${r.unit ? ` <span class="muted">${esc(r.unit)}</span>` : ''}</label>`).join('')}</div></div>` : ''}
+        <div class="field"><label for="sdS">${markerOnly(it) ? 'Width' : 'Size'} <output id="sdSo" class="dvnum">${it.size || 96}</output></label><div><input type="range" id="sdS" min="${markerOnly(it) ? 16 : 40}" max="${markerOnly(it) ? 600 : 240}" value="${it.size || 96}"></div></div>
+        ${markerOnly(it) ? `<div class="field"><label for="sdH">Height <output id="sdHo" class="dvnum">${it.h || it.size || 96}</output></label><div><input type="range" id="sdH" min="16" max="600" value="${it.h || it.size || 96}"></div></div><label class="chk"><input type="checkbox" id="sdHN" ${it.hideName ? 'checked' : ''}> Hide the name (the drawing already shows it)</label>` : ''}</div>
+        <div class="dvpicks" role="group" aria-label="Picture">${it.kind === 'device' ? `<button class="dvpick mk${markerOnly(it) ? ' on' : ''}" data-pic="none" title="Marker only: no picture, just a live coloured frame and alarm count. Put it over a device in your background drawing (for example a Visio drawing saved as SVG).">▢</button>` : ''}${pics}${it.kind === 'device' ? `<label class="dvpick upl" title="Your own picture (PNG, JPEG, WebP or SVG, up to 8 MB). More device drawings are in the NetEventPro folder under app\\assets\\stencils.">＋<input type="file" id="sdUp" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden></label>` : ''}</div>
+        ${it.kind === 'device' ? '<p class="muted" style="margin:8px 0 0;font-size:12px">The device\'s readings show in the details panel when you click it (outside edit mode).</p>' : ''}
         <div class="toolbar" style="margin-top:12px"><button id="sdDel" class="danger">Remove from view</button></div>`;
     };
     const redrawKeep = () => { const sc = $('#dvSide', el)?.scrollTop || 0; draw(); const s2 = $('#dvSide', el); if (s2) s2.scrollTop = sc; };
@@ -104,9 +113,10 @@
       $$('.gchip[data-v]', el).forEach((b) => { b.onclick = () => { cur = list.find((v) => v.id === b.dataset.v); pref('last', cur.id); status = {}; draw(); poll(); }; });
       const on = (id, f) => { const b = $('#' + id, el); if (b) b.onclick = f; };
       on('dvNew', newView); on('dvNew2', newView);
-      on('dvEdit', async () => { if (!choices) { try { choices = (await api('/api/views/choices')).devices; } catch (e) { return toast(e.message, true); } } edit = true; draft = structuredClone(cur); sel = null; linkFrom = null; dirty = false; clearTimeout(timer); draw(); });
-      on('dvWall', () => { const w = $('#dvWrap', el); if (!w) return; (w.requestFullscreen ? w.requestFullscreen() : Promise.reject(new Error('no'))).catch(() => { w.classList.add('wall'); document.body.classList.add('dv-wall'); }); });
-      on('dvWallX', () => { if (document.fullscreenElement) document.exitFullscreen(); const w = $('#dvWrap', el); w?.classList.remove('wall'); document.body.classList.remove('dv-wall'); });
+      on('dvEdit', async () => { if (!choices) { try { choices = (await api('/api/views/choices')).devices; } catch (e) { return toast(e.message, true); } } edit = true; info = null; draft = structuredClone(cur); sel = null; linkFrom = null; dirty = false; clearTimeout(timer); draw(); });
+      on('dvWall', () => { const w = $('#dvStage', el); if (!w) return; (w.requestFullscreen ? w.requestFullscreen() : Promise.reject(new Error('no'))).catch(() => { w.classList.add('wall'); document.body.classList.add('dv-wall'); setTimeout(fit, 30); }); });
+      on('dvWallX', () => { if (document.fullscreenElement) document.exitFullscreen(); const w = $('#dvStage', el); w?.classList.remove('wall'); document.body.classList.remove('dv-wall'); setTimeout(fit, 30); });
+      if (!edit && info) fillInfo();
       on('dvCancel', async () => { if (dirty && !await askConfirm('Leave without saving your changes to this view?', 'Leave')) return; edit = false; draft = null; sel = null; linkFrom = null; draw(); poll(); });
       on('dvSave', save);
       on('dvDel', async () => { if (!await askConfirm(`Delete the view "${draft.name}"? The devices themselves are not changed.`, 'Delete')) return; try { await api('/api/views/delete', { method: 'POST', body: { id: draft.id } }); edit = false; draft = null; toast('View deleted'); load(); } catch (e) { toast(e.message, true); } });
@@ -118,7 +128,7 @@
       on('dvBg', background);
       const wrap = $('#dvWrap', el); if (!wrap) return;
       if (!edit) {
-        wrap.onclick = (e) => { const n = e.target.closest('.dvi'); if (!n) return; const it = cur.items.find((i) => i.id === n.dataset.id); if (!it) return; if (it.kind === 'view') { const v = list.find((x) => x.id === it.view); if (v) { cur = v; pref('last', v.id); status = {}; draw(); poll(); } } else if (it.kind === 'device') panel(it); };
+        wrap.onclick = (e) => { const n = e.target.closest('.dvi'); if (!n) { if (info) { info = null; draw(); } return; } const it = cur.items.find((i) => i.id === n.dataset.id); if (!it) return; if (it.kind === 'view') { const v = list.find((x) => x.id === it.view); if (v) { cur = v; info = null; pref('last', v.id); status = {}; draw(); poll(); } } else if (it.kind === 'device') { if (e.target.closest('.dvbadge')) return alarmWindow(it); info = it.id; draw(); } };
         wrap.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.dvi')) { e.preventDefault(); e.target.click(); } };
         return;
       }
@@ -143,15 +153,15 @@
     const wireSide = (side) => {
       const it = selItem(); if (!it) return;
       const inp = (id, f) => { const x = $('#' + id, side); if (x) x.oninput = () => { f(x); dirty = true; const n = $(`.dvi[data-id="${CSS.escape(it.id)}"]`, el); if (n) { const tmp = document.createElement('div'); tmp.innerHTML = itemHtml(it); n.replaceWith(tmp.firstElementChild); } }; };
-      inp('sdN', (x) => { it.name = x.value; }); inp('sdT', (x) => { it.text = x.value; }); inp('sdS', (x) => { it.size = +x.value; });
+      inp('sdN', (x) => { it.name = x.value; }); inp('sdT', (x) => { it.text = x.value; }); inp('sdS', (x) => { it.size = +x.value; const o = $('#sdSo', side); if (o) o.textContent = x.value; }); inp('sdH', (x) => { it.h = +x.value; const o = $('#sdHo', side); if (o) o.textContent = x.value; });
+      { const hn = $('#sdHN', side); if (hn) hn.onchange = () => { it.hideName = hn.checked; dirty = true; redrawKeep(); }; }
       const sv = $('#sdV', side); if (sv) sv.onchange = () => { it.view = sv.value; dirty = true; redrawKeep(); };
-      $$('.dvpick[data-pic]', side).forEach((b) => { b.onclick = () => { it.pic = b.dataset.pic; dirty = true; redrawKeep(); }; });
-      $$('.sdR', side).forEach((c) => { c.onchange = () => { const v = $$('.sdR', side).filter((x) => x.checked).map((x) => x.value); if (v.length > 3) { c.checked = false; return toast('Up to 3 readings.', true); } it.readings = v; dirty = true; }; });
-      const up = $('#sdUp', side); if (up) up.onchange = () => upload(up.files[0], (id) => { it.pic = 'img:' + id; dirty = true; redrawKeep(); });
+      $$('.dvpick[data-pic]', side).forEach((b) => { b.onclick = () => { it.pic = b.dataset.pic; if (it.pic === 'none' && !it.h) it.h = it.size || 96; dirty = true; redrawKeep(); }; });
+            const up = $('#sdUp', side); if (up) up.onchange = () => upload(up.files[0], (id) => { it.pic = 'img:' + id; dirty = true; redrawKeep(); });
       const del = $('#sdDel', side); if (del) del.onclick = () => { draft.items = draft.items.filter((i) => i.id !== it.id); draft.links = draft.links.filter((l) => l.a !== it.id && l.b !== it.id); sel = null; dirty = true; draw(); };
     };
     const upload = (file, done) => {
-      if (!file) return; if (file.size > 3 * 1048576) return toast('The picture is larger than 3 MB. Make it smaller first.', true);
+      if (!file) return; if (file.size > 8 * 1048576) return toast('The picture is larger than 8 MB. Make it smaller first.', true);
       const fr = new FileReader(); fr.onload = async () => { try { const r = await api('/api/views/image', { method: 'POST', body: { data: fr.result } }); done(r.id); } catch (e) { toast(e.message, true); } }; fr.readAsDataURL(file);
     };
 
@@ -184,7 +194,7 @@
     const background = () => {
       const bg = draft.bg || { mode: 'grid' };
       const dl = dialog('Background', `<div class="form"><div class="field"><label>Kind</label><div><label class="chk"><input type="radio" name="bgm" value="grid" ${bg.mode === 'grid' ? 'checked' : ''}> Grid</label> <label class="chk"><input type="radio" name="bgm" value="plain" ${bg.mode === 'plain' ? 'checked' : ''}> Plain</label> <label class="chk"><input type="radio" name="bgm" value="image" ${bg.mode === 'image' ? 'checked' : ''}> Picture</label></div></div>
-        <div class="field"><label for="bgF">Picture</label><div><input type="file" id="bgF" accept="image/png,image/jpeg,image/webp"><div class="muted">A floor plan, rack photo or network drawing (PNG, JPEG or WebP, up to 3 MB). It is fitted to the 16:9 canvas.</div><div id="bgP" style="margin-top:6px">${bg.img ? `<img src="${imgUrl(bg.img)}" alt="" style="max-width:320px;max-height:180px;border-radius:8px">` : ''}</div></div></div>
+        <div class="field"><label for="bgF">Picture</label><div><input type="file" id="bgF" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"><div class="muted">A floor plan, rack photo or network drawing (PNG, JPEG, WebP or SVG, up to 8 MB). It is fitted to the 16:9 canvas. For a Visio drawing: in Visio choose File, Export, SVG (or PNG), upload it here, then place devices with the picture "Marker only" over its shapes.</div><div id="bgP" style="margin-top:6px">${bg.img ? `<img src="${imgUrl(bg.img)}" alt="" style="max-width:320px;max-height:180px;border-radius:8px">` : ''}</div></div></div>
         <div class="field"><label for="bgD">Darken the picture</label><div><input type="range" id="bgD" min="0" max="80" value="${bg.dim || 0}"> <span class="muted">so the device names stay easy to read</span></div></div></div>
         <div class="toolbar" style="margin-top:12px"><span class="spacer"></span><button id="bgNo">Cancel</button><button id="bgOk" class="primary">Use</button></div>`);
       let img = bg.img || '';
@@ -195,14 +205,51 @@
     const save = async () => {
       try { const r = await api('/api/views', { method: 'POST', body: draft }); toast('View saved'); edit = false; draft = null; sel = null; linkFrom = null; dirty = false; await load(r.id); } catch (e) { toast(e.message, true); }
     };
-    /** the panel that opens when you click a device: state, readings, open alarms with Acknowledge / Clear, links */
-    const panel = async (it) => {
-      const st = status[it.id] || {}; const name = $(`.dvi[data-id="${CSS.escape(it.id)}"] .dvname`, el)?.textContent || 'Device';
-      const dl = dialog(name, `<div class="dvpanel"><div class="toolbar" style="margin:0 0 8px"><span class="dvstate ${cls(st)}">${esc(stText(st))}</span><span class="muted">${esc(st.title || '')}</span></div>
-        ${(st.readings || []).length ? `<table class="data"><tbody>${st.readings.map((r) => `<tr><td>${esc(r.label)}</td><td class="${r.state ? 'r-' + esc(r.state) : ''}"><b>${esc(r.text)}</b></td></tr>`).join('')}</tbody></table>` : ''}
-        <h4 style="margin:12px 0 6px">Open alarms</h4><div id="pnA" class="muted">Loading…</div>
-        <div class="toolbar" style="margin-top:12px">${st.poll ? `<a class="btn" href="#polling?d=${encodeURIComponent(st.poll)}">Open in SNMP polling</a>` : ''}<a class="btn" href="#alarms">Alarms page</a><span class="spacer"></span><button id="pnX">Close</button></div></div>`, true);
-      dl.$('#pnX').onclick = () => dl.close(); $$('a.btn', dl.back).forEach((a) => a.addEventListener('click', () => dl.close()));
+    // ---------- 1.99.11 details panel (right side, also on the wall screen) and the alarm window ----------
+    /** an icon for a reading, from its name and unit (temperature → thermometer, volts → voltage …) */
+    const rIcon = (r) => {
+      const t = `${r.label} ${r.unit}`.toLowerCase();
+      const pick = /°c|°f|temp/.test(t) ? 'thermometer' : /humid|%rh|\brh\b/.test(t) ? 'droplet' : /\bv\b|volt/.test(t) ? 'voltage' : /\ba\b|amp|current/.test(t) ? 'current' : /\bw\b|kw|watt|power/.test(t) ? 'bolt'
+        : /batt|charge/.test(t) ? 'battery' : /fan|rpm/.test(t) ? 'fan' : /dbm|snr|signal|rssi|level/.test(t) ? 'signal' : /bps|traffic|octet|rate|in\b|out\b/.test(t) ? 'arrows' : /cpu|load|util|%/.test(t) ? 'gauge'
+        : /mem|ram/.test(t) ? 'memory' : /disk|stor|volume/.test(t) ? 'disk' : /time|uptime|offset|delay|ms\b/.test(t) ? 'clock' : /fuel|gen/.test(t) ? 'generator' : /door/.test(t) ? 'door' : /status|state|alarm|mode/.test(t) ? 'check' : 'chart';
+      return iconSvg(pick, 18);
+    };
+    const spark = (vals) => {
+      const v = (vals || []).filter((x) => x !== null && Number.isFinite(x)); if (v.length < 2) return '';
+      const lo = Math.min(...v), hi = Math.max(...v), rg = hi - lo || 1, n = vals.length, pts = []; vals.forEach((x, i) => { if (x !== null && Number.isFinite(x)) pts.push(`${(i / (n - 1) * 100).toFixed(1)},${(26 - (x - lo) / rg * 22).toFixed(1)}`); });
+      return `<svg class="dvspark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+    };
+    const ago = (ts) => { if (!ts) return 'never'; const s2 = Math.round((Date.now() - ts) / 1000); return s2 < 60 ? `${s2} s ago` : s2 < 3600 ? `${Math.round(s2 / 60)} min ago` : s2 < 86400 ? `${Math.round(s2 / 3600)} h ago` : `${Math.round(s2 / 86400)} d ago`; };
+    const upText = (cs) => { if (cs === null || cs === undefined || !Number.isFinite(+cs)) return '–'; const s2 = Math.floor(cs / 100), d = Math.floor(s2 / 86400), h = Math.floor(s2 % 86400 / 3600), m = Math.floor(s2 % 3600 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
+    const fillInfo = async () => {
+      clearTimeout(infoTimer); const box = $('#dvInfo', el); if (!box || !info || edit) return;
+      const it = cur.items.find((i) => i.id === info); if (!it) return;
+      let d; try { d = await api(`/api/views/item?id=${encodeURIComponent(cur.id)}&item=${encodeURIComponent(it.id)}`); } catch (e) { box.innerHTML = `<div class="muted">${esc(e.message)}</div>`; return; }
+      if (!alive || info !== it.id || !$('#dvInfo', el)) return;
+      const st = status[it.id] || { state: d.state, sev: d.sev, open: d.alarms, unack: d.unack }, c = cls(st);
+      const pic = String(it.pic || 'icon:server'), picH = pic.startsWith('img:') ? `<img src="${imgUrl(pic.slice(4))}" alt="">` : iconSvg(pic === 'none' ? 'server' : pic.slice(5), 30);
+      const kpis = d.kind === 'poll' ? [['pulse', 'Answer time', d.rtt === null || d.rtt === undefined ? '–' : `${d.rtt} ms`, ''], ['clock', 'Uptime', upText(d.uptime), ''], ['bell', 'Open alarms', String(d.alarms || 0), d.alarms ? 'alarms' : '']]
+        : [['clock', 'Last heard', ago(d.lastSeen), ''], ['list', 'Syslog', String(d.sys || 0), ''], ['bell', 'Open alarms', String(d.alarms || 0), d.alarms ? 'alarms' : '']];
+      const sc = box.scrollTop;
+      box.innerHTML = `<div class="dvih ${c}"><div class="dvihpic">${picH}</div><div class="dvihtxt"><h3>${esc(d.name || '')}</h3><div class="muted">${esc([d.host, d.group, d.kind === 'poll' ? (d.via ? 'probe ' + d.via : 'SNMP ' + (d.version || '')) : (d.vendor || 'syslog / traps')].filter(Boolean).join(' · '))}</div></div><button class="ib dvix" id="dvInfoX" title="Close" aria-label="Close the details">✕</button></div>
+        <div class="dvstate ${c}">${esc(stText(st))}${d.error && st.state === 'down' ? ` · ${esc(d.error)}` : ''}</div>
+        <div class="dvkpis">${kpis.map(([ic, l, v, act]) => `<${act ? 'button type="button" data-act="alarms"' : 'div'} class="dvkpi${act ? ' click' : ''}">${iconSvg(ic, 18)}<span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></${act ? 'button' : 'div'}>`).join('')}</div>
+        ${d.readings && d.readings.length ? `<h4>Readings</h4><div class="dvrlist">${d.readings.map((r) => `<div class="dvr${r.state ? ' r-' + esc(r.state) : ''}"><span class="ri">${rIcon(r)}</span><span class="rl" title="${esc(r.label)}">${esc(r.label)}</span><span class="rv">${esc(r.text)}</span>${r.spark ? `<span class="rs">${spark(r.spark)}</span>` : ''}${r.rows ? `<div class="rrows">${r.rows.map((x) => `<span class="${x.state ? 'r-' + esc(x.state) : ''}"><i>${esc(x.inst)}</i> ${esc(x.text)}</span>`).join('')}${r.more ? `<span class="muted">+${r.more} more</span>` : ''}</div>` : ''}</div>`).join('')}</div>` : d.kind === 'poll' ? '<p class="muted">This device has no readings yet. Add them on its page in SNMP polling.</p>' : ''}
+        ${d.sysDescr ? `<p class="muted dvdescr" title="${esc(d.sysDescr)}">${esc(d.sysDescr)}</p>` : ''}
+        <div class="toolbar dvlinksbar">${d.poll ? `<button data-go="#polling?d=${encodeURIComponent(d.poll)}">Open in SNMP polling</button>` : ''}${d.alarms ? '<button data-act="alarms">Show alarms</button>' : ''}</div>`;
+      box.scrollTop = sc;
+      $('#dvInfoX', box).onclick = () => { info = null; draw(); };
+      $$('[data-act="alarms"]', box).forEach((b) => { b.onclick = () => alarmWindow(it); });
+      $$('[data-go]', box).forEach((b) => { b.onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); location.hash = b.dataset.go; }; });
+      infoTimer = setTimeout(fillInfo, document.hidden ? 30000 : 10000);
+    };
+    /** the open alarms of one device, nothing else (the round alarm count, or Open alarms in the panel) */
+    const alarmWindow = (it) => {
+      const name = $(`.dvi[data-id="${CSS.escape(it.id)}"] .dvname`, el)?.textContent || status[it.id]?.name || 'Device';
+      const host = document.fullscreenElement || document.body;
+      const dl = dialog(`Open alarms · ${name}`, '<div id="pnA" class="muted">Loading…</div><div class="toolbar" style="margin-top:12px"><span class="spacer"></span><button id="pnX">Close</button></div>', true);
+      if (host !== document.body) host.appendChild(dl.back);   // on the wall screen the window must be inside the full-screen part to be seen
+      dl.$('#pnX').onclick = () => dl.close();
       const fill = async () => {
         try { const r = await api(`/api/views/alarms?id=${encodeURIComponent(cur.id)}&item=${encodeURIComponent(it.id)}`); const box = dl.$('#pnA'); if (!box) return;
           box.classList.remove('muted');
@@ -214,9 +261,10 @@
     };
 
     const onResize = () => fit(); addEventListener('resize', onResize);
-    const onFs = () => { if (!document.fullscreenElement) { document.body.classList.remove('dv-wall'); } setTimeout(fit, 50); }; document.addEventListener('fullscreenchange', onFs);
+    const onFs = () => { if (!document.fullscreenElement) { document.body.classList.remove('dv-wall'); } fit(); setTimeout(fit, 60); setTimeout(fit, 400); }; document.addEventListener('fullscreenchange', onFs);
+    const ro = window.ResizeObserver ? new ResizeObserver(() => fit()) : null; if (ro) ro.observe(el);   // 1.99.11 the canvas follows any change of size (wall screen, panel opening, window)
     const onVis = () => { if (!document.hidden) poll(); }; document.addEventListener('visibilitychange', onVis);
     load();
-    return () => { alive = false; clearTimeout(timer); removeEventListener('resize', onResize); document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('visibilitychange', onVis); document.body.classList.remove('dv-wall'); };
+    return () => { alive = false; ro?.disconnect(); clearTimeout(timer); clearTimeout(infoTimer); removeEventListener('resize', onResize); document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('visibilitychange', onVis); document.body.classList.remove('dv-wall'); };
   };
 })();

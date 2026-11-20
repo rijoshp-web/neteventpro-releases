@@ -115,6 +115,8 @@ New-Item -ItemType Directory -Force -Path $appDir | Out-Null
 Copy-Item (Join-Path $Root 'src') $appDir -Recurse
 Copy-Item (Join-Path $Root 'public') $appDir -Recurse
 Copy-Item (Join-Path $Root 'starter-mibs') $appDir -Recurse
+New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'assets') | Out-Null
+Copy-Item (Join-Path $Root 'assets\stencils') (Join-Path $appDir 'assets') -Recurse   # 1.99.11 device drawings for Device view, same place an online update puts them
 Copy-Item (Join-Path $Root 'package.json') $appDir
 $trayDir = Join-Path $Stage 'tray'
 New-Item -ItemType Directory -Force -Path $trayDir | Out-Null

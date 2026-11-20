@@ -39,3 +39,12 @@ test('the wait between alerts of an alarm rule is per device: a second device is
   assert.strictEqual(r.apply(msg('[Battery] low again', 'rect1')).notifs.length, 0);   // same device within the wait
   assert.strictEqual(r.apply(msg('[Battery] CLEARED', 'rect1')).notifs.length, 0);     // the clear notice comes from the alarm, not the rule
 });
+
+// 1.99.11 a device in a maintenance window: no CLEARED notice and no escalation
+test('maintenance window: the clear and the escalation are not sent', () => {
+  const { a, told } = mk(); let maint = false; a.quiet = () => maint;
+  const row = a.raise(msg('[Battery] low'), { ...rule, actions: { ...rule.actions, alarmEscMin: 1, alarmEscProfiles: ['boss'] } }); a.tellRaised(row, ['ops']);
+  maint = true; a.escalate(Date.now() + 120000); assert.equal(told.filter((x) => x.kind === 'escalation').length, 0);
+  a.clearBy('poll-t1', msg('[Battery] CLEARED'), 'x', rule.actions.alarmBy); assert.equal(told.filter((x) => x.kind === 'recovery').length, 0);
+  assert.equal(told.length, 1, 'only the raise, before the window');
+});

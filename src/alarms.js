@@ -107,12 +107,14 @@ class AlarmStore {
   /** 1.99.6 alarm notifications come from the alarm itself, so the e-mail shows what the Alarms page shows (device, alarm, port, source, open for ...) */
   tellRaised(row, profiles, report = false) {
     if (!row || !this.notify || !profiles?.length) return false;
+    if (this.quiet?.(row)) return true;   // 1.99.11 planned work: no alarm notice
     row.ntf_prof = profiles.map(String).join(','); this.save(row);
     try { this.notify.dispatch(profiles, 'raised', { o: this.facts(row, 'raised'), report }); } catch (e) { console.error('[alarms] alarm notification:', e.message); }
     return true;
   }
   /** cleared: the profiles told when it was raised and, after an escalation, the escalation's recipients get one "cleared" notice */
   tellCleared(row, now = Date.now()) {
+    if (this.quiet?.(row)) return;   // 1.99.11 the device is in a maintenance window: nobody is told (the CLEARED e-mail went out anyway)
     const esc = row.esc_sent && row.esc_clr !== 0, ids = new Set(String(row.ntf_prof || '').split(',').filter(Boolean));
     if (esc) for (const x of String(row.esc_prof || '').split(',').filter(Boolean)) ids.add(x);
     if (ids.size && this.notify) { try { this.notify.dispatch([...ids], 'recovery', { o: this.facts(row, 'recovery', now) }); } catch (e) { console.error('[alarms] cleared notification:', e.message); } if (esc && row.esc_to && !row.esc_prof) this.mailRecovery(row, now); return; }
@@ -303,6 +305,7 @@ class AlarmStore {
     const mailed = new Set(); let sent = 0;     // a burst of identical alarms sends one e-mail per rule, device and port, and at most 10 per round
     for (const r of this.open.values()) {
       if (r.state !== 'open' || !r.esc_min || r.esc_ts || now - r.first_ts < r.esc_min * 60000) continue;
+      if (this.quiet?.(r)) continue;   // 1.99.11 planned work (maintenance window): no escalation now; it escalates after the window if still not acknowledged
       r.esc_ts = now; this.save(r);
       const k = r.rule_id + '|' + r.dev + '|' + r.inst; if (mailed.has(k) || sent >= 10) continue; mailed.add(k); sent++; this.mailEscalation(r, now); r.esc_sent = 1; this.save(r);
     }

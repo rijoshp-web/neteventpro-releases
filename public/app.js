@@ -1047,11 +1047,14 @@ function openSimpleColumns(anchor, title, labels, getList, setList, onChange) {
   render(); document.body.appendChild(pop); const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.right = Math.max(8, (innerWidth - r.right) / z) + 'px';
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
+/** 1.99.11 Devices has two tabs: devices that send syslog / traps, and devices NetEventPro polls by SNMP */
+const devTabs = (cur) => { const pollOk = can('polling') && (!Array.isArray(S.info?.features) || S.info.features.includes('polling')); return pollOk ? `<div class="devtabs" role="tablist"><a href="#devices" role="tab" class="${cur === 'devices' ? 'on' : ''}" aria-selected="${cur === 'devices'}">Reporting devices</a><a href="#polling" role="tab" class="${cur === 'polling' ? 'on' : ''}" aria-selected="${cur === 'polling'}">SNMP polling devices</a></div>` : ''; };
+window.devTabs = devTabs;
 views.devices = (el) => {
   // 1.99.1: built for tens of thousands of devices. Only one page of rows is drawn (it drew every device every 5 s before, which
   // froze the browser at about 20 000), columns sort, and devices can be selected for group, mute and forget in one step.
   const edit = can('settings');
-  el.innerHTML = `<div class="page-head"><h1>Devices</h1><span class="muted" id="devInfo"></span><span class="spacer"></span><button id="devCols" class="ib">${ico('columns')}<span class="bt">Columns</span></button><button id="devCsv" class="ib">${ico('download')}<span class="bt">Export</span></button>${edit ? '<button id="devForgetAll" class="danger" title="Remove every device from this list. Stored messages are kept.">Forget all…</button>' : ''}</div>
+  el.innerHTML = `${devTabs('devices')}<div class="page-head"><h1>Devices</h1><span class="muted" id="devInfo"></span><span class="spacer"></span><button id="devCols" class="ib">${ico('columns')}<span class="bt">Columns</span></button><button id="devCsv" class="ib">${ico('download')}<span class="bt">Export</span></button>${edit ? '<button id="devForgetAll" class="danger" title="Remove every device from this list. Stored messages are kept.">Forget all…</button>' : ''}</div>
     <div class="chips" id="devChips"></div>
     <div class="toolbar filterbar"><input type="search" id="devQ" class="grow" placeholder="Search name, address, vendor, group or note" value="${esc(S.devQ || '')}">
       <select id="devStatus"><option value="">All states</option><option value="ok">Reporting now</option><option value="quiet">Quiet</option><option value="overdue">Overdue</option><option value="alarm">With open alarms</option><option value="muted">Alerts muted</option></select>
@@ -1827,7 +1830,7 @@ function route() {
   if (VIEW_PERM[name] && S.info?.me && !S.info.me.perms.includes(VIEW_PERM[name])) name = 'dashboard';
   const view = views[name] ? name : 'dashboard';
   S.cleanup?.(); S.cleanup = null; S.view = view; $('#drawer').hidden = true; closePopovers();
-  $$('.rail a').forEach((a) => a.classList.toggle('active', a.dataset.view === view));
+  $$('.rail a').forEach((a) => a.classList.toggle('active', a.dataset.view === (view === 'polling' ? 'devices' : view)));
   const main = $('#view'); main.classList.remove('fill'); main.innerHTML = ''; const el = document.createElement('div'); el.className = 'viewbox'; main.appendChild(el);   // each visit gets its own box; a late redraw from a page you already left lands in a discarded box
   if (view === 'logs') { S.newCount = 0; $('#navLiveCount').textContent = ''; }
   if (view === 'traps') { S.newTraps = 0; $('#navTrapCount').textContent = ''; }

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+<defs>
+<linearGradient id="gd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#465266"/><stop offset="1" stop-color="#1f2733"/></linearGradient>
+<linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f3949"/><stop offset="1" stop-color="#202835"/></linearGradient>
+<linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d5dce5"/></linearGradient>
+<linearGradient id="gw2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2f6"/><stop offset="1" stop-color="#c3ccd7"/></linearGradient>
+<linearGradient id="gs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a5f"/><stop offset="1" stop-color="#0f1c2e"/></linearGradient>
+<linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+<linearGradient id="gy" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+<linearGradient id="gm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd6df"/><stop offset="1" stop-color="#8f9aa8"/></linearGradient>
+<filter id="sh" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
+</defs>
+<ellipse cx="80" cy="126" rx="56" ry="5" fill="#0b1220" opacity=".28" filter="url(#sh)"/><path d="M48 118 a26 26 0 0 1 -2 -52 a34 34 0 0 1 64 -8 a28 28 0 0 1 6 60 Z" fill="url(#ga)" /><path d="M48 118 a26 26 0 0 1 -2 -52 a34 34 0 0 1 64 -8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".25"/>
+</svg>
