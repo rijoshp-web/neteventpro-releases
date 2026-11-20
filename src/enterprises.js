@@ -8,7 +8,7 @@ const NAMES = {
   1916: 'Extreme Networks', 1981: 'EMC', 1991: 'Foundry / Brocade', 2011: 'Huawei', 2021: 'UCD / Net-SNMP', 2352: 'Redback', 2620: 'Check Point', 2636: 'Juniper', 3183: 'Intel (IPMI PET)',
   3375: 'F5', 3854: 'Cooper Bussmann', 3902: 'ZTE', 4413: 'Broadcom', 4526: 'Netgear', 4874: 'Juniper (Unisphere)', 4881: 'Ruijie', 5003: 'Avocent', 5624: 'Enterasys', 5951: 'Citrix NetScaler',
   6027: 'Force10 / Dell', 6486: 'Alcatel-Lucent', 6527: 'Nokia (Alcatel)', 6574: 'Synology', 6876: 'VMware', 8072: 'Net-SNMP', 8741: 'SonicWALL', 9148: 'Mellanox', 10418: 'Avaya',
-  10704: 'Eaton (Powerware)', 11863: 'TP-Link', 12148: 'Eltek', 12356: 'Fortinet', 12532: 'Cyclades', 14179: 'Cisco Meraki', 14823: 'Aruba', 14988: 'MikroTik', 17163: 'Riverbed',
+  10704: 'Eaton (Powerware)', 11863: 'TP-Link', 12148: 'Eltek', 28458: 'Nokia', 12356: 'Fortinet', 12532: 'Cyclades', 14179: 'Cisco Meraki', 14823: 'Aruba', 14988: 'MikroTik', 17163: 'Riverbed',
   18837: 'Spectracom', 19746: 'Vertiv / Liebert', 21239: 'Spectracom', 25461: 'Palo Alto Networks', 25506: 'H3C', 26543: 'Spectracom', 29671: 'Eltek', 30065: 'Arista', 35188: 'Eventide',
   41112: 'Ubiquiti', 52619: 'Eventide', 7777: 'Eventide'
 };

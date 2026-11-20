@@ -1417,6 +1417,9 @@ body.kiosk #wallBar .wname .wsheet { opacity: .62; font-weight: 600; }
 :root[data-glass] :is(table.log td, table.alarms td, table.devtbl td):not(#_) { border-color: var(--g-inner-line); }
 :root[data-glass] :is(.dmenu, .toast, .modal, dialog):not(#_) { background: var(--g-pop); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); border: 1px solid var(--g-line); border-radius: 16px; color: var(--text); }
 :root[data-glass] select option { background: var(--panel); color: var(--text); }
+/* 1.99.7 the list of a drop-down is drawn by Windows/Chrome and cannot be see-through: give options and group names a solid background (the group names showed as light striped bars) */
+:root:is([data-glass], [data-look="glass"], [data-look="ios"]) select :is(option, optgroup) { background: var(--bg) none; color: var(--text); }
+:root:is([data-glass], [data-look="glass"], [data-look="ios"]) select optgroup { color: var(--muted); font-style: normal; font-weight: 600; }
 :root[data-glass] .widget.panel h3 { font-weight: 500; }
 :root[data-glass] body.kiosk :is(.widget.panel, .rail, .status):not(#_) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 @media (prefers-reduced-transparency: reduce) { :root[data-glass] :is(.widget.panel, .rail, .status, .panel, fieldset):not(#_) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--panel); } }
@@ -1576,6 +1579,9 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
    was re-checked on every change anywhere (a clock tick, a counter), which made big pages slow all the time. */
 .has-modal:not(#_) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; filter: none !important; transform: none !important; }
 .modal-back { z-index: 1000; background: rgba(4,6,10,.62); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+/* 1.99.7 pop-ups opened from a dialog (severity picker, menus) and messages must be above the dialog (z 1000); they were drawn behind it */
+.popover:not(#_) { z-index: 1100; }
+.toast:not(#_) { z-index: 1200; }
 :root[data-glass] .modal:not(#_), :root .modal:not(#_) { background: color-mix(in srgb, var(--panel) 97%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 18px; border-color: var(--line2); box-shadow: 0 24px 70px rgba(0,0,0,.55); }
 
 /* 1.85.1 logs on light themes: a solid, high-contrast table. Muted grey on grey (and a translucent glass or neumorphic surface behind it) made rows hard to read. */
@@ -1755,8 +1761,8 @@ button.tcard:not(#_) { border-radius: 10px; padding: 8px; }
   background: linear-gradient(180deg, #ff4d4f, #e0252a); color: #fff; border: 1px solid rgba(255,130,130,.55);
   box-shadow: 0 8px 24px rgba(239,43,45,.42), inset 0 1px 0 rgba(255,255,255,.35); text-shadow: 0 1px 0 rgba(0,0,0,.2);
 }
-:root[data-theme="crimson"][data-glass] button.primary:not(#_) { border-radius: 999px; }
-:root[data-theme="crimson"][data-glass] :is(button, .btn):not(.primary):not(.ghost):not(.danger):not(#_) { border-radius: 999px; }
+:root[data-theme="crimson"][data-glass] button.primary:not(#_) { border-radius: 1.35em;   /* 1.99.7 a pill for normal buttons, rounded corners for big card buttons (999px made the visual gallery cards round) */ }
+:root[data-theme="crimson"][data-glass] :is(button, .btn):not(.primary):not(.ghost):not(.danger):not(#_) { border-radius: 1.35em;   /* 1.99.7 a pill for normal buttons, rounded corners for big card buttons (999px made the visual gallery cards round) */ }
 :root[data-theme="crimson"][data-glass] .seg button.on:not(#_) { background: linear-gradient(180deg, #ff4d4f, #e0252a); color: #fff; }
 :root[data-theme="crimson"][data-glass] .widget.panel h3:not(#_) { font-weight: 600; color: var(--text); }
 :root[data-theme="crimson"][data-glass] .badge:not(#_) { background: rgba(239,43,45,.9); color: #fff; border-color: transparent; }

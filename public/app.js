@@ -297,6 +297,7 @@ function sevPopover(anchor, value, onChange) {
   pop.addEventListener('click', (e) => { const q = e.target.dataset.q; if (!q) return; cur = new Set(q === 'all' ? [...SEVORD] : q === 'none' ? [] : q === 'err' ? [0, 1, 2, 3] : [0, 1, 2, 3, 8, 4]); draw(); commit(); });
   draw(); document.body.appendChild(pop);
   const r = anchor.getBoundingClientRect(), z = zf(); pop.style.top = (r.bottom + 6) / z + 'px'; pop.style.left = Math.max(8, Math.min(r.left / z, innerWidth / z - 260)) + 'px';
+  { const h = pop.getBoundingClientRect().height; if (r.bottom + 6 + h > innerHeight - 8) pop.style.top = Math.max(8, (r.top > h + 14 ? r.top - h - 6 : innerHeight - h - 8)) / z + 'px'; }   // 1.99.7 no room below: open above the button
   setTimeout(() => document.addEventListener('mousedown', function away(e) { if (!pop.isConnected) return document.removeEventListener('mousedown', away); if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', away); } }), 0);
 }
 /** rules saved with the old "at least / no more than" pair become a list of severities */
@@ -1083,7 +1084,7 @@ views.devices = (el) => {
   const CELL = {
     state: (d) => { const stt = state(d); return (stt === 'overdue' ? `<span class="pill bad" title="${d.silent ? 'It sent messages before and then stopped.' : 'It missed the expected interval.'}">Overdue</span>` : stt === 'ok' ? '<span class="pill ok">Reporting</span>' : '<span class="pill" title="Nothing heard for more than 15 minutes">Quiet</span>') + (d.muted ? ' <span class="muted small" title="alerts muted">🔕</span>' : ''); },
     device: (d) => `<b>${esc(d.host)}</b> <span class="muted" title="${esc(d.srcIps.join(', '))}">${esc(d.srcIps.length > 1 ? d.srcIp + ' +' + (d.srcIps.length - 1) : d.srcIp)}</span> <input type="text" class="alias" style="width:110px" value="${esc(d.alias)}" placeholder="Add a name" aria-label="Display name for ${esc(d.host)}"${edit ? '' : ' disabled'}>`,
-    vendor: (d) => esc(d.vendor) || '<span class="muted">—</span>',
+    vendor: (d) => (edit ? `<input type="text" class="vnd" style="width:110px" list="vndList" value="${esc(d.vendorSet)}" placeholder="${esc(d.vendorFound || 'Add vendor')}" title="${d.vendorFound ? 'Found: ' + esc(d.vendorFound) + '. Type to set your own.' : 'Not found from its messages, traps or SNMP polling. Type the vendor.'}" aria-label="Vendor">` : esc(d.vendor) || '<span class="muted">—</span>'),
     group: (d) => `<input type="text" class="grp" style="width:110px" list="grpList" value="${esc(d.group)}" placeholder="Add group" aria-label="Group"${edit ? '' : ' disabled'}>`,
     sys: (d) => fmtN(d.sys), traps: (d) => fmtN(d.traps),
     last: (d) => ago(d.ageSec),
@@ -1097,7 +1098,7 @@ views.devices = (el) => {
     const box = $('#devBulk'); if (!edit || !sel.size) { box.hidden = true; return; }
     const sh = vis(), allShown = sh.length > 0 && sh.every((d) => sel.has(d.key));
     box.hidden = false;
-    box.innerHTML = `<b>${fmtN(sel.size)} selected</b>${!allShown && sh.length > sel.size ? ` <button data-b="all" class="linkish">Select all ${fmtN(sh.length)} shown</button>` : ''}<span class="spacer"></span><button data-b="group">Set group…</button><button data-b="mute">Mute alerts</button><button data-b="unmute">Unmute</button><button data-b="forget" class="danger">Forget…</button><button data-b="none">Clear selection</button>`;
+    box.innerHTML = `<b>${fmtN(sel.size)} selected</b>${!allShown && sh.length > sel.size ? ` <button data-b="all" class="linkish">Select all ${fmtN(sh.length)} shown</button>` : ''}<span class="spacer"></span><button data-b="group">Set group…</button><button data-b="vendor">Set vendor…</button><button data-b="mute">Mute alerts</button><button data-b="unmute">Unmute</button><button data-b="forget" class="danger">Forget…</button><button data-b="none">Clear selection</button>`;
   };
   const draw = (force) => {
     const ae = document.activeElement;
@@ -1132,6 +1133,7 @@ views.devices = (el) => {
     }
     const groups = [...new Set(list.map((d) => d.group).filter(Boolean))].slice(0, 500), gsig = groups.join('\u0001');
     let dl = $('#grpList'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'grpList'; el.appendChild(dl); }
+    { let vl = $('#vndList'); if (!vl) { vl = document.createElement('datalist'); vl.id = 'vndList'; el.appendChild(vl); } const vs = [...new Set(list.map((d) => d.vendor).filter(Boolean))].sort(); const h = vs.map((v) => `<option value="${esc(v)}">`).join(''); if (vl.innerHTML !== h) vl.innerHTML = h; }
     if (dl.dataset.sig !== gsig) { dl.dataset.sig = gsig; dl.innerHTML = groups.map((x) => `<option value="${esc(x)}">`).join(''); }
     const from = page * per() + 1, to = Math.min(sh.length, (page + 1) * per());
     const pg = `<span class="muted">${fmtN(from)}–${fmtN(to)} of ${fmtN(sh.length)}</span><button data-pg="first" ${page ? '' : 'disabled'} aria-label="First page">«</button><button data-pg="prev" ${page ? '' : 'disabled'}>‹ Previous</button><span>Page ${page + 1} of ${pages}</span><button data-pg="next" ${page < pages - 1 ? '' : 'disabled'}>Next ›</button><button data-pg="last" ${page < pages - 1 ? '' : 'disabled'} aria-label="Last page">»</button><span class="spacer"></span><label class="muted">Rows per page <select id="devPer">${[50, 100, 250, 500].map((x) => `<option${x === per() ? ' selected' : ''}>${x}</option>`).join('')}</select></label>`;
@@ -1160,6 +1162,7 @@ views.devices = (el) => {
         if (t.value.trim()) cfg[ip] = t.value.trim(); else delete cfg[ip];
         await putCfg({ deviceAliases: cfg }); toast('Saved — new messages will use this name');
       } else if (t.classList.contains('grp')) { await saveInfo([ip], { group: t.value.trim() }); toast('Group saved'); }
+      else if (t.classList.contains('vnd')) { await saveInfo([ip], { vendor: t.value.trim() }); toast(t.value.trim() ? 'Vendor saved' : 'Using the vendor found'); }
       else if (t.classList.contains('expect')) { await saveInfo([ip], { expectMin: +t.value || 0 }); toast(+t.value ? `An alert is raised when nothing is heard for ${+t.value} min` : 'Using the global limit'); }
     } catch (err) { toast(err.message, true); }
   });
@@ -1183,6 +1186,7 @@ views.devices = (el) => {
       try {
         if (bb.dataset.b === 'all') { for (const d of vis()) sel.add(d.key); return draw(true); }
         if (bb.dataset.b === 'none') { sel.clear(); return draw(true); }
+        if (bb.dataset.b === 'vendor') { const v = await askText(`Vendor for ${fmtN(keys.length)} device${keys.length === 1 ? '' : 's'} (empty = use the vendor found)`, ''); if (v !== null && v !== undefined) { await saveInfo(keys, { vendor: v.trim().slice(0, 60) }); toast('Vendor saved'); } return; }
         if (bb.dataset.b === 'group') { const v = await askText(`Group for ${fmtN(keys.length)} device${keys.length === 1 ? '' : 's'} (empty removes the group)`, ''); if (v !== null && v !== undefined) { await saveInfo(keys, { group: v.trim().slice(0, 80) }); toast('Group saved'); } return; }
         if (bb.dataset.b === 'mute' || bb.dataset.b === 'unmute') { await setMuted(keys, bb.dataset.b === 'mute'); toast(bb.dataset.b === 'mute' ? `Alerts muted for ${fmtN(keys.length)} devices` : `Alerts unmuted for ${fmtN(keys.length)} devices`); return; }
         if (bb.dataset.b === 'forget') { const r = await askConfirm(`Forget ${fmtN(keys.length)} selected device${keys.length === 1 ? '' : 's'}? Stored messages are kept, and a device comes back when it sends again.`, 'Forget', 'Also remove their display names, groups, notes and muted state'); if (r) await forget({ keys, wipeInfo: r.checked }); return; }

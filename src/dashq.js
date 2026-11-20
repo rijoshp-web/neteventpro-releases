@@ -29,7 +29,7 @@ function alarmWhere(f, from, to, series) {
   if (f.host) { const hs = String(f.host).split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20); if (hs.length) { w.push('(' + hs.map(() => '(host = ? OR src_ip = ? OR dev = ?)').join(' OR ') + ')'); for (const h of hs) a.push(h, h, h); } }
   if (f.rule) { w.push("rule_name LIKE ? ESCAPE '\\'"); a.push('%' + String(f.rule).replace(/[\\%_]/g, '\\$&') + '%'); }
   if (f.text) { w.push("message LIKE ? ESCAPE '\\'"); a.push('%' + String(f.text).replace(/[\\%_]/g, '\\$&') + '%'); }
-  if (f.source === 'syslog' || f.source === 'snmp') { w.push('source = ?'); a.push(f.source); }
+  if (f.source === 'syslog' || f.source === 'snmp' || f.source === 'poll') { w.push('source = ?'); a.push(f.source); }
   return { sql: 'WHERE ' + w.join(' AND '), args: a };
 }
 function alarmTile(db, t, ctx) {

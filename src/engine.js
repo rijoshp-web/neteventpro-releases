@@ -307,13 +307,14 @@ class Engine extends EventEmitter {
     if (this._devList && Date.now() - this._devList.at < 2000 && this._devList.n === this.devices.size && this._devList.cfg === cfg) return this._devList.list;
     const muted = new Set(cfg.mutedDevices || []); const now = Date.now(); const al = cfg.deviceAliases || {};
     const byKey = new Map(); if (this.alarms?.open) for (const r of this.alarms.open.values()) { for (const k of new Set([String(r.dev), String(r.src_ip)])) { const l = byKey.get(k); if (l) l.push(r); else byKey.set(k, [r]); } }
+    const pv = this.polledVendors ? this.polledVendors() : null;   // 1.99.7 the maker SNMP polling found (sysObjectID), by address and name
     const openAlarms = (keys) => { const seen = new Set(); for (const k of keys) for (const r of byKey.get(String(k)) || []) seen.add(r); return seen.size; };
     const list = [...this.devices.values()].map(d => ({
       key: d.key, srcIp: d.srcIp, srcIps: d.srcIps, host: d.host, alias: al[d.key] ?? d.srcIps.map((ip) => al[ip]).find(Boolean) ?? '', firstSeen: d.firstSeen, lastSeen: d.lastSeen,
       count: d.count, sev: d.sev, silent: d.silent, muted: this.isMuted(muted, d),
       idle: !d.silent && (+cfg.silentDeviceMinutes || 0) > 0 && now - d.lastSeen > cfg.silentDeviceMinutes * 60000,   // quiet for a while, but too few messages to be sure it should be sending regularly
       ageSec: Math.round((now - d.lastSeen) / 1000), lastMessage: d.lastMessage, lastSeverity: d.lastSeverity,
-      sys: d.sys || 0, traps: d.traps || 0, lastSyslog: d.lastSyslog || 0, lastTrap: d.lastTrap || 0, vendor: d.vendor || '',
+      sys: d.sys || 0, traps: d.traps || 0, lastSyslog: d.lastSyslog || 0, lastTrap: d.lastTrap || 0, vendor: (cfg.deviceInfo?.[d.key] || {}).vendor || d.vendor || (pv && ([...d.srcIps, d.host].map((x) => pv.get(String(x).toLowerCase())).find(Boolean))) || '', vendorSet: (cfg.deviceInfo?.[d.key] || {}).vendor || '', vendorFound: d.vendor || (pv && ([...d.srcIps, d.host].map((x) => pv.get(String(x).toLowerCase())).find(Boolean))) || '',
       group: (cfg.deviceInfo?.[d.key] || {}).group || '', note: (cfg.deviceInfo?.[d.key] || {}).note || '', expectMin: (cfg.deviceInfo?.[d.key] || {}).expectMin || 0,
       overdue: !!((cfg.deviceInfo?.[d.key] || {}).expectMin && now - d.lastSeen > cfg.deviceInfo[d.key].expectMin * 60000),
       openAlarms: this.alarms ? openAlarms([d.key, d.srcIp, ...(d.srcIps || [])]) : 0

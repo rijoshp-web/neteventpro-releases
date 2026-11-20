@@ -30,8 +30,40 @@ function items(polling, t) {
       if (typeof x.v !== 'number' || !Number.isFinite(x.v)) continue;
       out.push({ dev: d.id, name: d.name || d.host, k, inst, v: x.v, ts: x.ts || 0 });
     }
+    // 1.99.7 a reading kept as text whose value is a number ("23.5", "Temp 23.5 C") is shown too
+    if (rt.texts) for (const [key, x] of rt.texts) {
+      const i = key.indexOf('|'), k = key.slice(0, i); if (!ks.has(k)) continue; const inst = key.slice(i + 1);
+      if (t.inst !== '*' && inst !== t.inst) continue; if (rt.last.has(key)) continue;
+      const m = /-?\d+(?:\.\d+)?/.exec(String(x.s)); if (!m) continue;
+      out.push({ dev: d.id, name: d.name || d.host, k, inst, v: +m[0], ts: x.ts || 0 });
+    }
   }
   return out;
+}
+
+/** 1.99.7 why a polling tile has nothing to show, in words the user can act on */
+function why(polling, t) {
+  const info = polling.metricInfo(t.k) || {}, name = `${info.label || t.k}${info.unit ? ' (' + info.unit + ')' : ''}`;
+  const ks = new Set(polling.keysOf ? polling.keysOf(t.k) : [t.k]);
+  if (!ks.size) return `No polled device has a reading named "${name}" any more.`;
+  const want = new Set(t.devs), has = new Set();
+  for (const p of (polling.profiles ? polling.profiles() : [])) if (p.own && p.metrics.some((m) => ks.has(m.k))) has.add(String(p.id).replace(/^dev-/, ''));
+  const devs = polling.devices().filter((d) => !want.size || want.has(d.id)), parts = [];
+  const without = want.size ? devs.filter((d) => has.size && !has.has(d.id)) : [];   // only the ticked devices are worth naming
+  for (const d of devs.filter((x) => !has.size || has.has(x.id)).slice(0, 6)) {
+    const rt = polling.rt.get(d.id), nm = d.name || d.host;
+    if (d.enabled === false) parts.push(`${nm}: polling is off`);
+    else if (!rt || !rt.lastTry) parts.push(`${nm}: not polled yet`);
+    else if (!rt.lastOk) parts.push(`${nm}: no SNMP answer (${String(rt.error || 'no answer').slice(0, 80)})`);
+    else {
+      const anyKey = [...rt.last.keys(), ...(rt.texts ? rt.texts.keys() : [])].some((key) => ks.has(key.slice(0, key.indexOf('|'))));
+      if (!anyKey) parts.push(`${nm}: answers, but gave no value for this reading (check its OID)`);
+      else if (t.inst !== '*') parts.push(`${nm}: no instance named "${t.inst}"`);
+      else { const tx = rt.texts && [...rt.texts].find(([key]) => ks.has(key.slice(0, key.indexOf('|')))); parts.push(`${nm}: the value is text${tx ? ` ("${String(tx[1].s).slice(0, 40)}")` : ''}, not a number`); }
+    }
+  }
+  if (without.length) parts.push(`${without.slice(0, 4).map((d) => d.name || d.host).join(', ')}${without.length > 4 ? ` and ${without.length - 4} more` : ''}: no reading named "${name}"`);
+  return parts.length ? `No values for "${name}". ${parts.join('; ')}.` : `No values for "${name}" yet.`;
 }
 const groupKey = (it, per) => (per === 'instance' ? `${it.dev}|${it.inst}` : per === 'all' ? '*' : it.dev);
 const groupName = (it, per, many) => (per === 'instance' ? (it.inst ? (many ? `${it.name} ${it.inst}` : it.inst) : it.name) : per === 'all' ? 'All' : it.name);
@@ -40,6 +72,7 @@ function run(polling, t, ctx) {
   const info = polling.metricInfo(t.k) || {}, unit = info.unit || '', label = info.label || t.k;
   if (!t.k) return { error: 'Choose a reading' };
   const list = items(polling, t);
+  if (!list.length && t.kind !== 'series') return { ...(t.kind === 'count' || t.kind === 'distinct' ? { n: null } : { rows: [] }), unit, label, why: why(polling, t) };
   if (t.kind === 'count' || t.kind === 'distinct') {
     const v = round(agg(t.pagg, list.map((x) => x.v)));
     return { n: v, unit, label, of: list.length, at: list.reduce((m, x) => Math.max(m, x.ts), 0) };
@@ -66,7 +99,7 @@ function run(polling, t, ctx) {
       for (const it of e.parts.slice(0, 60)) for (const p of polling.series(it.dev, it.k, it.inst, from, to, buckets)) { const b = Math.floor(p.t / bucketMs) - firstBucket; if (b >= 0 && b < buckets && p.v !== null) sums[b].push(p.v); }
       sums.forEach((vs, b) => { series[b][gi] = round(agg(t.per === 'all' ? t.pagg : (t.pagg === 'count' ? 'count' : 'avg'), vs)); });
     });
-    return { series, groups: groups.map((e) => e.name), unit, label, value: true };
+    return { series, groups: groups.map((e) => e.name), unit, label, value: true, ...(list.length ? {} : { why: why(polling, t) }) };
   }
   return { error: 'This visual is not available for polled values' };
 }

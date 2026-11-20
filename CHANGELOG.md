@@ -2,6 +2,16 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.7
+- Dashboard: "Number with trend line" and "Number" show the same alarm number for the same choice. The trend tile's Show has the same alarm numbers as the Number tile (active, open, acknowledged, escalated now; raised or cleared in the time range), its conflicting "Which alarms" choice is gone, a tile saved with "Which alarms" keeps that state, and switching visuals keeps the chosen numbers.
+- Dashboard: the severity picker and other pop-ups opened inside a dialog are drawn above the dialog (they were hidden behind it) and open upwards when there is no room below; messages are shown above dialogs too.
+- Dashboard editor: the preview of System health, Silent devices and Device status wall no longer stays on "Loading…"; polling tiles without a reading say "Choose a reading"; switching visuals no longer causes a script error.
+- Dashboard polling tiles: an empty tile says why for each chosen device (no reading with that name, not polled yet, no SNMP answer, no value from the OID, no such instance, text value); a reading kept as text whose value is a number is shown as a number.
+- Crimson theme with glass: the Add a tile gallery cards are rounded rectangles again instead of circles. Glass themes: group names in drop-down lists no longer show as light striped bars.
+- Devices page: the vendor can be typed per device or for many at once (Set vendor…); a device that is also polled gets its vendor from SNMP polling; enterprise 28458 shows as Nokia.
+- SNMP polling: a reading set to Text whose value is a number (for example an Eltek status "1") now shows its value meanings ("Normal", "Critical" ...) on the device page and in Test read, raises the state alarms, and can be used on dashboards.
+- New browser test (npm run test:ui) checks the dashboard before every release.
+
 ## 1.99.6
 - Alarm notifications now come from the Alarms section. When a rule or SNMP polling raises an alarm, the e-mail describes the alarm (device, alarm, port/item, severity, source, state, how long it has been open, other open alarms on the device) instead of the internal message ("Source: syslog, Process: snmp-poll" is gone). The same people get a "CLEARED" e-mail when the alarm clears, however it clears (by the device, automatically or by hand).
 - SNMP polling alarms show "SNMP polling" as their source on the Alarms page (column, filter, CSV) and in e-mails.

@@ -70,7 +70,7 @@ class Polling {
     const seen = new Map(), devOf = new Map(Object.entries(this.cfg.readings || {}).flatMap(([id, l]) => l.map((r) => [r.k, id])));
     for (const p of this.profiles()) for (const m of p.metrics) {
       if (m.on === false) continue; const own = !!p.own, key = own ? `L:${(m.label || m.k).trim()}|${m.unit || ''}` : m.k;
-      const e = seen.get(key) || { k: key, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text', devices: 0 }; if (own) e.devices++; seen.set(key, e);
+      const e = seen.get(key) || { k: key, label: m.label || m.k, unit: m.unit || '', text: m.dtype === 'text' && !m.lookup, devices: 0 };   /* 1.99.7 a text reading with value meanings holds numbers: dashboards can show it */ if (own) e.devices++; seen.set(key, e);
     }
     for (const x of [...IF_KEYS, ...BASE_KEYS]) if (!seen.has(x.k)) seen.set(x.k, { k: x.k, label: x.label, unit: x.unit || '', text: false, devices: 0 });
     void devOf; return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
@@ -106,6 +106,7 @@ class Polling {
       if (wasDown) { rt.alarmDown = false; this.noAnswer(d, rt, false); }
       const nums = res.readings.filter((r) => r.s === undefined), txt = res.readings.filter((r) => r.s !== undefined);
       this.store_(d, ts, nums); this.thresholds(d, rt, ts, nums); this.lookupAlarms(d, rt, ts, nums); this.texts_(d, rt, ts, txt);
+      { const lm = this.lookupMetrics(), lkn = txt.filter((r) => lm.has(r.k) && /^\s*-?\d+(\.\d+)?\s*$/.test(String(r.s))).map((r) => ({ k: r.k, inst: r.inst || '', v: +r.s })); if (lkn.length) { this.store_(d, ts, lkn); this.lookupAlarms(d, rt, ts, lkn); } }   // 1.99.7 a reading set to Text whose value is a number still gets its value meanings (words, states, alarms)
       if (wasDown) this.event(d, 'ok', 'answering again');
       return { ok: true, rtt: res.rtt, readings: res.readings.filter((r) => r.s === undefined) };
     }

@@ -51,3 +51,18 @@ test('request fields are made safe', () => {
   const c = Q.clean({ k: 'x'.repeat(300), devs: Array(500).fill('d'), pagg: 'evil', per: 'nope', n: 9999 });
   assert.equal(c.k.length, 80); assert.equal(c.devs.length, 200); assert.equal(c.pagg, 'avg'); assert.equal(c.per, 'device'); assert.equal(c.n, 50);
 });
+
+// 1.99.7 an empty polling tile says why, and a number kept as text is shown
+test('an empty polling tile explains why; a numeric text value is used', () => {
+  const pq = require('../src/pollq');
+  const devs = [{ id: 'a', name: 'CM-1', host: '10.0.0.1' }, { id: 'b', name: 'Rect', host: '10.0.0.2' }];
+  const rt = new Map([['a', { lastTry: 1, lastOk: 1, last: new Map(), texts: new Map([['r1|', { s: '23.5 C', ts: 5 }]]) }], ['b', { lastTry: 1, lastOk: 1, last: new Map() }]]);
+  const polling = { devices: () => devs, rt, metricInfo: () => ({ label: 'Room temp', unit: '°C' }), keysOf: () => ['r1'], profiles: () => [{ id: 'dev-a', own: true, metrics: [{ k: 'r1' }] }] };
+  const n = pq.run(polling, { kind: 'count', k: 'L:Room temp|°C', devs: [], inst: '*', pagg: 'avg', per: 'device', n: 5 }, {});
+  assert.strictEqual(n.n, 23.5);
+  const e = pq.run(polling, { kind: 'top', k: 'L:Room temp|°C', devs: ['b'], inst: '*', pagg: 'avg', per: 'device', n: 5 }, {});
+  assert.deepStrictEqual(e.rows, []); assert.match(e.why, /Rect: no reading named/);
+  rt.get('a').texts = new Map(); rt.get('a').last = new Map();
+  const g = pq.run(polling, { kind: 'top', k: 'L:Room temp|°C', devs: ['a'], inst: '*', pagg: 'avg', per: 'device', n: 5 }, {});
+  assert.match(g.why, /CM-1: answers, but gave no value/);
+});

@@ -49,6 +49,8 @@ const BYS = {
   devices: [['vendor', 'Vendor'], ['status', 'Status (reporting / silent / muted ...)'], ['group', 'Group'], ['kind', 'What it sends (syslog / traps)']],
   poll: [['device', 'One per device'], ['instance', 'One per device and instance (port, sensor, rectifier ...)'], ['all', 'All together']]
 };
+const SPARK_AL = ['alActive', 'alOpen', 'alAck', 'alEsc', 'alRaised', 'alCleared'];   // 1.99.7 a number with trend line can show the same alarm numbers as a Number tile
+const spAlM = (c = {}) => (SPARK_AL.includes(c.metric) && c.metric !== 'alRaised' ? c.metric : ({ active: 'alActive', open: 'alOpen', ack: 'alAck', esc: 'alEsc', cleared: 'alCleared' })[c.filter?.astate] || (SPARK_AL.includes(c.metric) ? c.metric : 'alRaised'));   // a tile saved with "Which alarms" keeps showing that state
 const A_STATES = [['raised', 'Raised in the time range'], ['active', 'Active now (open + acknowledged)'], ['open', 'Open now (not acknowledged)'], ['ack', 'Acknowledged now'], ['esc', 'Escalated now'], ['cleared', 'Cleared in the time range']];
 const D_STATES = [['all', 'All devices'], ['reporting', 'Reporting normally'], ['silent', 'Silent'], ['muted', 'Muted'], ['overdue', 'Overdue'], ['alarms', 'With open alarms'], ['syslog', 'Sending syslog'], ['trap', 'Sending traps']];
 /** which kinds of data each visual can show */
@@ -481,10 +483,11 @@ views.dashboard = (el) => {
           if (t.type === 'kpi' && c.graph && c.graph !== 'none' && kd !== 'devices') out.push({ id: t.id + '_g', kind: 'series', ...dq, filter: { ...f, ...(m === 'errors' ? { severityMax: 3 } : {}), ...(M.astate ? { astate: M.astate } : {}) } });
         }
       } else if (t.type === 'statspark') {
-        const m = c.metric || 'total', fs = { ...f }; if (kd === 'alarms') fs.astate = m === 'alCleared' ? 'cleared' : 'raised';   // 1.99.2 the line follows the chosen alarm number (it always showed raised alarms)
+        const m = kd === 'alarms' ? spAlM(c) : c.metric || 'total', fs = { ...f }; if (kd === 'alarms') fs.astate = METRICS[m]?.k === 'alarms' ? METRICS[m].astate : 'raised';   // 1.99.7 the line and the number follow "Show" (active, open, acknowledged, escalated now; raised or cleared in the range)
         if (kd === 'events') { if (m === 'errors') fs.severityMax = Math.min(fs.severityMax ?? 7, 3); if (m === 'warnings') { fs.severityMax = Math.min(fs.severityMax ?? 7, 4); fs.severityMin = Math.max(fs.severityMin ?? 0, 4); } }
         out.push({ id: t.id, kind: 'series', ...dq, filter: fs });
         if (kd === 'events' && (m === 'hosts' || m === 'perMinute')) { const q = metricReq(t.id + '_n', m, f); if (q) out.push(q); }
+        if (kd === 'alarms') { const { astate: _a, ...fn } = f; const q = metricReq(t.id + '_n', METRICS[m]?.k === 'alarms' ? m : 'alRaised', fn); if (q) out.push(q); }   // 1.99.7 the big number is the server's own count, the same as a Number tile with the same Show
       } else if (t.type === 'trend' || t.type === 'line') out.push({ id: t.id, kind: 'series', ...dq, filter: f });
       else if (t.type === 'sevbars') out.push({ id: t.id, kind: 'top', ...dq, by: 'severity', n: 8, filter: f });
       else if (t.type === 'top') out.push({ id: t.id, kind: 'top', ...dq, by: byOf(t), n: n || 8, filter: f });
@@ -597,7 +600,7 @@ views.dashboard = (el) => {
     if (M.srv) {
       if (d && !d.error) {
         const v = metricNumber(t); num = v === null ? '–' : numFmt(c, v); sub = M.ranged ? r.label : DS[dsOf(t)].chip + ' now';
-        if (M.k === 'poll') sub = d.n === null ? 'no value yet' : `${esc(d.label || '')}${d.of > 1 ? ` · ${({ avg: 'average', max: 'highest', min: 'lowest', sum: 'sum', last: 'latest', count: 'number' })[t.cfg?.pagg || 'avg']} of ${d.of}` : ''}`;
+        if (M.k === 'poll') sub = d.n === null ? `<span title="${esc(d.why || '')}">${esc(d.why || 'no value yet')}</span>` : `${esc(d.label || '')}${d.of > 1 ? ` · ${({ avg: 'average', max: 'highest', min: 'lowest', sum: 'sum', last: 'latest', count: 'number' })[t.cfg?.pagg || 'avg']} of ${d.of}` : ''}`;
         if (calc) sub = calcText(c);
         else if (d.prev !== undefined && m !== 'perMinute') { const p = trend(d.n, d.prev); if (p !== null && d.prev !== d.n) { bad = ['errors', 'warnings', 'alRaised'].includes(m) && d.n > d.prev; sub = `<span class="${bad ? 'up-bad' : 'up-ok'}">${d.n > d.prev ? '▲' : '▼'} ${Math.abs(p)}%</span> vs the period before`; } }
       } else if (d?.error) sub = esc(d.error);
@@ -629,6 +632,7 @@ views.dashboard = (el) => {
       if (!d.devices.length) return `<div class="empty" style="padding:16px"><b>Nothing found</b>${noData(t)}</div>`;
       return `<table class="data"><tbody>${d.devices.map((v) => `<tr data-dev="${esc(v.host)}" style="cursor:pointer"><td class="trunc" style="max-width:150px">${esc(v.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(v.vendor || '')}${v.srcIp && v.srcIp !== v.host ? ' · ' + esc(v.srcIp) : ''}</td><td style="white-space:nowrap"><span class="dot" style="background:${catColor('status', v.status, 0)};margin-right:5px"></span>${esc(catName('status', v.status))}</td><td class="muted" style="white-space:nowrap">${v.openAlarms ? fmtN(v.openAlarms) + ' alarms · ' : ''}${v.lastSeen ? timeOf(v.lastSeen, false) : ''}</td></tr>`).join('')}</tbody></table>`;
     }
+    if (!Array.isArray(d.rows)) return '<div class="muted">Loading…</div>';
     if (!d.rows.length) return '<div class="empty" style="padding:16px"><b>Nothing found</b>No messages match in this time range.</div>';
     const long = dayish();
     return `<table class="data"><tbody>${d.rows.map((m) => `<tr class="sev-${m.severity}" data-id="${m.id}" style="cursor:pointer"><td><span class="sevname">${SEV[m.severity]}</span></td><td class="trunc" style="max-width:130px">${esc(m.host)}</td><td class="muted trunc" style="max-width:0;width:100%">${esc(m.message)}</td><td class="muted" style="white-space:nowrap">${long ? shortDate(m.ts) + ' ' : ''}${timeOf(m.ts, false)}</td></tr>`).join('')}</tbody></table>`;
@@ -647,14 +651,15 @@ views.dashboard = (el) => {
     const st = S.stats;
     {
       const wb = wbOf(t.id); if (!wb) return; const d = data?.tiles?.[t.id]; curPal = PALETTES[t.cfg?.pal] || null; curPalName = t.cfg?.pal || '';
-      if (t.type === 'kpi') setHtml(t.id, kpiHtml(t));
+      if (dsKind(t) === 'poll' && t.type !== 'poll' && t.type !== 'kpi' && !t.cfg?.pk) setHtml(t.id, '<div class="muted" style="padding:8px 0">Choose a reading: Edit → 2 · Data → Reading.</div>');   // 1.99.7 (it said Loading… or stayed empty)
+      else if (t.type === 'kpi') setHtml(t.id, kpiHtml(t));
       else if (t.type === 'trend') { if (chartDue(t, setHtml(t.id, '<div class="cwrap"><canvas></canvas></div><div class="legend"></div>'))) drawTrend(t); }
       else if (t.type === 'rate') { if (setHtml(t.id, '<div class="cwrap"><canvas></canvas></div>') || true) drawRate(t); }
       else if (t.type === 'sevbars') {
-        if (!d) setHtml(t.id, '<div class="muted">Loading…</div>');
+        if (!d || !Array.isArray(d.rows)) setHtml(t.id, '<div class="muted">Loading…</div>');
         else { const by = new Map(d.rows.map((r) => [+r.key, r.n])); setHtml(t.id, `<div class="sevbars">${SEVORD.map((i) => { const n = SEV[i]; const v = by.get(i) || 0, max = Math.max(1, ...d.rows.map((r) => r.n)); return `<div class="row"><span>${n}</span><div class="bar"><i style="width:${v / max * 100}%;background:var(--s${i})"></i></div><span class="num-r">${fmtN(v)}</span></div>`; }).join('')}</div>`); }
       } else if (t.type === 'top') {
-        if (!d) setHtml(t.id, '<div class="muted">Loading…</div>'); else if (d.error) setHtml(t.id, `<div class="muted">${esc(d.error)}</div>`);
+        if (!d || (!d.error && !Array.isArray(d.rows))) setHtml(t.id, '<div class="muted">Loading…</div>'); else if (d.error) setHtml(t.id, `<div class="muted">${esc(d.error)}</div>`);   // 1.99.7 the answer for another visual (just switched) is not a ranking
         else {
           const by = byOf(t);
           setHtml(t.id, d.rows.length ? bars(d.rows, (r) => esc(catName(by, r.key)), (r) => curPalOverrides() ? catColor(by, r.key, d.rows.indexOf(r)) : by === 'severity' && SEV[r.key] !== undefined ? `var(--s${r.key})` : by === 'app' ? 'var(--s6)' : (r.worst !== undefined && by === 'host') ? `var(--s${r.worst})` : catColor(by, r.key, 0),
@@ -720,7 +725,7 @@ views.dashboard = (el) => {
   const catName = (by, k) => (by === 'severity' ? (SEV[k] ?? k) : by === 'facility' ? ((S.info.facilities || [])[k] ?? k) : (by === 'state' || by === 'status' || by === 'source' || by === 'kind') ? (STATE_NAME[k] || String(k)) : String(k) || '(none)');
   const STATE_COL = { open: '--bad', ack: '--s4', cleared: '--ok', escalated: '--bad', reporting: '--ok', silent: '--bad', muted: '--faint', overdue: '--s4', alarms: '--bad' };
   const catColor = (by, k, i) => (curPalOverrides() ? palc(i) : by === 'severity' && SEV[k] !== undefined ? css('--s' + k) : (by === 'state' || by === 'status') && STATE_COL[k] ? css(STATE_COL[k]) : palc(i));
-  const noData = (t) => `Nothing to show in this time range for ${DS[dsOf(t)].chip.toLowerCase()}.`;
+  const noData = (t) => { const w = data?.tiles?.[t.id]?.why || data?.tiles?.[t.id + '_n']?.why; return w ? esc(w) : `Nothing to show in this time range for ${DS[dsOf(t)].chip.toLowerCase()}.`; };   // 1.99.7 a polling tile says why it is empty
   function pieSlices(t) {
     const d = data?.tiles?.[t.id]; if (!d || d.error || !d.rows) return null; const by = byOf(t);
     const sl = d.rows.map((r, i) => ({ key: r.key, name: catName(by, r.key), n: r.n, color: catColor(by, r.key, i) }));
@@ -862,7 +867,7 @@ views.dashboard = (el) => {
   const curPalOverrides = () => !!curPal && curPalName !== 'classic';
   const palc = (i) => (curPal ? curPal[i % curPal.length] : (css('--c' + (i % 10)) || PAL[i % PAL.length]));
   function topRows(t) {
-    const d = data?.tiles?.[t.id]; if (!d) return { msg: 'Loading…' }; if (d.error) return { msg: esc(d.error) }; if (!d.rows?.length) return { msg: noData(t) };
+    const d = data?.tiles?.[t.id]; if (!d) return { msg: 'Loading…' }; if (d.error) return { msg: esc(d.error) }; if (!Array.isArray(d.rows)) return { msg: 'Loading…' }; if (!d.rows.length) return { msg: noData(t) };
     const by = byOf(t), thOn = !!t.cfg?.th?.steps?.length && thMode(t.cfg) !== 'none', rows = d.rows.map((r, i) => ({ key: r.key, name: catName(by, r.key), n: r.n, color: (thOn && thColor(t.cfg, r.n)) || catColor(by, r.key, i) }));
     return { by, rows, total: d.total || rows.reduce((a, r) => a + r.n, 0), max: Math.max(1, ...rows.map((r) => r.n)) };
   }
@@ -900,11 +905,11 @@ views.dashboard = (el) => {
     }).join('')}</div>`;
   }
   /** the big number of a "number with trend line": the sum of the line, or (for devices / per minute) the server's own figure */
-  const sparkNum = (t, v) => { const m = t.cfg?.metric; if (dsKind(t) === 'poll') { const n = data?.tiles?.[t.id + '_n']; return n && !n.error ? n.n : null; } if (dsKind(t) === 'events' && (m === 'hosts' || m === 'perMinute')) { const n = nOf(m, data?.tiles?.[t.id + '_n']); if (n !== null) return n; } return (v || []).reduce((a, b) => a + b, 0); };
+  const sparkNum = (t, v) => { const m = t.cfg?.metric; if (dsKind(t) === 'alarms') { const n = data?.tiles?.[t.id + '_n']; if (n && !n.error) return n.n; } if (dsKind(t) === 'poll') { const n = data?.tiles?.[t.id + '_n']; return n && !n.error ? n.n : null; } if (dsKind(t) === 'events' && (m === 'hosts' || m === 'perMinute')) { const n = nOf(m, data?.tiles?.[t.id + '_n']); if (n !== null) return n; } return (v || []).reduce((a, b) => a + b, 0); };
   function statsparkHtml(t) {
     const ls = lineSeries({ ...t, cfg: { ...t.cfg, mode: 'total', sc: undefined } }); if (!ls) return '<div class="muted">Loading…</div>';
     const v = ls.lines[0].v.map((x) => x ?? 0), total = sparkNum(t, v), c = vcfg(t), col0 = valCol(t), col = col0 && col0 !== 'inherit' ? col0 : (col0 === 'inherit' ? 'currentColor' : css('--accent'));
-    return `<div class="stat" style="${alignStyle(t)}"><div class="num" style="${valStyle(t, col0 && col0 !== 'inherit' ? col0 : '')}">${total === null ? '–' : decorate(c, numFmt(c, total))}</div>${c.val?.sub === false ? '' : `<div class="sub">${esc(range().label)}</div>`}${sparkSvg(v, col, c.graph === 'line' ? 'line' : 'area')}</div>`;
+    return `<div class="stat" style="${alignStyle(t)}"><div class="num" style="${valStyle(t, col0 && col0 !== 'inherit' ? col0 : '')}">${total === null ? '–' : decorate(c, numFmt(c, total))}</div>${c.val?.sub === false ? '' : `<div class="sub">${esc(dsKind(t) === 'alarms' && !METRICS[spAlM(t.cfg)].ranged ? 'now · line: raised in ' + range().label.toLowerCase() : range().label)}</div>`}${sparkSvg(v, col, c.graph === 'line' ? 'line' : 'area')}</div>`;
   }
   // ----- 1.74 more visuals: waffle, radial bars, rose, word cloud, bubbles, funnel, podium, device wall -----
   const polar = (cx, cy, r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -1067,6 +1072,7 @@ views.dashboard = (el) => {
     const c = t.cfg ||= {}; let fl, ty, hasVal, hasTh, hasChart, hasPal, isRank;
     const setFlags = () => { fl = FILTER_TYPES.includes(t.type); ty = TYPES[t.type]; hasVal = ['kpi', 'statspark', 'gauge', 'alarm'].includes(t.type); hasTh = hasVal || ['bargauge', 'bar', 'treemap', 'table'].includes(t.type); hasChart = ['line', 'trend'].includes(t.type); hasPal = ['pie', 'bar', 'treemap', 'table', ...NEWRANK].includes(t.type); isRank = !!TOPLIKE[t.type] || t.type === 'top' || t.type === 'pie'; };
     setFlags();
+    if (t.type === 'statspark' && dsKind(t) === 'alarms') { c.metric = spAlM(c); if (c.filter) { delete c.filter.astate; if (!Object.keys(c.filter).length) delete c.filter; } }   // 1.99.7
     if (c.bg && !c.look?.bgMode) c.look = { ...(c.look || {}), bgMode: 'solid', bg: c.bg }; delete c.bg;                       // an old custom background becomes a panel option
     if (!c.th?.steps?.length && (c.warn > 0 || c.crit > 0)) { c.th = { ...(c.th || {}), mode: c.th?.mode || 'value', steps: [{ v: 0, c: '#30a46c' }, ...(c.warn > 0 ? [{ v: c.warn, c: '#f5a524' }] : []), ...(c.crit > 0 ? [{ v: c.crit, c: '#e5484d' }] : [])] }; } delete c.warn; delete c.crit;
     const K = optKit(t);
@@ -1079,7 +1085,13 @@ views.dashboard = (el) => {
       if (k === 'events') c.filter.source = DS[ds].src; else delete c.filter.source;
       if (k !== 'alarms') { delete c.filter.astate; delete c.filter.rule; } if (k !== 'devices') { delete c.filter.dstate; delete c.filter.vendor; delete c.filter.group; }
       if (k === 'devices' || k === 'system') { delete c.filter.sevs; delete c.filter.severityMax; delete c.filter.text; delete c.filter.app; delete c.filter.tag; }
-      if (t.type === 'kpi' || t.type === 'gauge') { if (METRICS[c.metric]?.k !== k) c.metric = DEF_METRIC[k]; } else delete c.metric;
+      // 1.99.7 switching the visual keeps the same numbers: the alarm state moves between "Show" (number tiles) and "Which alarms" (the others)
+      const AST2M = { active: 'alActive', open: 'alOpen', ack: 'alAck', esc: 'alEsc', raised: 'alRaised', cleared: 'alCleared' };
+      const SPARK_EV = ['total', 'errors', 'warnings', 'hosts', 'perMinute'];
+      if (k === 'alarms' && METRICS[c.metric]?.k !== 'alarms' && c.filter.astate && AST2M[c.filter.astate]) c.metric = AST2M[c.filter.astate];
+      if (t.type === 'kpi' || t.type === 'gauge') { if (METRICS[c.metric]?.k !== k) c.metric = DEF_METRIC[k]; if (k === 'alarms') delete c.filter.astate; }
+      else if (t.type === 'statspark') { if (k === 'alarms') { if (!SPARK_AL.includes(c.metric)) c.metric = METRICS[c.metric]?.k === 'alarms' && c.metric === 'alAvgClear' ? 'alCleared' : 'alRaised'; delete c.filter.astate; } else if (k === 'events') { if (!SPARK_EV.includes(c.metric)) c.metric = 'total'; } else delete c.metric; }
+      else { if (k === 'alarms' && METRICS[c.metric]?.k === 'alarms' && METRICS[c.metric].astate) c.filter.astate = METRICS[c.metric].astate; delete c.metric; }
       if (c.by !== undefined || isRank) { if (!(BYS[k] || []).some((x) => x[0] === c.by)) c.by = defBy(t); }
       if (c.calc?.bm && !METRICS[c.calc.bm]) delete c.calc;
       if (!Object.keys(c.filter).length) delete c.filter;
@@ -1125,7 +1137,7 @@ views.dashboard = (el) => {
       const iconPick = !ICONS ? '' : `<div class="field"><label>Icon</label><div><div class="icongrid"><button type="button" class="icb ${ic.name ? '' : 'on'}" data-icon="" title="No icon">None</button>${ICONS.list().map((x) => `<button type="button" class="icb ${ic.name === x.k ? 'on' : ''}" data-icon="${x.k}" title="${esc(x.label)}" aria-label="${esc(x.label)}">${ICONS.tile(x.k, 20)}</button>`).join('')}</div></div></div>
         ${ic.name ? `${K.sel('Icon place', 'cfg.icon.pos', [['title', 'Next to the title'], ['corner', 'Badge in the corner'], ['mark', 'Large, faint, in the background']], { def: 'title' })}${K.num('Icon size', 'cfg.icon.size', { min: 12, max: 160, unit: 'px', ph: 'auto' })}${K.col('Icon colour', 'cfg.icon.color', '#3b82f6', { hint: 'Empty: the theme accent colour' })}` : ''}`;
       const genData = `${t.type === 'kpi' || t.type === 'gauge' ? K.fld('Show', `<select data-p="cfg.metric">${metricOpts()}</select>`) : ''}
-        ${t.type === 'statspark' && dsKind(t) === 'alarms' ? K.sel('Show', 'cfg.metric', [['alRaised', 'Alarms raised'], ['alCleared', 'Alarms cleared']], { def: 'alRaised' }) : ''}
+        ${t.type === 'statspark' && dsKind(t) === 'alarms' ? K.sel('Show', 'cfg.metric', SPARK_AL.map((k) => [k, METRICS[k].label]), { def: 'alRaised' }) : ''}
         ${t.type === 'statspark' && dsKind(t) === 'events' ? K.fld('Show', `<select data-p="cfg.metric">${[['total', 'All messages'], ['errors', 'Errors and worse'], ['warnings', 'Warnings'], ['hosts', 'Devices that sent messages'], ['perMinute', 'Messages per minute']].map(([k, l]) => `<option value="${k}" ${(c.metric || 'total') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`) : ''}
         ${isRank ? K.sel('Rank by', 'cfg.by', BYS[kd] || BYS.events, { def: defBy(t) }) : ''}
         ${t.type === 'line' ? K.sel('Lines', 'cfg.mode', [['severity', 'One line per severity group'], ['total', 'All ' + DS[dsOf(t)].chip.toLowerCase() + ' (one line)']], { def: 'severity' }) : ''}
@@ -1138,7 +1150,7 @@ views.dashboard = (el) => {
         ${t.type === 'gauge' ? K.num('Dial maximum', 'cfg.max', { min: 0, ph: 'auto' }) : ''}`;
       const genTile = `${K.txt('Title', 'title', { ph: ty.label })}
         ${K.num('Width', 'w', { min: ty.minW, max: 12, unit: 'of 12 columns' })}${K.num('Height', 'h', { min: ty.minH, max: 40, unit: 'rows' })}`;
-      const metricFixed = (t.type === 'kpi' || t.type === 'gauge') && METRICS[c.metric]?.srv && kd !== 'events';
+      const metricFixed = ((t.type === 'kpi' || t.type === 'gauge') && METRICS[c.metric]?.srv && kd !== 'events') || (t.type === 'statspark' && kd === 'alarms');   // 1.99.7 "Show" already says which alarms
       const flt = !fl ? '' : kd === 'events' ? `<div id="mFilter"><p class="muted" style="margin:0 0 6px">Only count messages that match (leave empty for all):</p>
         <div class="field"><label>Severity</label><div><button type="button" id="mSevBtn"></button></div></div>
         ${K.txt('Device', 'cfg.filter.host', { ph: 'name or IP, separate several with commas', max: 200 })}${K.txt('Process', 'cfg.filter.app', { max: 100 })}
@@ -1190,6 +1202,8 @@ views.dashboard = (el) => {
     }
     async function pvFetch() {
       const tt = pvTile(), reqs = requestsFor([tt]), key = JSON.stringify(reqs); if (key === pvKey) return; pvKey = key;
+      if (tt.type === 'health' && !health) api('/api/health').then((h) => { health = h; pvPaint(); }).catch(() => {});   // 1.99.7 the preview of these tiles stayed on Loading… until the tile was on the board
+      if ((tt.type === 'silent' || tt.type === 'devwall') && !devices) api('/api/devices').then((d) => { devices = d; pvPaint(); }).catch(() => {});
       if (!reqs.length) { pvData = null; return pvPaint(); } const r = range();
       try { pvData = await api('/api/dash', { method: 'POST', body: { from: r.from, to: r.to, tiles: reqs } }); } catch { pvData = null; } pvPaint();
     }

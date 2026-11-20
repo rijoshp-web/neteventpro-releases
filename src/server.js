@@ -122,7 +122,7 @@ async function main() {
   const maint = new Maintenance(config); engine.maint = maint;
   const sqlcopy = new SqlCopy(config, store.db); sqlcopy.start(); config.onChange((c, patch) => { if (patch && 'sqlCopy' in patch) sqlcopy.changed(); });
   const alarms = new AlarmStore(store, engine.mail); alarms.notify = engine.notify; engine.alarms = alarms; reports.alarms = alarms;
-  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); engine.applyConfig(config.get()); polling.start();
+  const polling = new Polling(config, store, engine); health.polling = polling; polling.locked = () => !license.ok() || !license.has('polling'); polling.maxDevices = () => license.maxDevices(); engine.notify.blocked = engine.mail.blocked = engine.blockedHooks = () => !license.has('notify'); reports.blocked = () => !license.has('reports'); engine.extraRules = () => polling.rules(); { let pvc = { at: 0, m: null }; engine.polledVendors = () => { if (pvc.m && Date.now() - pvc.at < 30000) return pvc.m; const m = new Map(); for (const d of polling.devices()) { const v = polling.vendorOf(polling.rt.get(d.id)?.objectId || ''); if (!v) continue; for (const k of [d.host, d.name, polling.rt.get(d.id)?.sysName]) if (k) m.set(String(k).toLowerCase(), v); } pvc = { at: Date.now(), m }; return m; }; } engine.applyConfig(config.get()); polling.start();
   reports.polling = polling; reports.dashFn = (body) => dashData(body);
   const backups = new Backups({ config, store, dir: config.dir, version: VERSION });
   try { fs.rmSync(path.join(config.dir, 'tmp'), { recursive: true, force: true }); } catch { /* nothing to clean */ }
@@ -1250,7 +1250,7 @@ function cleanTileFilter(f) {
   for (const k of ['severityMax', 'severityMin', 'facility']) if (f[k] !== undefined && f[k] !== '' && f[k] !== null && Number.isFinite(+f[k])) o[k] = Math.min(23, Math.max(0, Math.round(+f[k])));
   { const sv = parseSevs(f.sevs); if (sv) o.sevs = sv.join(','); }
   for (const [k, n] of [['host', 200], ['app', 100], ['text', 300], ['tag', 64]]) { const v = String(f[k] ?? '').trim().slice(0, n); if (v) o[k] = v; }
-  if (['syslog', 'snmp', 'all'].includes(f.source)) o.source = f.source;
+  if (['syslog', 'snmp', 'poll', 'all'].includes(f.source)) o.source = f.source;
   if (['raised', 'active', 'open', 'ack', 'esc', 'cleared'].includes(f.astate)) o.astate = f.astate;                 // alarms: which alarms count
   if (['all', 'reporting', 'silent', 'muted', 'overdue', 'alarms', 'syslog', 'trap'].includes(f.dstate)) o.dstate = f.dstate;      // devices: which devices count
   for (const [k, n] of [['rule', 100], ['vendor', 60], ['group', 60]]) { const v = String(f[k] ?? '').trim().slice(0, n); if (v) o[k] = v; }
@@ -1738,7 +1738,7 @@ async function sanitize(body, current) {
   if ('deviceInfo' in out) {
     const a = out.deviceInfo;
     if (!a || typeof a !== 'object' || Array.isArray(a)) delete out.deviceInfo;
-    else { const clean = {}; for (const [k, v] of Object.entries(a).slice(0, 5000)) { const key = str(k, 253); if (!key || !v || typeof v !== 'object') continue; const o = {}; const g = str(v.group, 60), n = str(v.note, 300), e = clampInt(v.expectMin, 0, 525600, 0); if (g) o.group = g; if (n) o.note = n; if (e) o.expectMin = e; if (Object.keys(o).length) clean[key] = o; } out.deviceInfo = clean; }
+    else { const clean = {}; for (const [k, v] of Object.entries(a).slice(0, 5000)) { const key = str(k, 253); if (!key || !v || typeof v !== 'object') continue; const o = {}; const g = str(v.group, 60), vd = str(v.vendor, 60), n = str(v.note, 300), e = clampInt(v.expectMin, 0, 525600, 0); if (g) o.group = g; if (vd) o.vendor = vd; if (n) o.note = n; if (e) o.expectMin = e; if (Object.keys(o).length) clean[key] = o; } out.deviceInfo = clean; }
   }
   if ('deviceAliases' in out) {
     const a = out.deviceAliases;
