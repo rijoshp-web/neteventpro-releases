@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.18
+- Fixed: Device view colour buttons (text, fill, line and link colours) showed no colours in Neumorphism, Claymorphism, iOS, glass and other themes that repaint all buttons. They now show their colour in every theme, with a striped button for the theme colour and a rainbow button for any other colour.
+- Fixed: in several themes the details panel's close button was square, the "Open alarms" box became a large circle and "Expand all / Collapse all" looked like a big button. They keep their own shape now.
+- Fixed: the alarm count box in the details panel is red in every theme (Crimson showed it white).
+- Fixed: the text box of a shape used a typewriter font.
+
 ## 1.99.17
 - The Pulse layout and the Pulse colour theme are removed; the app looks and works as it did in 1.99.14. A browser that used the Pulse theme falls back to Dark.
 - Device view: lines can be straight, elbow (right angles, like a Visio connector) or curved. Pick the type with the three buttons next to Draw line (or keys 1, 2, 3); a selected line can be changed in its panel.

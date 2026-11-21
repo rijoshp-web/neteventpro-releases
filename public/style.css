@@ -2344,3 +2344,20 @@ button.dvbadge { border: 0; cursor: pointer; } button.dvbadge:hover { filter: br
 :root[data-tone="light"] button.on:not(.primary):not(.dvswc):not(#_) { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); color: color-mix(in srgb, var(--accent) 62%, #000); border-color: var(--accent); }
 :root[data-tone="light"] button.on:disabled:not(#_) { opacity: .8; }
 .dvlinks:not(#_) { pointer-events: none; } .dvwrap.editing .dvlinks .hit { pointer-events: stroke; }
+/* 1.99.18 colour buttons keep their colour in every theme (Neumorphism, Claymorphism, iOS, glass and other looks repaint all buttons) */
+.dvsw .dvswc:not(#_):not(#__) { width: 26px; height: 26px; min-width: 0; padding: 0; margin: 0; border-radius: 50%; border: 2px solid var(--line2); background: var(--c, var(--panel)); background-image: none; box-shadow: none; color: var(--muted); transform: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.dvsw .dvswc[data-c=""]:not(#_):not(#__) { background: repeating-linear-gradient(135deg, var(--panel) 0 4px, color-mix(in srgb, var(--text) 10%, var(--panel)) 4px 8px); color: var(--text); }
+.dvsw .dvswc.on:not(#_):not(#__) { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+.dvsw .dvswc.pick:not(#_):not(#__) { background: conic-gradient(#ef4444, #eab308, #22c55e, #0ea5e9, #a855f7, #ef4444); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); font-size: 13px; }
+/* 1.99.18 Device view controls keep their own shape in every theme (themes that repaint all buttons made the close button square, the alarm count a big circle and the colour picker plain) */
+.dvinfo .dvix:not(#_):not(#__) { flex: 0 0 32px; width: 32px; height: 32px; min-width: 0; padding: 0; display: inline-grid; place-items: center; border-radius: 50%; border: 1px solid var(--line2); background: var(--panel2, var(--panel)); color: var(--muted); box-shadow: none; background-image: none; transform: none; }
+.dvinfo .dvix:hover:not(#_):not(#__) { color: var(--text); border-color: var(--muted); background: color-mix(in srgb, var(--text) 8%, var(--panel)); }
+.dvinfo .dvkpi:not(#_):not(#__) { border-radius: 12px; padding: 9px 10px; border: 1px solid var(--line); background: var(--panel2, var(--panel)); background-image: none; box-shadow: none; text-align: left; align-items: flex-start; height: auto; min-width: 0; transform: none; }
+.dvinfo .dvkpi.click:not(#_):not(#__) { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.dvinfo .dvkpi.click:hover:not(#_):not(#__) { background: color-mix(in srgb, var(--bad) 8%, var(--panel)); }
+.dvinfo #dvREx:not(#_):not(#__) { background: none; border: 0; box-shadow: none; padding: 2px 4px; color: var(--accent); border-radius: 6px; min-width: 0; height: auto; }
+.dvinfo #dvREx:hover:not(#_):not(#__) { text-decoration: underline; }
+.dvsw .dvswc.pick input:not(#_):not(#__) { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; margin: 0; border: 0; cursor: pointer; }
+.dvside textarea { font: inherit; }
+.dvtip .dvtip-k span:not(#_) { border-radius: 8px; }
+.dvinfo .dvkpi.click:not(#_):not(#__), .dvinfo .dvkpi.click .v:not(#_):not(#__), .dvinfo .dvkpi.click .l:not(#_):not(#__) { color: var(--bad); }
