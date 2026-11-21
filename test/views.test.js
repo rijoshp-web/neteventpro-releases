@@ -65,3 +65,27 @@ test('1.99.14 links follow a port: polled interface state and use, or an open al
   assert.equal(L3[0].state, 'down', 'no port: down when a device at either end does not answer'); assert.equal(L3[1].state, 'up'); assert.equal(L3[1].text, 'Gi1/0/3 0%');
   assert.deepEqual(vs.itemPorts(v3.id, i3).ports.map((p) => p.name), ['Gi1/0/1', 'Gi1/0/2', 'Gi1/0/3']); assert.deepEqual(vs.itemPorts(v.id, isw).ports.map((p) => p.name), ['Gi0/5']);
 });
+
+test('1.99.17 shapes, pictures that are not monitored, this server, and how lines are drawn', () => {
+  const { vs } = mk();
+  vs.engine.health = { summary: { status: 'warn', warn: 2, bad: 0 }, last: { checks: [{ id: 'disk', label: 'Free disk space', status: 'warn', detail: '5% free' }, { id: 'udp', label: 'UDP syslog input', status: 'ok', detail: 'Listening' }], system: { uptimeSec: 120 }, ingest: { eps: 3, devices: 9 } } };
+  const v = vs.save({ name: 'Draw', items: [
+    { id: 'shape001', kind: 'shape', shape: 'cloud', x: 100, y: 100, size: 99999, h: 5, fill: '#FF0000', fa: 300, stroke: 'red', sw: 40, dash: true, text: 'WAN', ts: 200, tc: '#00ff00', ta: 'top' },
+    { id: 'shape002', kind: 'shape', shape: 'star', x: 10, y: 10 },
+    { id: 'deco0001', kind: 'deco', pic: 'icon:pc-desktop', name: 'Operator PC', x: 500, y: 500 },
+    { id: 'serv0001', kind: 'server', x: 600, y: 600, pic: 'javascript:x' },
+    { id: 'dev00001', kind: 'device', src: 'poll', ref: 'p1', x: 700, y: 700 }],
+  links: [{ a: 'deco0001', b: 'shape001', route: 'curve', bend: 500, arrow: 'both', dash: 'dot', lw: 99, color: '#AbCdEf' }, { a: 'serv0001', b: 'dev00001', route: 'zigzag', arrow: 'up', dash: 'x', color: 'blue' }] });
+  const [sh, sh2, deco, srv] = v.items;
+  assert.equal(sh.kind, 'shape'); assert.equal(sh.size, 1600); assert.equal(sh.h, 16); assert.equal(sh.fill, '#ff0000'); assert.equal(sh.fa, 100); assert.equal(sh.stroke, '', 'only #rrggbb colours'); assert.equal(sh.sw, 12); assert.equal(sh.ts, 72); assert.equal(sh.ta, 'top'); assert.equal(sh.text, 'WAN');
+  assert.equal(sh2.shape, 'rect', 'an unknown shape becomes a rectangle');
+  assert.equal(deco.kind, 'deco'); assert.equal(deco.pic, 'icon:pc-desktop'); assert.equal(deco.src, undefined);
+  assert.equal(srv.kind, 'server'); assert.equal(srv.pic, 'icon:server-tower', 'a bad picture falls back');
+  assert.deepEqual(v.links.map((l) => [l.route, l.bend, l.arrow, l.dash, l.lw, l.color]), [['curve', 100, 'both', 'dot', 12, '#abcdef'], ['straight', 30, 'none', 'solid', 4, '']]);
+  const st = vs.status(v.id);
+  assert.equal(st.items.serv0001.sev, 4, 'health warnings make this server amber'); assert.match(st.items.serv0001.text, /2 health warnings/);
+  assert.equal(st.items.deco0001, undefined, 'a picture that is not monitored has no state'); assert.equal(st.links[0].state, 'none', 'a line between items that are not monitored has no state');
+  const d = vs.itemDetail(v.id, 'serv0001'); assert.equal(d.kind, 'server'); assert.equal(d.eps, 3); assert.equal(d.devices, 9);
+  assert.deepEqual(d.readings.map((r) => [r.label, r.text, r.state]), [['Free disk space', 'Warning', 'warn'], ['UDP syslog input', 'OK', 'ok']]); assert.equal(d.readings[0].rows[0].inst, '5% free');
+  assert.equal(vs.itemDetail(v.id, 'deco0001'), null);
+});

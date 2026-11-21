@@ -53,7 +53,7 @@ views.alarms = (el) => {
   const head = () => {
     const c = data.counts || {};
     el.innerHTML = `<div class="page-head"><h1>Alarms</h1><span class="muted" id="alInfo"></span><span class="headbtns"><button id="alCols" class="ib" title="Choose, show, hide and move the columns">${ico('columns')}<span class="bt">Columns</span></button><button id="alCsv" class="ib" title="Download the alarms shown as a CSV file">${ico('download')}<span class="bt">Export</span></button></span></div>
-    <div class="sigstrip" id="alSig" role="group" aria-label="Alarm counts"></div><div class="altabs" id="alChips" role="tablist"></div><div class="muted" id="alSum" style="margin:0 0 10px"></div>
+    <div class="altabs" id="alChips" role="tablist"></div><div class="muted" id="alSum" style="margin:0 0 10px"></div>
     <div class="toolbar filterbar">
       <select id="alState" aria-label="Show"><option value="active">All active alarms</option><option value="open">Not acknowledged</option><option value="ack">Acknowledged</option><option value="escalated">Escalated</option></select>
       <select id="alRange" aria-label="Time range">${RANGES.map(([v, n]) => `<option value="${v}">${v === '0' ? 'All time (everything stored)' : n}</option>`).join('')}</select>
@@ -72,14 +72,7 @@ views.alarms = (el) => {
   const hist = () => state === 'cleared';
   const chips = () => {      // the two tabs (no counts on them); the history tab also needs the period controls
     $('#alChips').innerHTML = `<button role="tab" class="${hist() ? '' : 'on'}" data-t="active" aria-selected="${!hist()}">Active alarms</button><button role="tab" class="${hist() ? 'on' : ''}" data-t="hist" aria-selected="${hist()}">Alarm history</button>${data.counts?.refused ? `<span class="pill bad" style="margin-left:12px" title="Too many active alarms: new ones were not recorded. Clear old ones or tighten the rules.">${fmtN(data.counts.refused)} not recorded (limit reached)</span>` : ''}`;
-    sigStrip();
     $('#alState').hidden = hist(); $('#alRange').hidden = !hist(); $('#alCustom').hidden = !hist() || range !== 'custom'; $('#alDay').hidden = !hist() || range !== 'day'; { const inp = $('#alDay [data-dayin]'); if (inp) { inp.value = day; $('#alDay [data-day="1"]').disabled = day >= dayKey(); $('#alDay [data-day="today"]').disabled = day === dayKey(); } }
-  };
-  const sigStrip = () => {   // 1.99.16 Pulse layout: live counts at the top; each one is also a filter (click again for all active alarms)
-    const box = $('#alSig'); if (!box) return; const c = data.counts || {};
-    const card = (k, n, label, col) => `<button type="button" class="sig${(k === 'hist' ? hist() : state === k) ? ' on' : ''}${n ? '' : ' zero'}" data-sig="${k}" style="--sigc:${col}" aria-pressed="${k === 'hist' ? hist() : state === k}"><b>${fmtN(n || 0)}</b><span>${label}</span></button>`;
-    const html = card('open', c.open, 'Not acknowledged', 'var(--bad)') + card('ack', c.ack, 'Acknowledged', 'var(--s3)') + card('escalated', c.escalated, 'Escalated', 'var(--s1)') + card('hist', c.clearedToday, 'Cleared in the last 24 h', 'var(--ok)');
-    if (box.innerHTML !== html) box.innerHTML = html;
   };
   const sortOf = () => { const m = /^([a-z]+):(asc|desc)$/.exec(sort); return m ? { col: m[1], dir: m[2] } : null; };
   const table = () => {
@@ -92,7 +85,6 @@ views.alarms = (el) => {
     $('#alTable').innerHTML = rows.length ? `<thead><tr>${sel ? '<th class="chk"><input type="checkbox" id="alAll" aria-label="Select all"></th>' : ''}${cols.map(th).join('')}${act ? '<th></th>' : ''}</tr></thead><tbody>${rows.map((a) => `<tr data-id="${a.id}" class="al-row sev-${a.severity} st-${a.state}">${sel ? `<td class="chk"><input type="checkbox" data-sel="${a.id}" ${selected.has(a.id) ? 'checked' : ''} aria-label="Select"></td>` : ''}${cols.map((id) => ACOLS[id].cell(a, shown)).join('')}
         ${act ? `<td class="nowrap acts">${a.state === 'open' ? `<button class="ib" data-a="ack" title="Acknowledge" aria-label="Acknowledge">${ico('check')}</button>` : ''}${a.state !== 'cleared' ? `<button class="ib" data-a="clear" title="Clear" aria-label="Clear">${ico('x')}</button>` : ''}<button class="ib" data-a="note" title="Notes" aria-label="Notes">✎</button></td>` : ''}</tr>`).join('')}</tbody>` : `<tbody><tr><td class="empty-cell"><div class="empty"><b>${state === 'cleared' ? 'No cleared alarms' : 'No alarms'}</b>${state === 'active' || state === 'open' ? 'All quiet. Alarms appear here when a rule with “Raise an alarm” matches a message (Alarm configuration).' : ''}</div></td></tr></tbody>`;
     enableColResize($('#alTable'), 'alarm', () => { lastSig = ''; table(); });
-    if (sideId) $(`#alTable tr[data-id="${sideId}"]`)?.classList.add('rowsel');   // 1.99.15 the alarm shown in the side panel stays marked
     sync();
   };
   const summary = () => {
@@ -121,20 +113,8 @@ views.alarms = (el) => {
     } catch (e) { /* the sign-in check in api() reloads the page when needed */ } finally { if (mine === seq) busy = false; }
   };
   const act = async (url, ids, note) => { try { const r = await api(url, { method: 'POST', body: { ids, note } }); selected.clear(); lastSig = ''; await load(); return r; } catch (e) { toast(e.message, true); } };
-  // 1.99.15 Pulse layout: the details open in a panel beside the list (the list keeps updating); Classic keeps the window
-  let sideId = 0;
-  const pulse = () => document.documentElement.dataset.layout === 'pulse';
-  const sidePanel = (title, html) => {
-    let side = $('#alSide', el); if (!side) { side = document.createElement('aside'); side.id = 'alSide'; side.className = 'panel alside'; side.setAttribute('aria-label', 'Alarm details'); el.appendChild(side); }
-    el.classList.add('al-split'); side.innerHTML = `<div class="alside-h"><h3>${esc(title)}</h3><button type="button" class="ghost icon-btn" id="alSideX" aria-label="Close the details" title="Close">✕</button></div><div class="alside-b">${html}</div>`;
-    const close = () => { side.remove(); el.classList.remove('al-split'); sideId = 0; $$('#alTable tr.rowsel', el).forEach((r) => r.classList.remove('rowsel')); };
-    side.querySelector('#alSideX').onclick = close; side.scrollTop = 0;
-    return { $: (q) => side.querySelector(q), close, back: side };
-  };
-  document.addEventListener('nep:layout', () => { const side = $('#alSide', el); if (side && !pulse()) side.querySelector('#alSideX')?.click(); });
   const detail = (a) => {
-    const mk = pulse() ? (t, h) => { sideId = a.id; $$('#alTable tr.rowsel', el).forEach((r) => r.classList.remove('rowsel')); $(`#alTable tr[data-id="${a.id}"]`)?.classList.add('rowsel'); return sidePanel(t, h); } : dialog;
-    const d = mk(`Alarm — ${a.rule}`, `<div class="form"><div class="field"><label>Device</label><div><b>${esc(a.host)}</b> <span class="muted">${esc(a.srcIp)}</span></div></div>
+    const d = dialog(`Alarm — ${a.rule}`, `<div class="form"><div class="field"><label>Device</label><div><b>${esc(a.host)}</b> <span class="muted">${esc(a.srcIp)}</span></div></div>
       <div class="field"><label>Severity</label><div><span class="sevtag sev-${a.severity}"><i></i>${esc(SEV[a.severity])}</span></div></div>
       <div class="field"><label>Message</label><div style="white-space:pre-wrap;word-break:break-word">${esc(a.message)}</div></div>
       <div class="field"><label>Times</label><div>Raised ${esc(dateTime(a.first))}${a.state === 'cleared' ? ` · cleared ${esc(dateTime(a.clearedTs))} (${esc(a.clearedBy)}) after ${esc(dur(a.clearedTs - a.first))}` : ''}</div></div>
@@ -144,7 +124,7 @@ views.alarms = (el) => {
       <div class="toolbar" style="margin:12px 0 0"><button id="alLogs" class="ib">${ico('file')}<span class="bt">Show messages</span></button><span class="spacer"></span><button id="alClose">Close</button>
       ${data.canAct ? `<button id="alAddNote">Add note</button>${a.state === 'open' ? '<button id="alAck" class="primary">Acknowledge</button>' : ''}${a.state !== 'cleared' ? '<button id="alClr" class="danger">Clear</button>' : ''}` : ''}</div></div>`, true);
     const done = async (fn) => { await fn(); d.close(); };
-    d.$('#alClose').onclick = d.close; if (pulse()) d.$('#alClose').hidden = true;
+    d.$('#alClose').onclick = d.close;
     d.$('#alLogs').onclick = () => { d.close(); sessionStorage.setItem('sp.search', JSON.stringify({ host: a.device })); location.hash = '#logs'; };
     const note = () => (d.$('#alNew')?.value || '').trim();
     d.$('#alAddNote')?.addEventListener('click', () => { if (!note()) return toast('Write the note first.', true); done(() => act('/api/alarms/note', [a.id], note())); });
@@ -169,7 +149,6 @@ views.alarms = (el) => {
     const sh = t.closest('th[data-sort]'); if (sh && !colDrag && !t.closest('.colrz')) { const k = sh.dataset.sort, cur = sortOf(); sort = S.alarmSort = cur && cur.col === k ? `${k}:${cur.dir === 'asc' ? 'desc' : 'asc'}` : `${k}:${k === 'raised' || k === 'ack' || k === 'esc' || k === 'cleared' || k === 'duration' ? 'desc' : 'asc'}`; return load(true); }
     if (t.closest('#alCsv')) return csv();
     if (t.id === 'alGo' || t.closest('#alGo')) { q = $('#alQ').value.trim(); return load(true); }
-    { const sc = t.closest('[data-sig]'); if (sc) { const k = sc.dataset.sig; if (k === 'hist') { if (!hist()) { state = S.alarmState = 'cleared'; range = S.alarmRange = 'day'; day = dayKey(); } else state = S.alarmState = 'active'; } else state = S.alarmState = state === k ? 'active' : k; $('#alState').value = hist() ? 'active' : state; $('#alRange').value = range; selected.clear(); lastSig = ''; chips(); return load(true); } }
     if (t.closest('[data-t]')) { const h = t.closest('[data-t]').dataset.t === 'hist'; if (h === hist()) return; state = S.alarmState = h ? 'cleared' : 'active'; $('#alState').value = 'active'; selected.clear(); lastSig = ''; chips(); return load(true); }
     if (t.closest('#alDelAll')) { const n = data.total; if (await askConfirm(`Delete all ${fmtN(n)} alarm records that match the filters now shown (not only the ${fmtN(data.alarms.length)} in the list)? This cannot be undone. Open alarms among them disappear without being cleared.`, `Delete ${fmtN(n)}`)) { try { const r = await api('/api/alarms/delete-matching', { method: 'POST', body: { query: lastQuery.toString() } }); toast(`${fmtN(r.changed)} alarm record(s) deleted.`); selected.clear(); lastSig = ''; await load(true); } catch (e) { toast(e.message, true); } } return; }
     if (t.closest('#alDelSel')) { if (await askConfirm(`Delete ${selected.size} alarm record(s) for good? This cannot be undone. Open alarms among them disappear without being cleared.`, 'Delete')) { await act('/api/alarms/delete', [...selected]); lastSig = ''; } return; }
@@ -186,7 +165,7 @@ views.alarms = (el) => {
   el.addEventListener('mousedown', () => { pressed = true; }); document.addEventListener('mouseup', () => { setTimeout(() => { pressed = false; }, 50); });
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'alQ') { q = e.target.value.trim(); load(true); } if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('th[data-sort]')) { e.preventDefault(); e.target.click(); } });
   timer = setInterval(() => { if (!$('.modal-back')) load(); }, 3000);
-  return () => { clearInterval(timer); el.classList.remove('al-split'); };
+  return () => clearInterval(timer);
 };
 
 /** the little red number next to "Alarms" in the menu */

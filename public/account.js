@@ -20,7 +20,6 @@ views.account = (el) => {
       <fieldset id="acTf"><legend>Two-factor sign-in</legend>${twofa()}</fieldset>
       <fieldset id="acLook"><legend>Appearance</legend><div class="form">
         <div class="field"><label>Colour theme</label><div><div id="themeGrid" class="themegrid" role="radiogroup" aria-label="Colour theme">${themes()}</div><span class="muted">Applies at once. Saved in this browser.</span></div></div>
-        <div class="field"><label>Layout</label><div>${layoutPickerHtml()}</div></div>
         <div class="field"><label>Animations</label><div id="moBox">${motion()}</div></div></div></fieldset>`;
   };
   const load = async () => { try { me = await api('/api/me'); draw(); } catch (e) { el.textContent = e.message; } };

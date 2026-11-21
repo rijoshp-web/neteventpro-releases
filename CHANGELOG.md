@@ -2,6 +2,23 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.17
+- The Pulse layout and the Pulse colour theme are removed; the app looks and works as it did in 1.99.14. A browser that used the Pulse theme falls back to Dark.
+- Device view: lines can be straight, elbow (right angles, like a Visio connector) or curved. Pick the type with the three buttons next to Draw line (or keys 1, 2, 3); a selected line can be changed in its panel.
+- Device view: each line can have arrows (at either or both ends), a dashed or dotted style, a width and its own colour. Lines now start and end at the edge of each picture.
+- Device view: curved lines with an adjustable curve (either side).
+- Device view: "Add this server" places the NetEventPro computer itself in the drawing. It is green when the System health checks are fine, amber with warnings and red when a check fails; clicking it shows the health checks.
+- Device view: "Add picture" places a picture that is not monitored (a PC, a patch panel, a cloud, a rack …) to complete the drawing. It has no state and no alarms.
+- Device view: shapes: rectangle, rounded box, ellipse, diamond, hexagon, cylinder, cloud and zone (a dashed area with a title), with text, fill colour and strength, line colour, width and dashes. Shapes sit behind lines and pictures; To front and To back change their order.
+- Device view: the selected shape, marker or picture has a corner handle: drag it to resize with the mouse.
+- Device view: keyboard shortcuts while editing: Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Delete remove, arrow keys move (Shift: 10 pixels), Ctrl+D duplicate, Ctrl+C / Ctrl+V copy and paste, L draw line, 1/2/3 line type, T text, R rectangle, O ellipse, Z zone, ] and [ front and back, Tab next item, Esc stop / clear, ? the list. Undo and Redo buttons are on the toolbar too.
+- Device view: device names sit right under the picture (the empty space above and below a picture is no longer counted).
+- Device view: resting the mouse on a device or this server shows a small window with its state, key values and readings.
+- Device view: the wall screen has a title bar with the view name, the date and the time.
+- Device view: the close button of the details panel is a neat round button.
+- Fixed: the details panel on the right could stay on "Loading…" when no device was selected (after switching views or when the device was no longer in the view).
+- Light themes: selected buttons (the chosen view, Draw line, chosen picture, filters …) are clearly highlighted with dark, readable text; before, some showed white text on a light background.
+
 ## 1.99.16
 - Pulse layout, fixed: the dashboard wall display squeezed the dashboard into a narrow strip on the left. It uses the whole screen again (also the Device view wall screen).
 - Pulse layout, fixed: on phones and narrow windows the wide menu took half the screen and squeezed every page. The menu now becomes a row at the top, as in Classic.

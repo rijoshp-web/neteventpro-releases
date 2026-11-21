@@ -13,6 +13,8 @@ const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ?
 const idOk = (v) => /^[a-z0-9]{4,24}$/i.test(String(v || ''));
 const newId = (p) => p + crypto.randomBytes(5).toString('hex');
 const SEVRANK = (sev) => (Number.isInteger(sev) ? sev : 9);   // 0 = emergency is the worst
+const SHAPES = ['rect', 'round', 'ellipse', 'diamond', 'hexagon', 'cylinder', 'cloud', 'zone'];
+const col = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v).toLowerCase() : '');
 
 /** what an image file really is, by its first bytes (the name and the browser's word are not trusted) */
 function imageType(buf) {
@@ -41,7 +43,7 @@ class ViewStore {
     if (bgm === 'image' && !bg.img) bg.mode = 'grid';
     const items = [], seen = new Set();
     for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, MAX_ITEMS)) {
-      const kind = ['device', 'label', 'view'].includes(it.kind) ? it.kind : 'device';
+      const kind = ['device', 'label', 'view', 'shape', 'deco', 'server'].includes(it.kind) ? it.kind : 'device';   // 1.99.17 shapes, pictures that are not monitored, and this NetEventPro server
       const id = idOk(it.id) && !seen.has(it.id) ? String(it.id) : newId('i'); seen.add(id);
       const o = { id, kind, x: Math.round(num(it.x, 0, W, 100)), y: Math.round(num(it.y, 0, H, 100)), size: Math.round(num(it.size, 16, 600, 96)), name: s(it.name, 60) };
       if (kind === 'device') {
@@ -50,6 +52,13 @@ class ViewStore {
         o.h = Math.round(num(it.h, 20, 600, o.size)); o.hideName = it.hideName === true;
         o.readings = [];
       } else if (kind === 'label') { o.text = s(it.text, 120); o.size = Math.round(num(it.size, 10, 72, 18)); }
+      else if (kind === 'shape') {
+        o.shape = SHAPES.includes(it.shape) ? it.shape : 'rect'; o.size = Math.round(num(it.size, 16, W, 220)); o.h = Math.round(num(it.h, 16, H, 140));
+        o.fill = col(it.fill); o.fa = Math.round(num(it.fa, 0, 100, 18)); o.stroke = col(it.stroke); o.sw = Math.round(num(it.sw, 0, 12, 2)); o.dash = it.dash === true;
+        o.text = s(it.text, 200); o.ts = Math.round(num(it.ts, 10, 72, 16)); o.tc = col(it.tc); o.ta = ['center', 'top'].includes(it.ta) ? it.ta : 'center';
+      } else if (kind === 'deco' || kind === 'server') {
+        o.pic = /^(icon:[a-z0-9-]{2,40}|img:[a-z0-9]{4,24})$/i.test(String(it.pic || '')) ? String(it.pic) : (kind === 'server' ? 'icon:server-tower' : 'icon:server-2u'); o.hideName = it.hideName === true;
+      }
       else { o.view = idOk(it.view) ? String(it.view) : ''; o.pic = /^(icon:[a-z0-9-]{2,40})$/.test(String(it.pic || '')) ? String(it.pic) : 'icon:building'; }
       items.push(o);
     }
@@ -59,7 +68,10 @@ class ViewStore {
       const key = [a, z].sort().join('|'); if (lk.has(key)) continue; lk.add(key);
       // 1.99.14 a link can follow one port: { end: 'a' | 'b', name: interface name as the device calls it }; show = what the line's label says
       const pn = s(l.port?.name, 120).trim(), port = pn ? { end: l.port?.end === 'b' ? 'b' : 'a', name: pn } : null;
-      links.push({ a, b: z, label: s(l.label, 40), port, show: ['port', 'util', 'none'].includes(l.show) ? l.show : 'port' });
+      // 1.99.17 how the line is drawn: straight, elbow (right angles, like a Visio connector) or curved; arrows, dashes, width and an own colour
+      links.push({ a, b: z, label: s(l.label, 40), port, show: ['port', 'util', 'none'].includes(l.show) ? l.show : 'port',
+        route: ['straight', 'elbow', 'curve'].includes(l.route) ? l.route : 'straight', bend: Math.round(num(l.bend, -100, 100, 30)), arrow: ['none', 'end', 'start', 'both'].includes(l.arrow) ? l.arrow : 'none',
+        dash: ['solid', 'dash', 'dot'].includes(l.dash) ? l.dash : 'solid', lw: Math.round(num(l.lw, 1, 12, 4)), color: col(l.color) });
     }
     return { id: old?.id || (idOk(b.id) ? String(b.id) : newId('v')), name, bg, items, links };
   }
@@ -145,6 +157,7 @@ class ViewStore {
     };
     for (const it of v.items) {
       if (it.kind === 'device') out[it.id] = one(it);
+      else if (it.kind === 'server') out[it.id] = this.serverState();
       else if (it.kind === 'view') {   // a box that opens another view takes the worst state of what is in it
         const sub = views.get(it.view); if (!sub) { out[it.id] = { state: 'gone', sev: null, open: 0, unack: 0, readings: [] }; continue; }
         let sev = null, openN = 0, unack = 0, down = 0;
@@ -161,6 +174,7 @@ class ViewStore {
       const ea = out[l.a], eb = out[l.b];
       const ends = [ea, eb].filter(Boolean), anyDown = ends.some((x) => x.state === 'down'), anyUnknown = ends.some((x) => ['unknown', 'gone', 'stale', 'off'].includes(x.state));
       let state = anyDown ? 'down' : anyUnknown ? 'unknown' : 'up', text = '', why = anyDown ? 'a device at one end does not answer' : '';
+      if (!ends.length && !l.port) { linksOut.push({ state: 'none', text: (l.label || '').slice(0, 60), why: '' }); continue; }   // 1.99.17 a line between shapes or pictures that are not monitored: drawn in its own colour
       if (l.port) {
         const it = itemsById.get(l.port.end === 'b' ? l.b : l.a), pname = low(l.port.name);
         let found = false;
@@ -213,7 +227,8 @@ ViewStore.prototype.itemAlarms = function (viewId, itemId) {
 /** 1.99.11 everything the details panel shows for one device item: who it is, how it answers, every enabled reading (value,
  *  meaning, a small 24-hour graph for single values) and the open alarm count. Readings are no longer drawn under the pictures. */
 ViewStore.prototype.itemDetail = function (viewId, itemId) {
-  const v = this.get(viewId), it = v && v.items.find((x) => x.id === itemId); if (!it || it.kind !== 'device') return null;
+  const v = this.get(viewId), it = v && v.items.find((x) => x.id === itemId); if (!it || (it.kind !== 'device' && it.kind !== 'server')) return null;
+  if (it.kind === 'server') return this.serverDetail(it);
   const st = (this.status(viewId)?.items || {})[itemId] || {};
   if (it.src !== 'poll') {
     const d = this.engine?.deviceList().find((x) => x.key === it.ref); if (!d) return { kind: 'dev', name: it.name || it.ref, state: 'gone', alarms: st.open || 0, readings: [] };
@@ -241,5 +256,20 @@ ViewStore.prototype.itemDetail = function (viewId, itemId) {
   const d = det.device;
   return { kind: 'poll', name: it.name || d.name, host: d.host, port: d.port, version: d.version, group: d.group || '', via: det.via || '', state: det.state, sev: st.sev ?? null, alarms: st.open || 0, unack: st.unack || 0,
     rtt: det.rtt, lastOk: det.lastOk, error: det.error || '', downSince: det.downSince || 0, sysName: det.sysName, sysDescr: String(det.sysDescr || '').slice(0, 200), uptime: det.values.uptime ?? null, poll: d.id, readings };
+};
+/** 1.99.17 this NetEventPro server as an item: its state follows the health checks (System health page) */
+ViewStore.prototype.serverState = function () {
+  const h = this.engine?.health, sm = h?.summary || null, checks = h?.last?.checks || [];
+  const bad = sm ? sm.bad : checks.filter((c) => c.status === 'bad').length, warn = sm ? sm.warn : checks.filter((c) => c.status === 'warn').length;
+  const text = bad ? `${bad} health check${bad === 1 ? '' : 's'} failed` : warn ? `${warn} health warning${warn === 1 ? '' : 's'}` : 'Running · health OK';
+  return { state: 'up', sev: bad ? 2 : warn ? 4 : null, open: 0, unack: 0, title: `${require('node:os').hostname()} · NetEventPro`, name: 'NetEventPro server', text, readings: [] };
+};
+ViewStore.prototype.serverDetail = function (it) {
+  const h = this.engine?.health, snap = h?.last || null, st = this.serverState(), os = require('node:os');
+  const map = { ok: 'ok', warn: 'warn', bad: 'crit' };
+  const word = { ok: 'OK', warn: 'Warning', bad: 'Failed' };
+  const readings = (snap?.checks || []).slice(0, 40).map((c, i) => ({ k: 'hc' + i, label: String(c.label || c.id || 'Check'), unit: '', text: word[c.status] || String(c.status || ''), state: map[c.status] || '', spark: null, rows: c.detail ? [{ inst: String(c.detail).slice(0, 300), text: '', state: '' }] : null }));
+  return { kind: 'server', name: it.name || 'NetEventPro server', host: os.hostname(), state: 'up', sev: st.sev, text: st.text, alarms: 0, unack: 0,
+    uptime: snap?.system?.uptimeSec ?? null, eps: snap?.ingest?.eps ?? null, devices: snap?.ingest?.devices ?? null, version: process.env.npm_package_version || '', readings };
 };
 module.exports = { ViewStore, imageType, W, H };

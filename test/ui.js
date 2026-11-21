@@ -110,40 +110,26 @@ fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
       await p.mouse.move(box.x + box.width / 2, box.y + 20); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 + 100, box.y + 80, { steps: 6 }); await p.mouse.up(); await p.click('#dvSave'); await sleep(1200);
       const moved = (await (await fetch(B + '/api/views', { headers: H })).json()).views.find((x) => x.id === v.id).items[0];
       check('a device dragged in edit mode keeps its new place after Save', Math.abs(moved.x - 300) > 40 && Math.abs(moved.y - 400) > 20, `${moved.x},${moved.y}`);
+      // 1.99.17 hover window, shapes, resize with the mouse, keyboard shortcuts, line types
+      { const pb = await (await p.$('.dvi .dvpic')).boundingBox(); await p.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2); await sleep(1500);
+        check('1.99.17 resting the mouse on a device shows a small window with its details', await p.evaluate(() => { const t = document.querySelector('#dvTip'); return !!t && !t.hidden && t.innerText.length > 5; })); await p.mouse.move(5, 5); }
+      check('1.99.17 the details panel is not left on "Loading…" when nothing is selected', await p.evaluate(() => !document.querySelector('#dvInfo')));
+      await p.click('#dvEdit'); await sleep(800);
+      const n0 = await p.$$eval('.dvi', (x) => x.length); await p.keyboard.press('r'); await sleep(500);
+      const sh = await p.evaluate(() => ({ n: document.querySelectorAll('.dvi').length, shape: !!document.querySelector('.dvi.dvshape.sel .dvsvg'), handle: !!document.querySelector('.dvi.dvshape.sel .dvrz'), side: /Shape/.test(document.querySelector('#dvSide')?.innerText || '') }));
+      check('1.99.17 R adds a rectangle, selected, with its settings and a resize handle', sh.n === n0 + 1 && sh.shape && sh.handle && sh.side, JSON.stringify(sh));
+      { const hb = await (await p.$('.dvi.dvshape.sel .dvrz')).boundingBox(); const w0 = await p.$eval('.dvi.dvshape.sel', (x) => x.offsetWidth); await p.mouse.move(hb.x + 6, hb.y + 6); await p.mouse.down(); await p.mouse.move(hb.x + 90, hb.y + 60, { steps: 6 }); await p.mouse.up(); await sleep(300);
+        const w1 = await p.$eval('.dvi.dvshape.sel', (x) => x.offsetWidth); check('1.99.17 dragging the corner handle resizes the shape', w1 > w0 + 40, `${w0} → ${w1}`); }
+      await p.keyboard.press('Control+z'); await sleep(300); await p.keyboard.press('Control+z'); await sleep(400);
+      check('1.99.17 Ctrl+Z undoes the resize and the new shape', (await p.$$eval('.dvi', (x) => x.length)) === n0);
+      await p.keyboard.press('Control+y'); await sleep(400); check('1.99.17 Ctrl+Y brings it back', (await p.$$eval('.dvi', (x) => x.length)) === n0 + 1);
+      await p.click('#dvAddS'); await sleep(400); check('1.99.17 this server can be added to a view', await p.evaluate(() => /NetEventPro server/.test(document.querySelector('#dvSide')?.innerText || '')));
+      await p.click('.dvroute[data-route="elbow"]'); await sleep(300); const ids = await p.$$eval('.dvi:not(.dvshape):not(.dvlabel)', (x) => x.slice(0, 2).map((n) => n.dataset.id));
+      for (const id of ids) { await p.click(`.dvi[data-id="${id}"] .dvpic`); await sleep(300); }
+      check('1.99.17 an elbow line is drawn with right angles', await p.evaluate(() => [...document.querySelectorAll('.dvlinks path.ln')].some((x) => /H[\d.]+V[\d.]+H/.test(x.getAttribute('d')) || /V[\d.]+H[\d.]+V/.test(x.getAttribute('d')))));
+      await p.keyboard.press('Escape'); await p.click('#dvCancel'); await sleep(300); if (await p.$('.modal-back [data-a="yes"]')) { await p.click('.modal-back [data-a="yes"]'); await sleep(400); }
+      await p.click('#dvEdit'); await sleep(800);
       check('no script errors on the Device view', errs.length === e2, errs.slice(e2, e2 + 3).join(' | '));
-    }
-    // 1.99.15 Pulse layout: switch on and off, top-bar search, alarm details beside the list
-    {
-      const e3 = errs.length; await p.goto(B + '/#alarms'); await sleep(1500);
-      await p.evaluate(() => window.NEP.setLayout('pulse')); await sleep(500);
-      const on = await p.evaluate(() => ({ attr: document.documentElement.dataset.layout, search: getComputedStyle(document.querySelector('#gSearch')).display !== 'none', saved: localStorage.getItem('sp.layout') }));
-      check('1.99.15 the Pulse layout switches on and shows the top-bar search', on.attr === 'pulse' && on.search && on.saved === 'pulse', JSON.stringify(on));
-      if (await p.$('#alTable tbody tr[data-id], #alTable tbody tr td input')) {
-        await p.click('#alTable tbody tr td:nth-child(4)'); await sleep(1200);
-        const side = await p.evaluate(() => ({ side: !!document.querySelector('#alSide'), modal: !!document.querySelector('.modal') }));
-        check('1.99.15 in Pulse the alarm details open beside the list, not in a window', side.side && !side.modal, JSON.stringify(side));
-      }
-      // 1.99.16 the counts at the top of Alarms are filters
-      await p.goto(B + '/#alarms'); await sleep(1500);
-      if (await p.$('[data-sig="ack"]')) { await p.click('[data-sig="ack"]'); await sleep(1200); }
-      const sg = await p.evaluate(() => ({ state: document.querySelector('#alState')?.value, on: document.querySelector('[data-sig="ack"]')?.classList.contains('on') }));
-      check('1.99.16 clicking a count at the top of Alarms filters the list', sg.state === 'ack' && sg.on, JSON.stringify(sg));
-      await p.click('[data-sig="ack"]'); await sleep(800);
-      // 1.99.16 the device counts are filters
-      await p.goto(B + '/#devices'); await sleep(1800);
-      if (await p.$('#devChips [data-cst="overdue"]')) { await p.click('#devChips [data-cst="overdue"]'); await sleep(600); }
-      check('1.99.16 clicking a device count filters the devices', await p.evaluate(() => document.querySelector('#devStatus')?.value === 'overdue'));
-      await p.evaluate(() => { const s = document.querySelector('#devStatus'); if (s) { s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); } });
-      // 1.99.16 wall display in the Pulse layout: no empty menu column, the dashboard uses the whole width
-      await p.goto(B + '/#dashboard'); await sleep(2500);
-      await p.evaluate(() => document.querySelector('#dWallBtn')?.click()); await sleep(1200);
-      const wl = await p.evaluate(() => ({ kiosk: document.body.classList.contains('kiosk'), left: Math.round(document.querySelector('.main')?.getBoundingClientRect().left ?? -1), w: Math.round(document.querySelector('.main')?.getBoundingClientRect().width ?? 0), vw: innerWidth }));
-      check('1.99.16 the wall display uses the whole width in the Pulse layout', wl.kiosk && wl.left < 30 && wl.w > wl.vw - 60, JSON.stringify(wl));
-      await p.evaluate(() => document.querySelector('#kioskExit')?.click()); await sleep(800);
-      await p.evaluate(() => window.NEP.setLayout('classic')); await sleep(500);
-      const off = await p.evaluate(() => ({ attr: document.documentElement.dataset.layout || '', search: getComputedStyle(document.querySelector('#gSearch')).display, side: !!document.querySelector('#alSide') }));
-      check('1.99.15 switching back to Classic restores the old layout', !off.attr && off.search === 'none' && !off.side, JSON.stringify(off));
-      check('no script errors when switching layouts', errs.length === e3, errs.slice(e3, e3 + 3).join(' | '));
     }
     check('no script errors in the dashboard', !errs.length, errs.slice(0, 3).join(' | '));
   } catch (e) { check('the browser checks ran to the end', false, e.message.split('\n')[0]); }
