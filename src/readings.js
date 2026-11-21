@@ -179,8 +179,8 @@ module.exports = (Polling) => {
   /** the settings of a dashboard "Polled devices" tile, cleaned (used when a dashboard is saved and when the tile asks for its data) */
   const cleanPollSpec = function (c) {
     c = c && typeof c === 'object' ? c : {}; const o = {};
-    o.src = ['readings', 'status', 'alarms'].includes(c.src) ? c.src : 'readings';
-    o.view = ['table', 'tiles', 'bars', 'big', 'gauge', 'line', 'gauges', 'spark', 'summary', 'donut'].includes(c.view) ? c.view : (o.src === 'readings' ? 'table' : 'tiles');
+    o.src = ['readings', 'status', 'alarms', 'avail'].includes(c.src) ? c.src : 'readings';
+    o.view = ['table', 'tiles', 'bars', 'big', 'gauge', 'line', 'gauges', 'spark', 'summary', 'donut', 'groups'].includes(c.view) ? c.view : (o.src === 'readings' ? 'table' : 'tiles');
     if (['name', 'high', 'low', 'worst'].includes(c.sort)) o.sort = c.sort;
     if (Number.isFinite(+c.limit) && +c.limit >= 1) o.limit = Math.min(200, Math.round(+c.limit));
     if (c.dec !== undefined && c.dec !== '' && c.dec !== null && Number.isFinite(+c.dec)) o.dec = Math.max(0, Math.min(4, Math.round(+c.dec)));
@@ -189,6 +189,7 @@ module.exports = (Polling) => {
     if (['first', 'avg', 'min', 'max', 'sum'].includes(c.agg)) o.agg = c.agg;
     const g = txt(c.group, 40); if (g) o.group = g;
     o.hours = Math.round(num(c.hours, 6, 1, 168));
+    if (['24h', '7d', '30d', 'month', 'lastmonth'].includes(c.period)) o.period = c.period;   // 1.99.14 availability tiles
     if (c.max !== undefined && c.max !== '' && c.max !== null && Number.isFinite(+c.max)) o.max = +c.max;
     o.picks = (Array.isArray(c.picks) ? c.picks : []).slice(0, 40).map((x) => {
       if (!x || typeof x !== 'object') return null; const k = {};
@@ -216,6 +217,16 @@ module.exports = (Polling) => {
   P.pollTile = function (spec) {
     const s = this.cleanPollSpec(spec), devs = this.devices(), out = { src: s.src, view: s.view, at: Date.now() };
     const inGroup = (d, g) => !g || (d.group || '') === g;
+    if (s.src === 'avail') {      // 1.99.14 availability (SLA) for the period, worked out at most once a minute
+      const per = s.period || '30d', now = new Date(), t = Date.now();
+      const [f, to] = per === 'month' ? [new Date(now.getFullYear(), now.getMonth(), 1).getTime(), t] : per === 'lastmonth' ? [new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(), new Date(now.getFullYear(), now.getMonth(), 1).getTime()] : [t - ({ '24h': 24, '7d': 168 }[per] || 720) * 3600000, t];
+      this._avCache ||= new Map(); let a = this._avCache.get(per); if (!a || t - a.at > 60000) { a = { at: t, v: this.availability(f, to) }; this._avCache.set(per, a); if (this._avCache.size > 8) this._avCache.delete(this._avCache.keys().next().value); }
+      const v = a.v, rows = v.devices.filter((d) => inGroup(d, s.group)), T = rows.reduce((o, r) => { if (r.availability !== null) { o.tot += r.measuredH; o.down += r.downMin / 60; } return o; }, { tot: 0, down: 0 });
+      const overall = s.group ? (T.tot > 0 ? (1 - T.down / T.tot) * 100 : null) : v.overall, target = s.group ? (rows[0]?.target ?? v.target) : v.target;
+      Object.assign(out, { period: per, from: v.from, to: v.to, overall, target, met: overall === null ? null : overall >= target, below: rows.filter((r) => r.met === false).length, count: rows.length, downMin: rows.reduce((n, r) => n + r.downMin, 0), outages: rows.reduce((n, r) => n + r.outages, 0),
+        groups: s.group ? v.groups.filter((g) => g.group === s.group) : v.groups, devices: rows.slice(0, s.limit || 10).map((r) => ({ id: r.id, name: r.name, group: r.group, availability: r.availability, target: r.target, met: r.met, downMin: r.downMin, outages: r.outages })) });
+      return out;
+    }
     if (s.src === 'status' || s.src === 'alarms') {
       const rows = devs.filter((d) => inGroup(d, s.group)).map((d) => { const rt = this.state(d); return { id: d.id, name: d.name, group: d.group || '', state: this.shownState(d, rt), rtt: rt.rtt ?? null, alarms: this.alarmCount(d) }; });
       out.devices = rows; out.alarms = rows.reduce((n, r) => n + r.alarms, 0); out.groups = {};

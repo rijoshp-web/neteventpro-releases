@@ -439,6 +439,31 @@ async function main() {
         return json(res, { k, inst, from: to - hours * 3600000, to, points: polling.series(id, k, inst, to - hours * 3600000, to, 300), ...polling.metricInfo(k) });
       }
       if (p === '/api/poll/report' && req.method === 'GET') { need('polling'); return json(res, polling.summary(+url.searchParams.get('hours') || 24)); }
+      // 1.99.14 availability and SLA: period = 24h | 7d | 30d | month | lastmonth | quarter | year, or from / to dates (YYYY-MM-DD, server time)
+      const slaRange = () => {
+        const per = String(url.searchParams.get('period') || '30d'), now = new Date(), day = (str) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : null; };
+        const f = day(url.searchParams.get('from')), t = day(url.searchParams.get('to')); if (f !== null && t !== null && t >= f) return [f, Math.min(Date.now(), t + 86400000), 'custom'];
+        if (per === 'month') return [new Date(now.getFullYear(), now.getMonth(), 1).getTime(), Date.now(), per];
+        if (per === 'lastmonth') return [new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(), new Date(now.getFullYear(), now.getMonth(), 1).getTime(), per];
+        if (per === 'quarter') return [new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1).getTime(), Date.now(), per];
+        if (per === 'year') return [new Date(now.getFullYear(), 0, 1).getTime(), Date.now(), per];
+        const h = { '24h': 24, '7d': 168, '30d': 720 }[per] || 720; return [Date.now() - h * 3600000, Date.now(), per in { '24h': 1, '7d': 1, '30d': 1 } ? per : '30d'];
+      };
+      if (p === '/api/poll/availability' && req.method === 'GET') { need('polling'); const [f, t, per] = slaRange(); return json(res, { ...polling.availability(f, t), period: per }); }
+      if (p === '/api/poll/availability/export' && req.method === 'GET') {
+        need('polling'); need('export'); const [f, t] = slaRange();
+        if (url.searchParams.get('format') === 'xlsx') {
+          const a = polling.availability(f, t), r3 = (v) => (v === null || v === undefined ? '' : Math.round(v * 1000) / 1000);
+          const dev = [['Device', 'Address', 'Group', 'Site', 'Availability %', 'SLA target %', 'SLA met', 'Downtime min', 'Outages', 'Maintenance min', 'Hours measured'], ...a.devices.map((r) => [r.name, r.host, r.group, r.site, r3(r.availability), r.target, r.met === null ? '' : r.met ? 'yes' : 'no', r.downMin, r.outages, r.maintMin, r.measuredH])];
+          const grp = [['Group', 'Devices', 'Availability %', 'SLA target %', 'SLA met', 'Below target', 'Downtime min', 'Outages'], ...a.groups.map((g) => [g.group || '(no group)', g.devices, r3(g.availability), g.target, g.met === null ? '' : g.met ? 'yes' : 'no', g.below, g.downMin, g.outages])];
+          audit(who, 'exported the availability (SLA) report (Excel)');
+          res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'content-disposition': 'attachment; filename="NetEventPro-availability.xlsx"', 'cache-control': 'no-store' });
+          return res.end(require('./xlsx').buildXlsx([{ name: 'Devices', rows: dev, widths: [26, 16, 16, 14, 14, 13, 10, 14, 10, 16, 14] }, { name: 'Groups', rows: grp, widths: [22, 10, 14, 13, 10, 13, 14, 10] }]));
+        }
+        audit(who, 'exported the availability (SLA) report (CSV)');
+        res.writeHead(200, { ...SEC_HEADERS, 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="NetEventPro-availability.csv"', 'cache-control': 'no-store' }); return res.end(polling.availabilityCsv(f, t));
+      }
+      if (p === '/api/poll/sla' && POST) { need('polling'); const b = await readJson(req); const out = polling.setSla(b); audit(who, `set the SLA target to ${out.target}%`); return json(res, out); }
       if (p === '/api/poll/export' && req.method === 'GET') {
         need('polling'); need('export'); const id = url.searchParams.get('id') || '';
         if (url.searchParams.get('format') === 'xlsx') {
@@ -748,6 +773,7 @@ async function main() {
     // ---- 1.99.10 Device view: pictures of devices with their live state ----
     const vwrap = (fn) => { try { return fn(); } catch (e) { if (e.status) throw new HttpError(e.status, e.message); throw e; } };
     if (p === '/api/views' && req.method === 'GET') { need('view'); return json(res, { views: viewStore.list(), canEdit: who.perms.has('polling') }); }
+    if (p === '/api/views/ports' && req.method === 'GET') { need('view'); const r = viewStore.itemPorts(url.searchParams.get('id') || '', url.searchParams.get('item') || ''); if (!r) throw new HttpError(404, 'No such device on this view.'); return json(res, r); }   /* 1.99.14 ports a link can follow */
     if (p === '/api/views/choices' && req.method === 'GET') { need('polling'); return json(res, { devices: viewStore.choices(), pictures: [] }); }
     if (p === '/api/views/status' && req.method === 'GET') { need('view'); const st = viewStore.status(url.searchParams.get('id') || ''); if (!st) throw new HttpError(404, 'No such view.'); return json(res, st); }
     if (p === '/api/views/item' && req.method === 'GET') { need('view'); const d = viewStore.itemDetail(url.searchParams.get('id') || '', url.searchParams.get('item') || ''); if (!d) throw new HttpError(404, 'No such device in this view.'); return json(res, d); }

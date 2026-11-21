@@ -32,6 +32,34 @@ class Maintenance {
   /** the window that silences this device now, or null. names = device key / host / address */
   forDevice(names, now = Date.now()) { const ns = names.map(norm).filter(Boolean); for (const w of this.activeWindows(now)) if (this.covers(w, ns)) return w; return null; }
   forMessage(msg, now = Date.now()) { return this.forDevice([msg.devKey, msg.host, msg.srcIp], now); }
+  /** 1.99.14 the times each window covered between from and to, as [[start, end], ...] per window (for availability: planned work is not downtime).
+   *  Uses the windows as they are set now; a weekly window is worked out day by day in the server's local time. */
+  intervals(from, to) {
+    const out = [];
+    for (const w of this.list) {
+      if (w.enabled === false) continue; const s = w.schedule || {}, r = [];
+      if (s.type === 'once') { const a = Math.max(from, +s.from || 0), b = Math.min(to, +s.to || 0); if (b > a) r.push([a, b]); }
+      else {
+        const a = hm(s.start), b = hm(s.end), days = s.days || []; if (a === null || b === null || a === b || !days.length) continue;
+        const d = new Date(from); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 1);
+        for (let i = 0; i < 400 && d.getTime() < to; i++, d.setDate(d.getDate() + 1)) {
+          if (!days.includes(d.getDay())) continue;
+          const st = new Date(d); st.setHours(Math.floor(a / 60), a % 60, 0, 0); const en = new Date(d); if (b <= a) en.setDate(en.getDate() + 1); en.setHours(Math.floor(b / 60), b % 60, 0, 0);
+          const x = Math.max(from, st.getTime()), y = Math.min(to, en.getTime()); if (y > x) r.push([x, y]);
+        }
+      }
+      if (r.length) out.push({ w, ranges: r });
+    }
+    return out;
+  }
+  /** the merged times any window covering these device names was on, between from and to */
+  rangesFor(names, from, to, iv = this.intervals(from, to)) {
+    const ns = names.map(norm).filter(Boolean), all = [];
+    for (const x of iv) if (this.covers(x.w, ns)) all.push(...x.ranges);
+    all.sort((p, q) => p[0] - q[0]); const m = [];
+    for (const r of all) { const l = m[m.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else m.push([...r]); }
+    return m;
+  }
   status(now = Date.now()) { const act = new Set(this.activeWindows(now).map((w) => w.id)); return this.list.map((w) => ({ id: w.id, active: act.has(w.id) })); }
 }
 

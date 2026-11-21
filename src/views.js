@@ -56,7 +56,10 @@ class ViewStore {
     const ids = new Set(items.map((i) => i.id)), links = [], lk = new Set();
     for (const l of (Array.isArray(b.links) ? b.links : []).slice(0, MAX_LINKS)) {
       const a = String(l.a || ''), z = String(l.b || ''); if (a === z || !ids.has(a) || !ids.has(z)) continue;
-      const key = [a, z].sort().join('|'); if (lk.has(key)) continue; lk.add(key); links.push({ a, b: z, label: s(l.label, 40) });
+      const key = [a, z].sort().join('|'); if (lk.has(key)) continue; lk.add(key);
+      // 1.99.14 a link can follow one port: { end: 'a' | 'b', name: interface name as the device calls it }; show = what the line's label says
+      const pn = s(l.port?.name, 120).trim(), port = pn ? { end: l.port?.end === 'b' ? 'b' : 'a', name: pn } : null;
+      links.push({ a, b: z, label: s(l.label, 40), port, show: ['port', 'util', 'none'].includes(l.show) ? l.show : 'port' });
     }
     return { id: old?.id || (idOk(b.id) ? String(b.id) : newId('v')), name, bg, items, links };
   }
@@ -149,9 +152,55 @@ class ViewStore {
         out[it.id] = { state: down ? 'down' : 'up', sev, open: openN, unack, down, readings: [] };
       }
     }
-    return { at: Date.now(), items: out };
+    // 1.99.14 every link's state: a link that follows a port takes that port's state (polled interface status and use, or an open alarm
+    // on that port of a syslog / trap device); other links are down when a device at either end is down
+    const itemsById = new Map(v.items.map((i) => [i.id, i])), linksOut = [];
+    const low = (x) => String(x || '').trim().toLowerCase();
+    const fmtBps = (b) => (b >= 1e9 ? (b / 1e9).toFixed(1) + ' Gbit/s' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' Mbit/s' : b >= 1e3 ? Math.round(b / 1e3) + ' kbit/s' : Math.round(b) + ' bit/s');
+    for (const l of v.links) {
+      const ea = out[l.a], eb = out[l.b];
+      const ends = [ea, eb].filter(Boolean), anyDown = ends.some((x) => x.state === 'down'), anyUnknown = ends.some((x) => ['unknown', 'gone', 'stale', 'off'].includes(x.state));
+      let state = anyDown ? 'down' : anyUnknown ? 'unknown' : 'up', text = '', why = anyDown ? 'a device at one end does not answer' : '';
+      if (l.port) {
+        const it = itemsById.get(l.port.end === 'b' ? l.b : l.a), pname = low(l.port.name);
+        let found = false;
+        if (it?.src === 'poll' && pdevs.get(it.ref)) {
+          const rt = this.polling.state(pdevs.get(it.ref)), ifc = (rt.ifaces || []).find((x) => low(x.name) === pname || (x.alias && low(x.alias) === pname));
+          if (ifc) {
+            found = true; const use = ifc.speed > 0 && (Number.isFinite(ifc.in) || Number.isFinite(ifc.out)) ? Math.max(ifc.in || 0, ifc.out || 0) / ifc.speed * 100 : null;
+            state = ifc.status === 'down' ? 'down' : ifc.status === 'up' ? (use !== null && use >= 90 ? 'warn' : 'up') : 'unknown';
+            why = ifc.status === 'down' ? `port ${ifc.name} is down` : use !== null && use >= 90 ? `port ${ifc.name} is ${Math.round(use)}% used` : `port ${ifc.name} is ${ifc.status}`;
+            text = l.show === 'util' && use !== null ? `${Math.round(use)}% · ${fmtBps(Math.max(ifc.in || 0, ifc.out || 0))}` : l.show === 'none' ? '' : `${ifc.name} ${ifc.status === 'down' ? 'down' : ifc.status === 'up' ? (use !== null ? Math.round(use) + '%' : 'up') : ''}`.trim();
+          }
+        }
+        if (!found) {
+          const key = it?.src === 'poll' ? String(pdevs.get(it.ref)?.name || '').toLowerCase() : it?.ref;
+          const al = open.filter((r) => r.dev === key && (low(r.inst_txt) === pname || low(r.inst) === pname));
+          const worst = al.reduce((m, r) => (m === null || SEVRANK(r.severity) < SEVRANK(m) ? r.severity : m), null);
+          if (al.length) { state = worst !== null && worst <= 3 ? 'down' : 'warn'; why = `open alarm on port ${l.port.name}: ${al[0].rule_name || al[0].message || ''}`.slice(0, 160); }
+          else if (!anyDown) { state = anyUnknown ? 'unknown' : 'up'; why = `no open alarm on port ${l.port.name}`; }
+          text = l.show === 'none' ? '' : l.port.name + (al.length ? ' down' : '');
+        }
+      }
+      if (l.label) text = text ? `${l.label} · ${text}` : l.label;
+      linksOut.push({ state, text: text.slice(0, 60), why });
+    }
+    return { at: Date.now(), items: out, links: linksOut };
   }
 }
+/** 1.99.14 the ports a link can follow at one device item: the interfaces a polled device reports, or the ports seen in alarms of a syslog / trap device */
+ViewStore.prototype.itemPorts = function (viewId, itemId) {
+  const v = this.get(viewId), it = v && v.items.find((x) => x.id === itemId); if (!it || it.kind !== 'device') return null;
+  if (it.src === 'poll') {
+    const d = this.polling?.devices().find((x) => x.id === it.ref); if (!d) return { kind: 'poll', ports: [] };
+    const rt = this.polling.state(d);
+    return { kind: 'poll', ports: (rt.ifaces || []).slice(0, 2000).map((i) => ({ name: i.name, alias: i.alias || '', status: i.status, speed: i.speed || 0 })) };
+  }
+  const seen = new Map();
+  for (const r of this.alarms ? this.alarms.open.values() : []) if (r.dev === it.ref) { const n = String(r.inst_txt || r.inst || '').trim(); if (n) seen.set(n.toLowerCase(), n); }
+  try { for (const r of (this.alarms?.db || this.db).prepare("SELECT DISTINCT COALESCE(NULLIF(inst_txt, ''), inst) AS n FROM alarms WHERE dev = ? AND COALESCE(NULLIF(inst_txt, ''), inst) <> '' ORDER BY n LIMIT 300").all(it.ref)) seen.set(String(r.n).toLowerCase(), String(r.n)); } catch { /* older alarm tables */ }
+  return { kind: 'dev', ports: [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map((name) => ({ name, alias: '', status: '', speed: 0 })) };
+};
 /** the open alarms of one device item, newest first (for the panel that opens when you click a device) */
 ViewStore.prototype.itemAlarms = function (viewId, itemId) {
   const v = this.get(viewId), it = v && v.items.find((x) => x.id === itemId); if (!it || it.kind !== 'device' || !this.alarms) return null;

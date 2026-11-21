@@ -531,6 +531,59 @@ class Polling {
       return { id: d.id, name: d.name, host: d.host, site: d.site || '', polls: ok ? ok.n : 0, availability: ok && ok.n ? (ok.sum / ok.n) * 100 : null, cpuAvg: avg(cpu), cpuMax: mx(cpu), memAvg: avg(mem), memMax: mx(mem), tempAvg: avg(tp), tempMax: mx(tp), rttAvg: avg(rt), alarms: alarms.get(lower(d.name)) || 0 }; });
     return { from, to, hours, rows };
   }
+  // ---------- 1.99.14 availability and SLA ----------
+  slaCfg() { const s = this.cfg.sla || {}; const t = Number(s.target); return { target: Number.isFinite(t) && t > 0 && t <= 100 ? t : 99.9, groups: s.groups && typeof s.groups === 'object' ? s.groups : {} }; }
+  setSla(b) {
+    const t = num(b?.target, 99.9, 50, 100), groups = {};
+    for (const [g, v] of Object.entries(b?.groups || {}).slice(0, 200)) { const n = Number(v), k = String(g).replace(/\s+/g, ' ').trim().slice(0, 40); if (k && Number.isFinite(n) && n >= 50 && n <= 100) groups[k] = Math.round(n * 1000) / 1000; }
+    this.config.update({ polling: { ...this.cfg, sla: { target: Math.round(t * 1000) / 1000, groups } } }); return this.slaCfg();
+  }
+  /** availability of every polled device and group between from and to, by time: each answer or missed answer counts until the next poll
+   *  (at most 3 polls' worth or 15 minutes, so a gap with no polling is not counted either way). Times inside a maintenance window that
+   *  covers the device do not count (planned work is not downtime). Older periods use the 5-minute averages. Outages = times it went from
+   *  answering to not answering (from the detailed readings). */
+  availability(from, to) {
+    to = Math.min(Number(to) || Date.now(), Date.now()); from = Math.max(0, Number(from) || to - 30 * 86400000); if (to <= from) from = to - 86400000;
+    const m = this.db.prepare("SELECT v FROM poll_meta WHERE k = 'rolledTo'").get(), rolled = m ? +m.v : 0, sla = this.slaCfg(), maint = this.engine?.maint || null;
+    const iv = maint && typeof maint.intervals === 'function' ? maint.intervals(from, to) : [];
+    const qRaw = this.db.prepare(`SELECT SUM(CASE WHEN v = 0 THEN dt ELSE 0 END) AS down, SUM(dt) AS tot, SUM(CASE WHEN v = 0 AND (pv IS NULL OR pv <> 0) THEN 1 ELSE 0 END) AS outs FROM (
+      SELECT v, LAG(v) OVER (ORDER BY ts) AS pv, MIN(COALESCE(LEAD(ts) OVER (ORDER BY ts), ?) - ts, ?) AS dt FROM poll_readings WHERE dev = ? AND k = 'poll.ok' AND inst = '' AND ts >= ? AND ts < ?)`);
+    const qAvg = this.db.prepare("SELECT SUM((1 - avg) * 300000) AS down, COUNT(*) * 300000 AS tot FROM poll_avg WHERE dev = ? AND k = 'poll.ok' AND inst = '' AND t >= ? AND t < ?");
+    // the detailed readings are used as far back as they are kept; older times come from the 5-minute averages
+    const qMin = this.db.prepare("SELECT MIN(ts) AS t FROM poll_readings WHERE dev = ? AND k = 'poll.ok' AND inst = ''"), rawFrom = new Map();
+    const part = (id, a, b, cap) => {     // down and counted time (ms) between a and b
+      let down = 0, tot = 0, outs = 0; if (b <= a) return { down, tot, outs };
+      if (!rawFrom.has(id)) { const t = qMin.get(id)?.t; rawFrom.set(id, t ? Math.min(t, rolled || t) : (rolled || Date.now())); }
+      const rf = Math.floor(rawFrom.get(id) / 300000) * 300000, rs = Math.max(a, rf);
+      if (b > rs) { const r = qRaw.get(b, cap, id, rs, b); down += r?.down || 0; tot += r?.tot || 0; outs += r?.outs || 0; }
+      if (a < rf) { const r = qAvg.get(id, a, Math.min(b, rf)); down += r?.down || 0; tot += r?.tot || 0; }
+      return { down, tot, outs };
+    };
+    const devs = this.devices(), rows = [];
+    for (const d of devs) {
+      const cap = Math.min(900000, Math.max(30000, 3 * (d.intervalSec || 60) * 1000));
+      const all = part(d.id, from, to, cap); let down = all.down, tot = all.tot, maintMs = 0;
+      if (iv.length) for (const [a, b] of maint.rangesFor([d.name, d.host], from, to, iv)) { const x = part(d.id, a, b, cap); down -= x.down; tot -= x.tot; maintMs += b - a; }
+      down = Math.max(0, down); tot = Math.max(0, tot);
+      const target = Number.isFinite(+sla.groups[d.group || '']) ? +sla.groups[d.group || ''] : sla.target, av = tot > 0 ? (1 - down / tot) * 100 : null;
+      rows.push({ id: d.id, name: d.name, host: d.host, group: d.group || '', site: d.site || '', enabled: d.enabled !== false, availability: av, downMin: Math.round(down / 60000), measuredH: Math.round(tot / 360000) / 10, outages: all.outs, maintMin: Math.round(maintMs / 60000), target, met: av === null ? null : av >= target });
+    }
+    const gmap = new Map();
+    for (const r of rows) { const g = gmap.get(r.group) || { group: r.group, devices: 0, below: 0, down: 0, tot: 0, outages: 0 }; g.devices++; if (r.met === false) g.below++; g.outages += r.outages; if (r.availability !== null) { g.tot += r.measuredH * 3600000; g.down += r.downMin * 60000; } gmap.set(r.group, g); }
+    const groups = [...gmap.values()].map((g) => { const target = Number.isFinite(+sla.groups[g.group]) ? +sla.groups[g.group] : sla.target, av = g.tot > 0 ? (1 - g.down / g.tot) * 100 : null; return { group: g.group, devices: g.devices, below: g.below, outages: g.outages, downMin: Math.round(g.down / 60000), availability: av, target, met: av === null ? null : av >= target }; }).sort((a, b) => a.group.localeCompare(b.group));
+    const T = rows.reduce((o, r) => { if (r.availability !== null) { o.tot += r.measuredH * 3600000; o.down += r.downMin * 60000; } return o; }, { tot: 0, down: 0 });
+    const overall = T.tot > 0 ? (1 - T.down / T.tot) * 100 : null;
+    return { from, to, target: sla.target, groupTargets: sla.groups, overall, met: overall === null ? null : overall >= sla.target, below: rows.filter((r) => r.met === false).length, devices: rows.sort((a, b) => (a.availability ?? 101) - (b.availability ?? 101) || a.name.localeCompare(b.name)), groups, maintenance: iv.length > 0 };
+  }
+  /** CSV text of the availability report */
+  availabilityCsv(from, to) {
+    const a = this.availability(from, to), safe = (x) => { const t = String(x ?? ''); const u = typeof x === 'string' && /^[=+\-@\t\r]/.test(t) ? "'" + t : t; return '"' + u.replace(/"/g, '""') + '"'; }, f = (v) => (v === null || v === undefined ? '' : Number(v.toFixed(3)));
+    const L = [['Device', 'Address', 'Group', 'Site', 'Availability %', 'SLA target %', 'SLA met', 'Downtime min', 'Outages', 'Maintenance min', 'Hours measured'].map(safe).join(',')];
+    for (const r of a.devices) L.push([r.name, r.host, r.group, r.site, f(r.availability), r.target, r.met === null ? '' : r.met ? 'yes' : 'no', r.downMin, r.outages, r.maintMin, r.measuredH].map(safe).join(','));
+    L.push(''); L.push(['Group', 'Devices', 'Availability %', 'SLA target %', 'SLA met', 'Below target', 'Downtime min', 'Outages'].map(safe).join(','));
+    for (const g of a.groups) L.push([g.group || '(no group)', g.devices, f(g.availability), g.target, g.met === null ? '' : g.met ? 'yes' : 'no', g.below, g.downMin, g.outages].map(safe).join(','));
+    return '\ufeff' + L.join('\r\n') + '\r\n';
+  }
   /** CSV text: the summary of all devices, or every reading of one device (thinned to about 500 points per item) */
   csv(hours, id) {
     const safe = (x) => { const t = String(x ?? ''); const u = typeof x === 'string' && /^[=+\-@\t\r]/.test(t) ? "'" + t : t; return '"' + u.replace(/"/g, '""') + '"'; }, f = (v, d = 2) => (v === null || v === undefined ? '' : Number(v.toFixed(d)));

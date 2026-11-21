@@ -139,7 +139,7 @@ class Reports {
     if (c.alarmsActive && this.alarms) alarmsActive = this.alarms.list({ state: 'active', limit: Math.min(500, +c.maxAlarmRows || 2000) }).alarms;
     if (c.alarmHistory && this.alarms) alarmHistory = this.alarms.between(from, to, +c.maxAlarmRows || 2000);
     let polling = null;
-    if (c.polling && this.polling) { try { const hrs = Math.max(1, Math.min(8760, Math.ceil((to - from) / 3600000))); polling = this.pollTable(this.polling.summary(hrs, to).rows); } catch { polling = null; } }
+    if (c.polling && this.polling) { try { const hrs = Math.max(1, Math.min(8760, Math.ceil((to - from) / 3600000))); const rows = this.polling.summary(hrs, to).rows; try { const av = new Map(this.polling.availability(from, to).devices.map((x) => [x.id, x])); for (const r of rows) { const a = av.get(r.id); if (a) Object.assign(r, { availability: a.availability, target: a.target, met: a.met, downMin: a.downMin, outages: a.outages }); } } catch { /* the plain summary is still shown */ } polling = this.pollTable(rows); } catch { polling = null; } }   // 1.99.14 availability by time, SLA target, downtime and outages
     let dashSum = null;
     if (c.dashboard && this.dashFn) { try { dashSum = await require('./dashtiles').run((this.config.get().uiPrefs || {}), c.dashboard === 'main' ? '' : c.dashboard, from, to, this.dashFn); } catch { dashSum = null; } }
     const alarmSum = this.alarms ? { counts: this.alarms.counts(), sum: this.alarms.summary(from) } : null;
@@ -149,8 +149,8 @@ class Reports {
   /** polled devices as a table; a column is left out when no device has a value for it, so the report only shows what the person's devices really report */
   pollTable(list) {
     const f = (v, d = 1) => (v === null || v === undefined ? null : Math.round(v * 10 ** d) / 10 ** d);
-    const all = [['Device', (r) => r.name], ['Address', (r) => r.host], ['Site', (r) => r.site], ['Polls', (r) => r.polls], ['Availability %', (r) => f(r.availability)], ['CPU avg %', (r) => f(r.cpuAvg)], ['CPU max %', (r) => f(r.cpuMax)], ['Memory avg %', (r) => f(r.memAvg)], ['Memory max %', (r) => f(r.memMax)], ['Temp avg C', (r) => f(r.tempAvg)], ['Temp max C', (r) => f(r.tempMax)], ['Answer time avg ms', (r) => f(r.rttAvg)], ['Alarms', (r) => r.alarms]];
-    const cols = all.filter(([, g], i) => i < 4 || list.some((r) => g(r) !== null && g(r) !== undefined && g(r) !== '' && (i !== 12 || true)));
+    const all = [['Device', (r) => r.name], ['Address', (r) => r.host], ['Site', (r) => r.site], ['Polls', (r) => r.polls], ['Availability %', (r) => f(r.availability, 3)], ['SLA target %', (r) => r.target ?? null], ['SLA met', (r) => (r.met === true ? 'yes' : r.met === false ? 'no' : null)], ['Downtime min', (r) => r.downMin ?? null], ['Outages', (r) => r.outages ?? null], ['CPU avg %', (r) => f(r.cpuAvg)], ['CPU max %', (r) => f(r.cpuMax)], ['Memory avg %', (r) => f(r.memAvg)], ['Memory max %', (r) => f(r.memMax)], ['Temp avg C', (r) => f(r.tempAvg)], ['Temp max C', (r) => f(r.tempMax)], ['Answer time avg ms', (r) => f(r.rttAvg)], ['Alarms', (r) => r.alarms]];
+    const cols = all.filter(([, g], i) => i < 4 || list.some((r) => g(r) !== null && g(r) !== undefined && g(r) !== '' && (i !== 16 || true)));
     const keep = cols.filter(([h, g]) => !['Site'].includes(h) || list.some((r) => g(r)));
     return { head: keep.map((k) => k[0]), rows: list.map((r) => keep.map(([, g]) => g(r))) };
   }

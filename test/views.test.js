@@ -49,3 +49,19 @@ test('a box to another view shows the worst of that view', () => {
   const outer = vs.save({ name: 'Outer', items: [{ kind: 'view', view: inner.id }] }); const s = vs.status(outer.id).items[outer.items[0].id];
   assert.equal(s.state, 'down'); assert.equal(s.down, 1); assert.equal(s.sev, 4);
 });
+test('1.99.14 links follow a port: polled interface state and use, or an open alarm on that port', () => {
+  const { vs } = mk();
+  const rt3 = vs.polling.state({ id: 'p3' }); rt3.ifaces = [{ name: 'Gi1/0/1', alias: 'uplink', status: 'up', speed: 1e9, in: 950e6, out: 10e6 }, { name: 'Gi1/0/2', status: 'down', speed: 1e9 }, { name: 'Gi1/0/3', status: 'up', speed: 1e9, in: 1e6, out: 2e6 }];
+  vs.alarms.open.set(3, { id: 3, dev: 'sw-1', src_ip: '10.1.1.1', severity: 2, state: 'open', rule_name: 'Port down', inst: 'gi0/5', inst_txt: 'Gi0/5', first_ts: 3 });
+  const v = vs.save({ name: 'L', items: [{ kind: 'device', src: 'poll', ref: 'p1' }, { kind: 'device', src: 'poll', ref: 'p3' }, { kind: 'device', src: 'dev', ref: 'sw-1' }, { kind: 'device', src: 'poll', ref: 'p2' }] });
+  const [i1, i3, isw, i2] = v.items.map((i) => i.id);
+  const v2 = vs.save({ ...v, links: [{ a: i1, b: i3, port: { end: 'b', name: 'gi1/0/1' }, show: 'util' }, { a: i3, b: isw, port: { end: 'a', name: 'Gi1/0/2' } }, { a: i1, b: isw, port: { end: 'b', name: 'Gi0/5' }, label: 'To sw' }, { a: i1, b: i2, port: { end: 'a', name: '' } }, { a: isw, b: i1 }] });
+  assert.equal(v2.links.length, 4, 'a second link between the same two devices is dropped'); assert.equal(v2.links[3].port, null, 'an empty port name means the link follows both devices');
+  const L = vs.status(v2.id).links;
+  assert.equal(L[0].state, 'warn', '95% used'); assert.match(L[0].text, /^95% · 950\.0 Mbit\/s$/);
+  assert.equal(L[1].state, 'down'); assert.equal(L[1].text, 'Gi1/0/2 down');
+  assert.equal(L[2].state, 'down', 'an open critical alarm on that port of the syslog device'); assert.equal(L[2].text, 'To sw · Gi0/5 down');
+  const v3 = vs.save({ ...v2, links: [{ a: i1, b: i2 }, { a: i1, b: i3, port: { end: 'b', name: 'Gi1/0/3' } }] }); const L3 = vs.status(v3.id).links;
+  assert.equal(L3[0].state, 'down', 'no port: down when a device at either end does not answer'); assert.equal(L3[1].state, 'up'); assert.equal(L3[1].text, 'Gi1/0/3 0%');
+  assert.deepEqual(vs.itemPorts(v3.id, i3).ports.map((p) => p.name), ['Gi1/0/1', 'Gi1/0/2', 'Gi1/0/3']); assert.deepEqual(vs.itemPorts(v.id, isw).ports.map((p) => p.name), ['Gi0/5']);
+});

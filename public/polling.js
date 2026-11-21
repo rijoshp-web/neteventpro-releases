@@ -33,7 +33,7 @@
     const head = (extra = '') => `${window.devTabs ? window.devTabs('polling') : ''}<div class="page-head"><h1>SNMP polling</h1>${extra}</div>`;
     const ADV = ['lookups', 'templates', 'profiles'], advOn = () => { try { return localStorage.getItem('ne.pollAdv') === '1'; } catch (e) { return false; } };
     const SETS = ['settings', 'thresholds', 'lookups', 'templates', 'profiles'];
-    const tabs = () => `<div class="tabs" role="tablist">${[['overview', 'Devices'], ['reports', 'Reports'], ['settings', 'Settings']].map(([k, n]) => `<button role="tab" data-t="${k}" class="tab${(SETS.includes(tab) ? 'settings' : tab) === k ? ' on' : ''}">${n}</button>`).join('')}</div>` +
+    const tabs = () => `<div class="tabs" role="tablist">${[['overview', 'Devices'], ['avail', 'Availability'], ['reports', 'Reports'], ['settings', 'Settings']].map(([k, n]) => `<button role="tab" data-t="${k}" class="tab${(SETS.includes(tab) ? 'settings' : tab) === k ? ' on' : ''}">${n}</button>`).join('')}</div>` +
       (SETS.includes(tab) && !devId() ? `<div class="subtabs">${[['settings', 'General'], ['thresholds', 'Alarm limits'], ['lookups', 'Value meanings'], ['templates', 'Templates'], ['profiles', 'Device profiles']].map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" title="${{ settings: 'How often, how many at once, how long to keep readings', thresholds: 'One alarm limit that applies to many devices at once', lookups: 'Words and alarm states for status numbers (1 = OK, 2 = Fault)', templates: 'Saved sets of readings to apply to other devices', profiles: 'Which readings a kind of device (Cisco, APC, …) gets automatically' }[k]}">${n}</button>`).join('')}</div>` : '');
     const wireTabs = () => $$('.tabs button, .subtabs button, .g3 button', el).forEach((b) => { b.onclick = () => { if (b.id === 'advTog') { try { localStorage.setItem('ne.pollAdv', advOn() || ADV.includes(tab) ? '0' : '1'); } catch (e) { /* kept for this page only */ } if (ADV.includes(tab)) tab = 'settings'; return render(); } tab = b.dataset.t; if (devId()) go('#polling'); else render(); }; });
     const stop = () => { clearInterval(timer); timer = 0; };
@@ -486,6 +486,52 @@
     };
 
 
+    // ---------------- 1.99.14 availability and SLA ----------------
+    let avPer = (() => { try { return localStorage.getItem('ne.avPer') || 'month'; } catch (e) { return 'month'; } })(), avFrom = '', avTo = '', avQ = '';
+    const fmtMin = (m) => { m = Math.round(m || 0); if (!m) return '0 min'; const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mi = m % 60; return d ? `${d} d ${h} h` : h ? `${h} h ${String(mi).padStart(2, '0')} min` : `${mi} min`; };
+    const avCol = (v, t) => (v === null || v === undefined ? 'var(--muted)' : v >= t ? 'var(--ok)' : v >= t - 0.5 ? 'var(--s4)' : 'var(--bad)');
+    const avTxt = (v, dg = 3) => (v === null || v === undefined ? '–' : (v >= 99.9995 ? '100' : v.toFixed(dg)) + ' %');
+    const avBar = (v, t) => { if (v === null || v === undefined) return '<span class="muted">no readings in this period</span>'; const lo = Math.min(t - 1, 99) - 1, w = Math.max(2, Math.min(100, ((v - lo) / (100 - lo)) * 100)), tw = Math.max(0, Math.min(100, ((t - lo) / (100 - lo)) * 100)); return `<div class="avbar" title="Target ${t} %"><i style="width:${w}%;background:${avCol(v, t)}"></i><s style="left:${tw}%"></s></div>`; };
+    const metChip = (m) => (m === null ? '<span class="muted">–</span>' : m ? '<span class="avchip ok">met</span>' : '<span class="avchip bad">missed</span>');
+    const availTab = async () => {
+      const qs = avPer === 'custom' && avFrom && avTo ? `from=${avFrom}&to=${avTo}` : `period=${avPer}`;
+      let d; try { d = await api('/api/poll/availability?' + qs); } catch (e) { el.innerHTML = head() + tabs() + `<div class="empty"><b>Could not load</b>${esc(e.message)}</div>`; wireTabs(); return; }
+      const PER = [['24h', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['lastmonth', 'Last month'], ['quarter', 'This quarter'], ['year', 'This year'], ['custom', 'Choose dates…']];
+      const fd = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      const q = avQ.trim().toLowerCase(), devs = d.devices.filter((r) => !q || (r.name + ' ' + r.host + ' ' + r.group).toLowerCase().includes(q));
+      const downAll = d.devices.reduce((n, r) => n + r.downMin, 0), outAll = d.devices.reduce((n, r) => n + r.outages, 0), noData = d.devices.filter((r) => r.availability === null).length;
+      el.innerHTML = head() + tabs() + `<div class="toolbar"><select id="avP" aria-label="Period">${PER.map(([k, n]) => `<option value="${k}" ${avPer === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          <span id="avDates" ${avPer === 'custom' ? '' : 'hidden'}><input type="date" id="avF" value="${esc(avFrom)}" aria-label="From"> – <input type="date" id="avT" value="${esc(avTo)}" aria-label="To"> <button id="avGo">Show</button></span>
+          <span class="muted">${esc(fd(d.from))} – ${esc(fd(d.to - 1))}</span><span class="spacer"></span>
+          <button id="avSla">SLA targets…</button><a class="btn" href="/api/poll/availability/export?${qs}" download>Download (CSV)</a><a class="btn" href="/api/poll/availability/export?format=xlsx&${qs}" download>Download (Excel)</a></div>
+        <div class="avcards">
+          <div class="panel avcard"><div class="muted">All polled devices</div><b style="color:${avCol(d.overall, d.target)}">${avTxt(d.overall)}</b><div class="muted">SLA target ${d.target} % · ${d.met === null ? 'no readings yet' : d.met ? 'met' : 'missed'}</div></div>
+          <div class="panel avcard"><div class="muted">Below their target</div><b style="color:${d.below ? 'var(--bad)' : 'var(--ok)'}">${d.below}</b><div class="muted">of ${d.devices.length} device${d.devices.length === 1 ? '' : 's'}${noData ? ` · ${noData} without readings` : ''}</div></div>
+          <div class="panel avcard"><div class="muted">Downtime, all devices</div><b>${fmtMin(downAll)}</b><div class="muted">${outAll} outage${outAll === 1 ? '' : 's'}</div></div>
+          <div class="panel avcard"><div class="muted">Planned work</div><b>${d.maintenance ? 'not counted' : 'none'}</b><div class="muted">${d.maintenance ? 'Time inside maintenance windows is left out' : 'No maintenance window in this period'}</div></div>
+        </div>
+        <p class="muted" style="max-width:900px">Availability is the share of time a device answered its polls. A missed poll counts as down until the next poll (at most 3 polls or 15 minutes). Time inside a maintenance window that covers the device does not count. Older periods use the 5-minute averages, so outages are counted only where the detailed readings are still kept.</p>
+        ${d.groups.length > 1 || (d.groups[0] && d.groups[0].group) ? `<h3>By group</h3><div class="panel" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Group</th><th class="num-r">Devices</th><th style="min-width:220px">Availability</th><th class="num-r">Target</th><th>SLA</th><th class="num-r">Below target</th><th class="num-r">Downtime</th><th class="num-r">Outages</th></tr></thead><tbody>
+          ${d.groups.map((g) => `<tr><td><b>${esc(g.group || '(no group)')}</b></td><td class="num-r">${g.devices}</td><td><div class="avcell"><span style="color:${avCol(g.availability, g.target)}"><b>${avTxt(g.availability)}</b></span>${avBar(g.availability, g.target)}</div></td><td class="num-r">${g.target} %</td><td>${metChip(g.met)}</td><td class="num-r">${g.below || '<span class="muted">0</span>'}</td><td class="num-r">${fmtMin(g.downMin)}</td><td class="num-r">${g.outages}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        <div class="toolbar" style="margin-top:14px"><h3 style="margin:0">Devices</h3><span class="muted">worst first</span><span class="spacer"></span><input type="search" id="avS" placeholder="Find a device or group" value="${esc(avQ)}" style="width:240px"></div>
+        ${devs.length ? `<div class="panel" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Device</th><th>Group</th><th style="min-width:220px">Availability</th><th class="num-r">Target</th><th>SLA</th><th class="num-r">Downtime</th><th class="num-r">Outages</th><th class="num-r" title="Time inside maintenance windows, not counted">Planned work</th><th class="num-r">Measured</th></tr></thead><tbody>
+          ${devs.slice(0, 1000).map((r) => `<tr><td><a href="#polling?d=${encodeURIComponent(r.id)}"><b>${esc(r.name)}</b></a><div class="muted" style="font-size:12px">${esc(r.host)}${r.site ? ' · ' + esc(r.site) : ''}${r.enabled ? '' : ' · paused'}</div></td><td>${esc(r.group || '–')}</td><td><div class="avcell"><span style="color:${avCol(r.availability, r.target)}"><b>${avTxt(r.availability)}</b></span>${avBar(r.availability, r.target)}</div></td><td class="num-r">${r.target} %</td><td>${metChip(r.met)}</td><td class="num-r">${fmtMin(r.downMin)}</td><td class="num-r">${r.outages}</td><td class="num-r">${r.maintMin ? fmtMin(r.maintMin) : '<span class="muted">–</span>'}</td><td class="num-r">${r.measuredH} h</td></tr>`).join('')}</tbody></table></div>${devs.length > 1000 ? `<p class="muted">The first 1,000 of ${devs.length} are shown. The download has all of them.</p>` : ''}` : `<div class="empty"><b>No device found</b>${d.devices.length ? 'Nothing matches the search.' : 'Add a device on the Devices tab.'}</div>`}`;
+      wireTabs();
+      const P = $('#avP', el); P.onchange = () => { avPer = P.value; try { localStorage.setItem('ne.avPer', avPer); } catch (e) { /* this page only */ } if (avPer === 'custom') { $('#avDates', el).hidden = false; if (!avFrom) { const t = new Date(); avTo = t.toISOString().slice(0, 10); t.setDate(1); avFrom = t.toISOString().slice(0, 10); $('#avF', el).value = avFrom; $('#avT', el).value = avTo; } } else availTab(); };
+      const go = $('#avGo', el); if (go) go.onclick = () => { avFrom = $('#avF', el).value; avTo = $('#avT', el).value; if (!avFrom || !avTo || avTo < avFrom) return toast('Choose a start and an end date (the end on or after the start).', true); availTab(); };
+      const sr = $('#avS', el); if (sr) { sr.oninput = () => { avQ = sr.value; clearTimeout(sr._t); sr._t = setTimeout(() => { const pos = sr.selectionStart; availTab().then(() => { const n = $('#avS', el); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); }, 250); }; }
+      $('#avSla', el).onclick = () => {
+        const groups = [...new Set(d.devices.map((r) => r.group).filter(Boolean))].sort();
+        const dl = dialog('SLA targets', `<p class="muted" style="margin:0 0 10px;max-width:520px">The availability each device should reach. Colours, "met / missed" and the downloads use it. A group can have its own target; leave it empty to use the main one.</p>
+          <div class="form"><div class="field"><label for="slT">Main target (%)</label><div><input type="number" id="slT" min="50" max="100" step="0.001" value="${d.target}" style="width:120px"> <span class="muted" id="slH"></span></div></div>
+          ${groups.map((g, i) => `<div class="field"><label for="slG${i}">${esc(g)}</label><div><input type="number" class="slG" id="slG${i}" data-g="${esc(g)}" min="50" max="100" step="0.001" value="${d.groupTargets?.[g] ?? ''}" placeholder="${d.target}" style="width:120px"></div></div>`).join('')}</div>
+          <div class="toolbar" style="margin-top:12px"><span class="spacer"></span><button id="slC">Cancel</button><button class="primary" id="slS">Save</button></div>`);
+        const hint = () => { const t = +dl.$('#slT').value; dl.$('#slH').textContent = t > 0 && t < 100 ? `≈ ${fmtMin((1 - t / 100) * 43200)} down allowed in a 30-day month` : ''; }; dl.$('#slT').oninput = hint; hint();
+        dl.$('#slC').onclick = dl.close;
+        dl.$('#slS').onclick = async () => { const gs = {}; dl.back.querySelectorAll('.slG').forEach((x) => { if (x.value !== '') gs[x.dataset.g] = +x.value; }); try { await api('/api/poll/sla', { method: 'POST', body: { target: +dl.$('#slT').value, groups: gs } }); dl.close(); toast('SLA targets saved'); availTab(); } catch (e) { toast(e.message, true); } };
+      };
+    };
+
     // ---------------- reports ----------------
     let repHours = 24;
     const reports = async () => {
@@ -677,7 +723,7 @@
       stop(); const hasDev = !!devId();
       if (hasDev) { detail(); every(() => { const sb = $('#ifSave', el); if (!document.querySelector('.modal-back') && !editing && !(sb && !sb.hidden) && !uiBusy()) detail(); }, 30000); return; }
       if (tab === 'overview') { overview(); every(() => { if (!document.querySelector('.modal-back') && tab === 'overview' && !devId() && !uiBusy()) overview(); }, 15000); }
-      else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
+      else if (tab === 'avail') availTab(); else if (tab === 'reports') reports(); else if (tab === 'templates') templatesTab(); else if (tab === 'profiles') profiles(); else if (tab === 'thresholds') thresholds(); else if (tab === 'lookups') lookupsTab(); else settings();
     };
     render();
     return () => { alive = false; stop(); crObs.disconnect(); };

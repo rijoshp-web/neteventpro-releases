@@ -2244,3 +2244,33 @@ button.dvbadge { border: 0; cursor: pointer; } button.dvbadge:hover { filter: br
 .dvmm { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; color: var(--muted); } .dvmm b { color: var(--text); }
 /* 1.99.13 picture picker grouped by kind */
 .dvpg { grid-column: 1 / -1; margin: 8px 0 0; font-size: 12px; font-weight: 650; color: var(--muted); }
+/* 1.99.14 Device view links follow their devices or one port: green up, amber busy, red down (moving dashes), grey not known; label in the middle */
+.dvlinks line.ln { stroke-width: 4; opacity: .9; transition: stroke .3s; }
+.dvlinks line.ln.st-up { stroke: var(--ok); }
+.dvlinks line.ln.st-warn { stroke: var(--s4, #e0a526); }
+.dvlinks line.ln.st-down { stroke: var(--bad); stroke-dasharray: 12 9; opacity: 1; animation: dvflow 1s linear infinite; }
+.dvlinks line.ln.st-unknown { stroke: var(--muted); stroke-dasharray: 3 7; opacity: .7; }
+.dvwrap.editing .dvlinks line.ln { stroke: var(--muted); animation: none; }
+.dvwrap.editing .dvlinks line.ln.port { stroke: var(--accent); }
+.dvwrap.editing .dvlinks line.ln.on { stroke: var(--accent); stroke-width: 7; opacity: 1; }
+.dvlinks line.hit:hover { stroke: color-mix(in srgb, var(--accent) 30%, transparent); }
+@keyframes dvflow { to { stroke-dashoffset: -21; } }
+@media (prefers-reduced-motion: reduce) { .dvlinks line.ln.st-down { animation: none; } }
+.dvlinks .lnlab rect { fill: var(--panel); stroke: currentColor; stroke-width: 1.5; }
+.dvlinks .lnlab text { fill: var(--text); font: 600 13px/1 var(--ui, system-ui); }
+.dvlinks .lnlab.st-up { color: var(--ok); } .dvlinks .lnlab.st-warn { color: var(--s4, #e0a526); } .dvlinks .lnlab.st-down { color: var(--bad); } .dvlinks .lnlab.st-unknown { color: var(--muted); }
+.dvlinks .lnlab { pointer-events: none; }
+/* 1.99.14 availability and SLA */
+.avcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 12px 0; }
+.avcard { padding: 14px 16px; } .avcard b { display: block; font-size: 30px; line-height: 1.2; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.avcell { display: flex; align-items: center; gap: 10px; } .avcell > span { min-width: 84px; font-variant-numeric: tabular-nums; }
+.avbar { position: relative; flex: 1; min-width: 100px; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); }
+.avbar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; }
+.avbar s { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; text-decoration: none; }
+.avchip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.avchip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); }
+.avchip.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, transparent); border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent); }
+.avbig { display: flex; flex-direction: column; gap: 6px; } .avbig .avbar { flex: none; margin: 6px 0 4px; }
+.avsub { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); } .avsub b { color: var(--text); }
+.avtile { display: flex; flex-direction: column; gap: 10px; } .avrow { display: grid; grid-template-columns: minmax(70px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.avrow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .avrow b { font-variant-numeric: tabular-nums; }

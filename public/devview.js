@@ -28,7 +28,7 @@
   const stText = (st) => (!st ? 'Waiting…' : st.state === 'gone' ? (st.title || 'Removed') : st.state === 'off' ? 'Polling is off' : st.state === 'down' ? 'No answer' : st.state === 'stale' ? 'Probe not reporting' : st.state === 'unknown' ? 'Waiting for the first answer' : st.open ? `${st.open} open alarm${st.open === 1 ? '' : 's'}${st.sev !== null ? ' · worst ' + SEVN[st.sev] : ''}` : 'OK');
 
   views.devview = (el) => {
-    let list = [], cur = null, edit = false, draft = null, status = {}, choices = null, canEdit = false, timer = 0, alive = true, sel = null, linkFrom = null, dirty = false, info = null, infoTimer = 0;   // info: the item whose details panel is open
+    let list = [], cur = null, edit = false, draft = null, status = {}, linkSt = [], portCache = {}, choices = null, canEdit = false, timer = 0, alive = true, sel = null, linkFrom = null, dirty = false, info = null, infoTimer = 0;   // info: the item whose details panel is open
     const k = () => { const w = $('.dvwrap', el); return w ? w.clientWidth / W : 1; };
     const markerOnly = (it) => it.pic === 'none';
 
@@ -39,7 +39,7 @@
     };
     const poll = async () => {
       clearTimeout(timer); if (!alive || !cur || edit) return;
-      try { const r = await api('/api/views/status?id=' + encodeURIComponent(cur.id)); if (!alive) return; status = r.items || {}; paintStatus(); } catch { /* next round */ }
+      try { const r = await api('/api/views/status?id=' + encodeURIComponent(cur.id)); if (!alive) return; status = r.items || {}; linkSt = r.links || []; paintStatus(); } catch { /* next round */ }
       timer = setTimeout(poll, document.hidden ? 15000 : 5000);
     };
     const view = () => (edit ? draft : cur);
@@ -59,8 +59,11 @@
     const readHtml = (st) => (st && st.down ? `<span class="r-crit">${st.down} without answer</span>` : '');
     const linkSvg = (v) => {
       const pos = new Map(v.items.map((i) => [i.id, i]));
-      return `<svg class="dvlinks" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${v.links.map((l, i) => { const a = pos.get(l.a), b = pos.get(l.b); if (!a || !b) return ''; const down = [status[l.a], status[l.b]].some((x) => x && x.state === 'down');
-        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${down ? 'down' : ''}" data-l="${i}"/>${edit ? `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hit" data-l="${i}"/>` : ''}`; }).join('')}</svg>`;
+      // 1.99.14 each link shows its state (up, busy, down, unknown) and, when it follows a port, the port and its use on a label in the middle
+      return `<svg class="dvlinks" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${v.links.map((l, i) => { const a = pos.get(l.a), b = pos.get(l.b); if (!a || !b) return ''; const ls = edit ? null : linkSt[i];
+        const st = ls ? ls.state : [status[l.a], status[l.b]].some((x) => x && x.state === 'down') ? 'down' : 'up'; let txt = edit ? (l.port ? `${l.label ? l.label + ' · ' : ''}${l.port.name}` : l.label || '') : ls?.text || l.label || '';
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, on = edit && sel === 'L:' + i; if (txt.length > 30) txt = txt.slice(0, 29) + '…';
+        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="ln st-${st}${l.port ? ' port' : ''}${on ? ' on' : ''}" data-l="${i}"><title>${esc(ls?.why || '')}</title></line>${txt ? `<g class="lnlab st-${st}" data-l="${i}" transform="translate(${mx} ${my})"><rect x="${-(txt.length * 4.1 + 10)}" y="-12" width="${txt.length * 8.2 + 20}" height="24" rx="12"/><text text-anchor="middle" y="5">${esc(txt)}</text></g>` : ''}${edit ? `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hit" data-l="${i}"/>` : ''}`; }).join('')}</svg>`;
     };
     const bgHtml = (v) => (v.bg?.mode === 'image' && v.bg.img ? `<img class="dvbg" src="${imgUrl(v.bg.img)}" alt="" draggable="false">${v.bg.dim ? `<div class="dvdim" style="opacity:${v.bg.dim / 100}"></div>` : ''}` : '');
     const canvasHtml = (v) => `<div class="dvwrap ${v.bg?.mode === 'grid' ? 'grid' : v.bg?.mode === 'plain' ? 'plain' : 'pic'}${edit ? ' editing' : ''}" id="dvWrap"><div class="dvcanvas" id="dvCanvas">${bgHtml(v)}${linkSvg(v)}${v.items.map(itemHtml).join('')}</div>${edit ? '' : ''}</div>`;
@@ -103,13 +106,14 @@
         if (it.kind === 'device' && DP() && String(it.pic || '').startsWith('icon:') && !DP().has(String(it.pic).slice(5))) { const im = $('.dvdp', n), u = DP().url(devKey(it.pic, it.name || st?.name || '')); if (im && im.getAttribute('src') !== u) im.setAttribute('src', u); }   // older icons follow the device name once it is known
         if (!it.name && st?.name) { const nm = $('.dvname', n); if (nm && nm.textContent !== st.name) { nm.textContent = st.name; n.setAttribute('aria-label', `${st.name}: ${stText(st)}`); } }
       }
-      const svg = $('.dvlinks', el); if (svg) { const pos = new Map(v.items.map((i) => [i.id, i])); $$('line:not(.hit)', svg).forEach((ln) => { const l = v.links[+ln.dataset.l]; if (!l) return; ln.classList.toggle('down', [status[l.a], status[l.b]].some((x) => x && x.state === 'down')); void pos; }); }
+      const svg = $('.dvlinks', el); if (svg && !edit) { const html = linkSvg(v); const tmp = document.createElement('div'); tmp.innerHTML = html; const nsvg = tmp.firstElementChild; if (nsvg && nsvg.innerHTML !== svg.innerHTML) svg.innerHTML = nsvg.innerHTML; }
       const sum = $('#dvSum', el); if (sum) { const all = v.items.filter((i) => i.kind === 'device').map((i) => status[i.id]).filter(Boolean); const bad = all.filter((x) => cls(x) === 'st-crit').length, warn = all.filter((x) => ['st-err', 'st-warn'].includes(cls(x))).length; sum.textContent = `${all.length} device${all.length === 1 ? '' : 's'}${bad ? ` · ${bad} critical or not answering` : ''}${warn ? ` · ${warn} with warnings or errors` : ''}${!bad && !warn && all.length ? ' · all fine' : ''}`; }
     };
 
     // ---------- side panel while editing ----------
     const selItem = () => draft?.items.find((i) => i.id === sel);
     const sideHtml = () => {
+      if (String(sel || '').startsWith('L:')) return linkSide();
       const it = selItem(); if (!it) return '';
       if (it.kind === 'label') return `<h3>Text</h3><div class="form"><div class="field"><label for="sdT">Text</label><div><input type="text" id="sdT" value="${esc(it.text || '')}" maxlength="120"></div></div><div class="field"><label for="sdS">Size <output id="sdSo" class="dvnum">${it.size || 18}</output></label><div><input type="range" id="sdS" min="10" max="72" value="${it.size || 18}"></div></div></div><button id="sdDel" class="danger">Remove</button>`;
       const ch = it.kind === 'device' ? choices?.find((c) => c.src === it.src && c.ref === it.ref) : null;
@@ -123,6 +127,31 @@
         <div class="dvpicks" role="group" aria-label="Picture">${it.kind === 'device' ? `<button class="dvpick mk${markerOnly(it) ? ' on' : ''}" data-pic="none" title="Marker only: no picture, just a live coloured frame and alarm count. Put it over a device in your background drawing (for example a Visio drawing saved as SVG).">▢<span>Marker</span></button>` : ''}${pics}${it.kind === 'device' ? `<label class="dvpick upl" title="Your own picture (PNG, JPEG, WebP or SVG, up to 8 MB). More device drawings are in the NetEventPro folder under app\\assets\\stencils.">＋<input type="file" id="sdUp" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden></label>` : ''}</div>
         ${it.kind === 'device' ? '<p class="muted" style="margin:8px 0 0;font-size:12px">The device\'s readings show in the details panel when you click it (outside edit mode).</p>' : ''}
         <div class="toolbar" style="margin-top:12px"><button id="sdDel" class="danger">Remove from view</button></div>`;
+    };
+    /** 1.99.14 settings of the selected link: label, which port it follows and what its label shows */
+    const linkSide = () => {
+      const l = draft.links[+String(sel).slice(2)]; if (!l) return '';
+      const nm = (id) => { const it = draft.items.find((i) => i.id === id); const ch = it && choices?.find((c) => c.src === it.src && c.ref === it.ref); return it?.name || ch?.name || (it?.kind === 'view' ? 'View box' : 'Device'); };
+      const end = l.port?.end || 'a', endId = end === 'b' ? l.b : l.a, pc = portCache[endId];
+      const opts = pc ? pc.ports.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.alias ? ' · ' + esc(p.alias) : ''}${p.status ? ' (' + esc(p.status) + ')' : ''}</option>`).join('') : '';
+      return `<h3>Link</h3><div class="muted" style="margin:-6px 0 10px">${esc(nm(l.a))} ↔ ${esc(nm(l.b))}</div>
+        <div class="form"><div class="field"><label for="lkL">Label</label><div><input type="text" id="lkL" value="${esc(l.label || '')}" maxlength="40" placeholder="for example Uplink, Fibre 1"></div></div>
+        <div class="field"><label for="lkF">Colour follows</label><div><select id="lkF"><option value="">Both devices (red when one does not answer)</option><option value="a" ${l.port && end === 'a' ? 'selected' : ''}>A port on ${esc(nm(l.a))}</option><option value="b" ${l.port && end === 'b' ? 'selected' : ''}>A port on ${esc(nm(l.b))}</option></select></div></div>
+        ${l.port ? `<div class="field"><label for="lkP">Port</label><div><input type="text" id="lkP" list="lkPL" value="${esc(l.port.name)}" maxlength="120" placeholder="Gi1/0/24"><datalist id="lkPL">${opts}</datalist>
+          <div class="muted" style="font-size:12px;margin-top:4px">${!pc ? 'Loading the ports…' : pc.kind === 'poll' ? (pc.ports.length ? `${pc.ports.length} ports reported by this device. Type to search.` : 'This device has not reported its ports yet (they come with the next poll).') : pc.ports.length ? 'Ports seen in this device\'s alarms. A link turns red while an alarm is open on that port.' : 'No port names seen in this device\'s alarms yet. Type the port as the messages write it, for example Gi1/0/24.'}</div></div></div>
+        <div class="field"><label for="lkS">Label shows</label><div><select id="lkS"><option value="port" ${l.show !== 'util' && l.show !== 'none' ? 'selected' : ''}>Port name and state</option><option value="util" ${l.show === 'util' ? 'selected' : ''}>How busy it is (% and speed)</option><option value="none" ${l.show === 'none' ? 'selected' : ''}>Nothing (colour only)</option></select></div></div>` : ''}</div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Green: up · amber: over 90% busy or a minor alarm · red: down · grey: not known.</p>
+        <div class="toolbar" style="margin-top:12px"><button id="lkDel" class="danger">Remove link</button></div>`;
+    };
+    const loadPorts = async (itemId) => { if (portCache[itemId] || !draft?.id) return; try { portCache[itemId] = await api(`/api/views/ports?id=${encodeURIComponent(draft.id)}&item=${encodeURIComponent(itemId)}`); } catch { portCache[itemId] = { kind: 'dev', ports: [] }; } if (String(sel || '').startsWith('L:')) redrawKeep(); };
+    const wireLink = (side) => {
+      const i = +String(sel).slice(2), l = draft.links[i]; if (!l) return;
+      if (l.port) loadPorts(l.port.end === 'b' ? l.b : l.a);
+      const lab = $('#lkL', side); if (lab) lab.oninput = () => { l.label = lab.value; dirty = true; };
+      const f = $('#lkF', side); if (f) f.onchange = () => { l.port = f.value ? { end: f.value, name: l.port?.end === f.value ? l.port.name : '' } : null; if (l.port && !l.show) l.show = 'port'; dirty = true; redrawKeep(); };
+      const pp = $('#lkP', side); if (pp) pp.oninput = () => { l.port.name = pp.value; dirty = true; };
+      const sh = $('#lkS', side); if (sh) sh.onchange = () => { l.show = sh.value; dirty = true; };
+      const del = $('#lkDel', side); if (del) del.onclick = () => { draft.links.splice(i, 1); sel = null; dirty = true; draw(); };
     };
     const redrawKeep = () => { const sc = $('#dvSide', el)?.scrollTop || 0; draw(); const s2 = $('#dvSide', el); if (s2) s2.scrollTop = sc; };
 
@@ -153,7 +182,7 @@
       // editing: drag, select, draw lines
       let drag = null;
       wrap.onpointerdown = (e) => {
-        const hit = e.target.closest('line.hit'); if (hit) { draft.links.splice(+hit.dataset.l, 1); dirty = true; draw(); return; }
+        const hit = e.target.closest('line.hit'); if (hit) { sel = 'L:' + hit.dataset.l; linkFrom = null; draw(); return; }   // 1.99.14 a click selects the link (settings in the side panel) instead of deleting it
         const n = e.target.closest('.dvi'); if (!n) { if (sel) { sel = null; draw(); } return; }
         const it = draft.items.find((i) => i.id === n.dataset.id); if (!it) return;
         if (linkFrom !== null) { if (it.kind === 'label') return; if (!linkFrom) { linkFrom = it.id; draw(); return; } if (linkFrom !== it.id && !draft.links.some((l) => (l.a === linkFrom && l.b === it.id) || (l.b === linkFrom && l.a === it.id))) { draft.links.push({ a: linkFrom, b: it.id }); dirty = true; } linkFrom = ''; draw(); return; }
@@ -169,6 +198,7 @@
       const side = $('#dvSide', el); if (side) wireSide(side);
     };
     const wireSide = (side) => {
+      if (String(sel || '').startsWith('L:')) return wireLink(side);
       const it = selItem(); if (!it) return;
       const inp = (id, f) => { const x = $('#' + id, side); if (x) x.oninput = () => { f(x); dirty = true; const n = $(`.dvi[data-id="${CSS.escape(it.id)}"]`, el); if (n) { const tmp = document.createElement('div'); tmp.innerHTML = itemHtml(it); n.replaceWith(tmp.firstElementChild); } }; };
       inp('sdN', (x) => { it.name = x.value; }); inp('sdT', (x) => { it.text = x.value; }); inp('sdS', (x) => { it.size = +x.value; const o = $('#sdSo', side); if (o) o.textContent = x.value; }); inp('sdH', (x) => { it.h = +x.value; const o = $('#sdHo', side); if (o) o.textContent = x.value; });
