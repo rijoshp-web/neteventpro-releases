@@ -2,6 +2,15 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.15
+- New "Pulse" layout, an option next to the colour themes: Settings → Appearance and My account → Layout: Classic / Pulse. Classic stays the default, and every page and option works the same in both. The choice is saved in each browser and can be switched back at any time.
+- New "Pulse" colour theme (deep navy with violet and cyan). Picking it also turns on the Pulse layout; the Layout switch can still set Classic.
+- Pulse layout: wider menu with a gradient app mark, your account card at the bottom of the menu, rounded panels, status shown as small pills in the top bar.
+- Pulse layout: a search box in the top bar that searches the syslog messages of the last 24 hours and opens the results on the Logs page.
+- Pulse layout: on the Alarms page, the alarm details open in a panel beside the list instead of a window; the selected row is marked. Close it with the × button.
+- Pulse layout: a new sign-in page look.
+- Folded menu in the Pulse layout shows only the icons and the unfold button.
+
 ## 1.99.14
 - Device view: links between devices now change colour with the link's state: green up, amber over 90% busy (or a minor alarm), red down with moving dashes, grey not known. Click a link in Edit to set it: a label, and "Colour follows" either both devices (red when one does not answer) or one port on either device. For a polled device you pick the port from the interfaces it reports; for a syslog / trap device the link turns red while an alarm is open on that port (for example Gi1/0/24). The label on the line can show the port and its state, how busy it is (% and speed), or nothing. A click on a link in Edit now selects it instead of deleting it; "Remove link" is in its settings.
 - New SNMP polling tab "Availability" (SLA): availability of every polled device and group for the last 24 hours, 7 days, 30 days, this month, last month, this quarter, this year or chosen dates. Shows availability against the SLA target, met / missed, downtime, number of outages, planned work, and devices below target, worst first. Download as CSV or Excel (devices and groups).

@@ -112,6 +112,22 @@ fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
       check('a device dragged in edit mode keeps its new place after Save', Math.abs(moved.x - 300) > 40 && Math.abs(moved.y - 400) > 20, `${moved.x},${moved.y}`);
       check('no script errors on the Device view', errs.length === e2, errs.slice(e2, e2 + 3).join(' | '));
     }
+    // 1.99.15 Pulse layout: switch on and off, top-bar search, alarm details beside the list
+    {
+      const e3 = errs.length; await p.goto(B + '/#alarms'); await sleep(1500);
+      await p.evaluate(() => window.NEP.setLayout('pulse')); await sleep(500);
+      const on = await p.evaluate(() => ({ attr: document.documentElement.dataset.layout, search: getComputedStyle(document.querySelector('#gSearch')).display !== 'none', saved: localStorage.getItem('sp.layout') }));
+      check('1.99.15 the Pulse layout switches on and shows the top-bar search', on.attr === 'pulse' && on.search && on.saved === 'pulse', JSON.stringify(on));
+      if (await p.$('#alTable tbody tr[data-id], #alTable tbody tr td input')) {
+        await p.click('#alTable tbody tr td:nth-child(4)'); await sleep(1200);
+        const side = await p.evaluate(() => ({ side: !!document.querySelector('#alSide'), modal: !!document.querySelector('.modal') }));
+        check('1.99.15 in Pulse the alarm details open beside the list, not in a window', side.side && !side.modal, JSON.stringify(side));
+      }
+      await p.evaluate(() => window.NEP.setLayout('classic')); await sleep(500);
+      const off = await p.evaluate(() => ({ attr: document.documentElement.dataset.layout || '', search: getComputedStyle(document.querySelector('#gSearch')).display, side: !!document.querySelector('#alSide') }));
+      check('1.99.15 switching back to Classic restores the old layout', !off.attr && off.search === 'none' && !off.side, JSON.stringify(off));
+      check('no script errors when switching layouts', errs.length === e3, errs.slice(e3, e3 + 3).join(' | '));
+    }
     check('no script errors in the dashboard', !errs.length, errs.slice(0, 3).join(' | '));
   } catch (e) { check('the browser checks ran to the end', false, e.message.split('\n')[0]); }
   await b.close();

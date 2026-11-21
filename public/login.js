@@ -1,7 +1,8 @@
 'use strict';
 // 1.99.3 the same automatic size as the app on large screens (4K, 8K, wall displays at 100 % scaling)
 (() => { const fit = () => { let pref = 'auto'; try { pref = localStorage.getItem('sp.uiZoom') || 'auto'; } catch { /* default */ } const a = Math.min(innerWidth / 1920, innerHeight / 1080), z = pref === 'auto' ? (a < 1.2 ? 1 : Math.min(4, Math.round(a * 4) / 4)) : Math.min(4, Math.max(0.75, +pref || 1)); document.documentElement.style.zoom = z === 1 ? '' : String(z); }; fit(); addEventListener('resize', fit); })();
-try { const t = localStorage.getItem('sp.theme'); if (t) document.documentElement.dataset.theme = t; } catch {}   // the sign-in page follows the colour theme chosen in this browser
+try { const t = localStorage.getItem('sp.theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+try { if (localStorage.getItem('sp.layout') === 'pulse') document.documentElement.dataset.layout = 'pulse'; } catch {}   /* 1.99.15 and the layout */   // the sign-in page follows the colour theme chosen in this browser
 const pw = document.getElementById('pw'), pin = document.getElementById('p'), caps = document.getElementById('caps');
 pw.addEventListener('click', () => { const show = pin.type === 'password'; pin.type = show ? 'text' : 'password'; pw.textContent = show ? 'Hide' : 'Show'; pw.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); pw.setAttribute('aria-pressed', String(show)); pin.focus(); });
 const capCheck = (e) => { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); };
