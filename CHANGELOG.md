@@ -2,6 +2,16 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.16
+- Pulse layout, fixed: the dashboard wall display squeezed the dashboard into a narrow strip on the left. It uses the whole screen again (also the Device view wall screen).
+- Pulse layout, fixed: on phones and narrow windows the wide menu took half the screen and squeezed every page. The menu now becomes a row at the top, as in Classic.
+- Pulse layout: Alarms has live counts at the top (not acknowledged, acknowledged, escalated, cleared in the last 24 hours). Click one to show only those alarms; click it again for all active alarms.
+- Pulse layout: the device counts on the Devices page are cards, and each one is a filter (reporting now, overdue, with open alarms, send traps). The counts are clickable in Classic too.
+- Pulse layout: Syslog and Traps message details open beside the list under the top bar, so the list stays readable; the opened row is marked.
+- Pulse layout: new look for every page — page titles with a count, tabs as one rounded switch, filters in one rounded tray, tables as rounded cards with a solid heading row and a highlighted hover row, Settings start page as cards, dashboard sections with a coloured marker and raised tiles.
+- Pulse layout: on medium-size windows the top-bar search folds to a round button so the status pills fit; it opens when clicked.
+- Wall display on a narrow screen: the dashboard name no longer overlaps the date.
+
 ## 1.99.15
 - New "Pulse" layout, an option next to the colour themes: Settings → Appearance and My account → Layout: Classic / Pulse. Classic stays the default, and every page and option works the same in both. The choice is saved in each browser and can be switched back at any time.
 - New "Pulse" colour theme (deep navy with violet and cyan). Picking it also turns on the Pulse layout; the Layout switch can still set Classic.

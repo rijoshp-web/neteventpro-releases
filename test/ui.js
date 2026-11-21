@@ -123,6 +123,23 @@ fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
         const side = await p.evaluate(() => ({ side: !!document.querySelector('#alSide'), modal: !!document.querySelector('.modal') }));
         check('1.99.15 in Pulse the alarm details open beside the list, not in a window', side.side && !side.modal, JSON.stringify(side));
       }
+      // 1.99.16 the counts at the top of Alarms are filters
+      await p.goto(B + '/#alarms'); await sleep(1500);
+      if (await p.$('[data-sig="ack"]')) { await p.click('[data-sig="ack"]'); await sleep(1200); }
+      const sg = await p.evaluate(() => ({ state: document.querySelector('#alState')?.value, on: document.querySelector('[data-sig="ack"]')?.classList.contains('on') }));
+      check('1.99.16 clicking a count at the top of Alarms filters the list', sg.state === 'ack' && sg.on, JSON.stringify(sg));
+      await p.click('[data-sig="ack"]'); await sleep(800);
+      // 1.99.16 the device counts are filters
+      await p.goto(B + '/#devices'); await sleep(1800);
+      if (await p.$('#devChips [data-cst="overdue"]')) { await p.click('#devChips [data-cst="overdue"]'); await sleep(600); }
+      check('1.99.16 clicking a device count filters the devices', await p.evaluate(() => document.querySelector('#devStatus')?.value === 'overdue'));
+      await p.evaluate(() => { const s = document.querySelector('#devStatus'); if (s) { s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); } });
+      // 1.99.16 wall display in the Pulse layout: no empty menu column, the dashboard uses the whole width
+      await p.goto(B + '/#dashboard'); await sleep(2500);
+      await p.evaluate(() => document.querySelector('#dWallBtn')?.click()); await sleep(1200);
+      const wl = await p.evaluate(() => ({ kiosk: document.body.classList.contains('kiosk'), left: Math.round(document.querySelector('.main')?.getBoundingClientRect().left ?? -1), w: Math.round(document.querySelector('.main')?.getBoundingClientRect().width ?? 0), vw: innerWidth }));
+      check('1.99.16 the wall display uses the whole width in the Pulse layout', wl.kiosk && wl.left < 30 && wl.w > wl.vw - 60, JSON.stringify(wl));
+      await p.evaluate(() => document.querySelector('#kioskExit')?.click()); await sleep(800);
       await p.evaluate(() => window.NEP.setLayout('classic')); await sleep(500);
       const off = await p.evaluate(() => ({ attr: document.documentElement.dataset.layout || '', search: getComputedStyle(document.querySelector('#gSearch')).display, side: !!document.querySelector('#alSide') }));
       check('1.99.15 switching back to Classic restores the old layout', !off.attr && off.search === 'none' && !off.side, JSON.stringify(off));

@@ -2367,3 +2367,109 @@ button.dvbadge { border: 0; cursor: pointer; } button.dvbadge:hover { filter: br
 :root[data-layout="pulse"] .login-card input { border-radius: 12px; padding: 12px 14px; }
 :root[data-layout="pulse"] .login-card button.primary { border-radius: 14px; padding: 13px; font-weight: 700; }
 :root[data-layout="pulse"] .login-side .sevribbon { display: none; }
+
+/* ================= 1.99.16 PULSE layout: fixes and the full page redesign (everything here applies only with Layout = Pulse) ================= */
+/* fixes: wall display and the Device view wall screen had an empty menu column; the dashboard was squeezed into it */
+:root[data-layout="pulse"] body.kiosk .shell, :root[data-layout="pulse"] body.kiosk .shell.collapsed, :root[data-layout="pulse"] body.dv-wall .shell { grid-template-columns: minmax(0, 1fr); }
+:root[data-layout="pulse"] body.kiosk #view { padding: 16px 20px; }
+:root[data-layout="pulse"] body.kiosk #wallBar { top: 10px; left: 12px; right: 12px; height: 56px; border-radius: 999px; border: 1px solid var(--line2); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+:root[data-layout="pulse"] body.kiosk .shell { margin-top: 76px; height: calc(100vh - 76px); }
+/* fixes: phones and narrow windows (the 252 px menu column stayed and squeezed every page) */
+@media (max-width: 860px) {
+  :root[data-layout="pulse"] .shell, :root[data-layout="pulse"] .shell.collapsed { grid-template-columns: minmax(0, 1fr); }
+  :root[data-layout="pulse"] .rail, :root[data-layout="pulse"] .shell.collapsed .rail { flex-direction: row; padding: 8px 10px; gap: 4px; border-right: 0; }
+  :root[data-layout="pulse"] .rail .brand, :root[data-layout="pulse"] .shell.collapsed .rail .brand { padding: 0 8px 0 2px; font-size: 16px; }
+  :root[data-layout="pulse"] .rail .brand .mark, :root[data-layout="pulse"] .shell.collapsed .rail .brand .mark { display: block; width: 30px; height: 30px; border-radius: 9px; }
+  :root[data-layout="pulse"] .rail a, :root[data-layout="pulse"] .shell.collapsed .rail a { padding: 8px 12px; font-size: 14px; }
+  :root[data-layout="pulse"] .status { flex-wrap: wrap; padding: 10px 12px; gap: 10px; }
+  :root[data-layout="pulse"] .gsearch { order: 3; flex: 1 1 100%; min-width: 0; }
+  :root[data-layout="pulse"] .clock .ctime { font-size: 24px; }
+  :root[data-layout="pulse"] #view { padding: 14px 12px; }
+  :root[data-layout="pulse"] .page-head h1 { font-size: 22px; }
+}
+
+/* page heading: title, a count pill and the actions on one line */
+:root[data-layout="pulse"] .page-head { gap: 12px; margin-bottom: 16px; }
+:root[data-layout="pulse"] .page-head h1 { font-size: 28px; line-height: 1.15; }
+:root[data-layout="pulse"] .page-head h1 + .muted:not(:empty) { padding: 4px 11px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); color: var(--text); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* tabs: one rounded switch instead of folder tabs */
+:root[data-layout="pulse"] :is(.devtabs, .tabs) { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 80%, transparent); }
+:root[data-layout="pulse"] :is(.devtabs a, .tabs .tab) { margin: 0; border: 0; border-radius: 10px; padding: 7px 16px; color: var(--muted); font-weight: 600; }
+:root[data-layout="pulse"] :is(.devtabs a.on, .tabs .tab.on) { color: var(--text); background: color-mix(in srgb, var(--accent) 24%, var(--panel2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); margin: 0; }
+:root[data-layout="pulse"] .altabs { border-radius: 14px; background: color-mix(in srgb, var(--panel) 80%, transparent); }
+:root[data-layout="pulse"] .altabs button { border-radius: 10px; padding: 7px 18px; }
+:root[data-layout="pulse"] .altabs button.on { background: color-mix(in srgb, var(--accent) 24%, var(--panel2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+:root[data-layout="pulse"] .subtabs button { border-radius: 999px; padding: 5px 14px; }
+:root[data-layout="pulse"] .subtabs button.on { background: color-mix(in srgb, var(--accent) 22%, var(--panel)); }
+
+/* live counts that are also filters (Alarms, Devices) */
+.sigstrip { display: none; }
+:root[data-layout="pulse"] .sigstrip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 16px; }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip) { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 16px 18px 14px; text-align: left; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font: 500 13px var(--ui); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip)::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--sigc, var(--accent)); opacity: .9; }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip) b { font-size: 30px; font-weight: 750; line-height: 1.05; letter-spacing: -.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+:root[data-layout="pulse"] .sig:not(.zero) b:not(#_) { color: var(--sigc); }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip):hover { border-color: color-mix(in srgb, var(--sigc, var(--accent)) 55%, var(--line)); transform: translateY(-1px); }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip).on { border-color: var(--sigc, var(--accent)); background: color-mix(in srgb, var(--sigc, var(--accent)) 12%, var(--panel)); box-shadow: 0 10px 26px color-mix(in srgb, var(--sigc, var(--accent)) 20%, transparent); }
+:root[data-layout="pulse"] :is(.sig, #devChips .chip):focus-visible { outline: 2px solid var(--sigc, var(--accent)); outline-offset: 2px; }
+:root[data-layout="pulse"] #devChips { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 0 0 16px; }
+:root[data-layout="pulse"] #devChips .chip.ok { --sigc: var(--ok); } :root[data-layout="pulse"] #devChips .chip.bad { --sigc: var(--bad); } :root[data-layout="pulse"] #devChips .chip.warn { --sigc: var(--s3); } :root[data-layout="pulse"] #devChips .chip.trap { --sigc: var(--link); }
+:root[data-layout="pulse"] #devChips .chip:is(.bad, .warn) b { color: var(--sigc); }
+button.chip { border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; font: inherit; }
+button.chip.ok, button.chip.trap { color: inherit; }
+
+/* filters: one rounded tray */
+:root[data-layout="pulse"] .toolbar.filterbar { padding: 10px; gap: 8px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--panel) 78%, transparent); }
+:root[data-layout="pulse"] .toolbar.filterbar + .toolbar { margin-top: -4px; }
+:root[data-layout="pulse"] :is(input, select, textarea):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]) { border-radius: 10px; }
+:root[data-layout="pulse"] button { border-radius: 10px; }
+:root[data-layout="pulse"] button.ib { border-radius: 11px; }
+
+/* tables: a rounded card with a solid heading row and no inner column lines */
+:root[data-layout="pulse"] :is(.logwrap, .alwrap, #devWrap) { border-radius: 18px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 92%, transparent); }
+:root[data-layout="pulse"] :is(table.data, table.log) th { background: color-mix(in srgb, var(--panel2) 75%, var(--panel)); color: var(--muted); font-size: 12px; font-weight: 650; border-right: 0; border-bottom: 1px solid var(--line2); }
+:root[data-layout="pulse"] :is(table.data, table.log) td { border-right: 0; }
+:root[data-layout="pulse"] :is(.logwrap, .alwrap, #devWrap) :is(table.data, table.log) th { position: sticky; top: 0; z-index: 2; }
+:root[data-layout="pulse"] :is(table.data, table.log) tbody tr:hover > td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+:root[data-layout="pulse"] table.log tr.rowsel > td { background: color-mix(in srgb, var(--accent) 16%, transparent) !important; }
+:root[data-layout="pulse"] table.log tr.rowsel > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+:root[data-layout="pulse"] .pager { padding: 12px 4px 0; }
+
+/* Syslog / Traps: message details beside the list, under the top bar */
+:root[data-layout="pulse"] .drawer { top: calc(var(--hdrH, 0px) + 12px); right: 14px; bottom: 14px; width: min(480px, calc(100vw - 28px)); padding: 20px 22px; border: 1px solid var(--line2); border-radius: 20px; background: linear-gradient(170deg, color-mix(in srgb, var(--accent) 11%, var(--panel)), var(--panel) 42%); box-shadow: 0 24px 60px rgba(0, 0, 0, .42); }
+:root[data-layout="pulse"] .drawer .page-head h3 { font-size: 19px; }
+:root[data-layout="pulse"] .drawer pre.raw { border-radius: 12px; }
+@media (min-width: 1280px) { :root[data-layout="pulse"] body.drawer-open:not(.kiosk) #view { padding-right: 510px; } }
+
+/* Settings start page: each group is a card */
+:root[data-layout="pulse"] .smenu { gap: 16px; padding: 10px 0 30px; }
+:root[data-layout="pulse"] .sgrp { margin: 0; padding: 16px 18px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+:root[data-layout="pulse"] .sgrp.wide { max-width: none; }
+:root[data-layout="pulse"] .sgrp h3 { font-size: 16px; margin-bottom: 6px; }
+:root[data-layout="pulse"] .sgrp h3 .ic { width: 30px; height: 30px; padding: 6px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+:root[data-layout="pulse"] .sgrp > div { padding: 5px 0 5px 40px; font-size: 14px; }
+:root[data-layout="pulse"] fieldset { border-radius: 18px; }
+
+/* dashboard tiles and dialogs */
+:root[data-layout="pulse"] .widget.panel { border-radius: 18px; }
+:root[data-layout="pulse"] .dash-head h1 { font-size: 28px; }
+:root[data-layout="pulse"] .popover { border-radius: 14px; }
+:root[data-layout="pulse"] .toast { border-radius: 14px; }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="pulse"] :is(.sig, #devChips .chip) { transition: none; } :root[data-layout="pulse"] :is(.sig, #devChips .chip):hover { transform: none; } }
+:root[data-layout="pulse"] #view:focus:not(:focus-visible), :root[data-layout="pulse"] main:focus:not(:focus-visible) { outline: none; }
+/* top bar on medium windows: the search folds to a round button (it opens when clicked or typed in) so the status pills stay on one or two lines */
+@media (min-width: 861px) and (max-width: 1440px) {
+  :root[data-layout="pulse"] .gsearch { position: relative; order: 0; flex: 0 0 40px; min-width: 40px; padding: 0 12px; transition: flex-basis .2s ease; }
+  :root[data-layout="pulse"] .gsearch svg { pointer-events: none; position: relative; z-index: 1; }
+  :root[data-layout="pulse"] .gsearch input { position: absolute; inset: 0; padding: 0 14px 0 36px; opacity: 0; cursor: pointer; border-radius: 999px; }
+  :root[data-layout="pulse"] .gsearch:focus-within, :root[data-layout="pulse"] .gsearch:has(input:not(:placeholder-shown)) { flex-basis: 280px; }
+  :root[data-layout="pulse"] .gsearch:focus-within input, :root[data-layout="pulse"] .gsearch input:not(:placeholder-shown) { opacity: 1; cursor: text; }
+}
+@media (max-width: 700px) { body.kiosk #wallBar .wname { display: none; } }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="pulse"] .gsearch { transition: none; } }
+/* dashboard in the Pulse layout (standard dashboard style only; the other dashboard styles keep their own look) */
+:root[data-layout="pulse"][data-dash="classic"] .dgrid > .dsec { border-bottom: 0; padding-left: 14px; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+:root[data-layout="pulse"][data-dash="classic"] .dgrid > .dsec::before { content: ""; position: absolute; left: 2px; top: 7px; bottom: 7px; width: 4px; border-radius: 4px; background: linear-gradient(var(--accent), var(--link)); }
+:root[data-layout="pulse"][data-dash="classic"]:not([data-bgimg]) .viewbox:not([data-card]) .dgrid > .widget.panel { border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 94%, var(--text) 6%), var(--panel) 38%); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent), 0 10px 26px rgba(0, 0, 0, .16); }
+:root[data-layout="pulse"][data-dash="classic"] .dgrid .kpi .num { font-weight: 700; letter-spacing: -.01em; }

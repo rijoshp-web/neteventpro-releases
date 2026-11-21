@@ -746,6 +746,8 @@ async function openDrawer(id, fallback) {
   $('#dRule').onclick = () => { sessionStorage.setItem('sp.ruleSeed', JSON.stringify({ host: m.host, app: m.app, text: m.message.slice(0, 60), source: m.source === 'snmp' ? 'snmp' : 'syslog', trap: m.msgid || '' })); d.hidden = true; location.hash = '#rules'; };
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#drawer').hidden = true; });
+// 1.99.16 Pulse layout: the message details sit beside the list (under the top bar) instead of over it, and the opened row stays marked
+{ const dr = $('#drawer'); if (dr) new MutationObserver(() => { const on = !dr.hidden; document.body.classList.toggle('drawer-open', on); if (on) { const h = $('header.status'); document.documentElement.style.setProperty('--hdrH', Math.round(h && h.offsetParent ? h.getBoundingClientRect().bottom : 0) + 'px'); } else $$('#tb tr.rowsel, table.log tr.rowsel').forEach((r) => r.classList.remove('rowsel')); }).observe(dr, { attributes: true, attributeFilter: ['hidden'] }); }
 
 // ---------- status bar & banner -----------------------------------------------------------------------------------------------
 // ---------- top-bar clock: the server's time (from your NTP server when set up), not this browser PC's own clock -------------------------------
@@ -1021,7 +1023,7 @@ function logsView(el, main, SRC) {          // the same window for syslog messag
   tb.addEventListener('click', (e) => {
     if (e.target.closest('.selc')) return;
     const h = e.target.closest('.hostlink'); if (h) { e.preventDefault(); $('#fHost').value = h.dataset.host; run(false); return; }
-    const tr = e.target.closest('tr'); if (tr) openDrawer(+tr.dataset.id, rows.find((m) => m.id === +tr.dataset.id));
+    const tr = e.target.closest('tr'); if (tr) { tb.querySelectorAll('tr.rowsel').forEach((r) => r.classList.remove('rowsel')); tr.classList.add('rowsel'); openDrawer(+tr.dataset.id, rows.find((m) => m.id === +tr.dataset.id)); }
   });
   // click a heading to sort: ascending, then descending, then back to the default order
   let resizedAt = 0;
@@ -1126,7 +1128,8 @@ views.devices = (el) => {
     if (!$('#devInfo')) return;   // 1.99.4 the page was left while it refreshed
     $('#devInfo').textContent = sh.length === list.length ? `${fmtN(list.length)} devices` : `${fmtN(sh.length)} of ${fmtN(list.length)} devices`;
     const nOver = n((d) => state(d) === 'overdue'), nAl = n((d) => d.openAlarms);
-    const chips = `<span class="chip on"><b>${fmtN(list.length)}</b> devices</span><span class="chip"><b>${fmtN(n((d) => state(d) === 'ok'))}</b> reporting now</span><span class="chip ${nOver ? 'bad' : ''}"><b>${fmtN(nOver)}</b> overdue</span><span class="chip ${nAl ? 'warn' : ''}"><b>${fmtN(nAl)}</b> with open alarms</span><span class="chip"><b>${fmtN(n((d) => d.traps > 0))}</b> send traps</span>`;
+    const cst = $('#devStatus').value, csr = $('#devSrc').value, ck = (st, sr) => (cst === st && csr === sr ? ' on' : '');   // 1.99.16 each count is also a filter: click it to show only those devices
+    const chips = `<button type="button" class="chip${ck('', '')}" data-cst="" data-csr=""><b>${fmtN(list.length)}</b> devices</button><button type="button" class="chip ok${ck('ok', '')}" data-cst="ok" data-csr=""><b>${fmtN(n((d) => state(d) === 'ok'))}</b> reporting now</button><button type="button" class="chip ${nOver ? 'bad' : ''}${ck('overdue', '')}" data-cst="overdue" data-csr=""><b>${fmtN(nOver)}</b> overdue</button><button type="button" class="chip ${nAl ? 'warn' : ''}${ck('alarm', '')}" data-cst="alarm" data-csr=""><b>${fmtN(nAl)}</b> with open alarms</button><button type="button" class="chip trap${ck('', 'trap')}" data-cst="" data-csr="trap"><b>${fmtN(n((d) => d.traps > 0))}</b> send traps</button>`;
     if ($('#devChips').innerHTML !== chips) $('#devChips').innerHTML = chips;
     bulk();
     if (!sh.length) { lastHtml = ''; $('#devPager').innerHTML = ''; $('#devWrap').innerHTML = list.length ? '<div class="empty"><b>No device matches</b>Change the filters above.</div>' : '<div class="empty"><b>No devices yet</b>Devices appear automatically when they send their first syslog message or SNMP trap.</div>'; return; }
@@ -1168,6 +1171,7 @@ views.devices = (el) => {
   const setMuted = async (keys, on) => { const cur = new Set((await api('/api/config')).mutedDevices || []); for (const k of keys) { const d = byKey.get(k); for (const x of [k, ...(d ? d.srcIps : [])]) cur.delete(x); if (on) cur.add(k); } await putCfg({ mutedDevices: [...cur] }); };
   const forget = async (body) => { const r = await api('/api/devices/forget', { method: 'POST', body }); sel.clear(); toast(`${fmtN(r.removed)} device${r.removed === 1 ? '' : 's'} forgotten`); lastHtml = ''; await load(); };
   let qT; el.addEventListener('input', (e) => { if (e.target.id === 'devQ') { S.devQ = e.target.value; clearTimeout(qT); qT = setTimeout(refilter, 150); } });
+  el.addEventListener('click', (e) => { const c = e.target.closest?.('#devChips [data-cst]'); if (!c) return; const same = c.classList.contains('on') && (c.dataset.cst || c.dataset.csr); $('#devStatus').value = same ? '' : c.dataset.cst; $('#devSrc').value = same ? '' : c.dataset.csr; refilter(); });
   el.addEventListener('change', async (e) => {
     const t = e.target; if (['devStatus', 'devSrc', 'devGroup', 'devVendor'].includes(t.id)) return refilter();
     if (t.id === 'devPer') { S.prefs.devPer = +t.value; savePrefs(); page = 0; return draw(true); }
