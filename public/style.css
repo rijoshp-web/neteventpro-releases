@@ -2242,3 +2242,5 @@ button.dvbadge { border: 0; cursor: pointer; } button.dvbadge:hover { filter: br
 .dvtrend { padding: 8px 10px; border-radius: 8px; background: var(--panel2, var(--panel)); border: 1px solid var(--line); color: var(--accent); }
 .dvtrend .dvspark { height: 44px; }
 .dvmm { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; color: var(--muted); } .dvmm b { color: var(--text); }
+/* 1.99.13 picture picker grouped by kind */
+.dvpg { grid-column: 1 / -1; margin: 8px 0 0; font-size: 12px; font-weight: 650; color: var(--muted); }

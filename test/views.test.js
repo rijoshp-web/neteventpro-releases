@@ -23,6 +23,8 @@ test('a saved view keeps only valid items, links and sizes', () => {
   assert.equal(v.items[1].size, 72); assert.equal(v.items[2].pic, 'icon:server');
   const v2 = vs.save({ ...v, links: [{ a: v.items[0].id, b: v.items[2].id }, { a: v.items[2].id, b: v.items[0].id }, { a: v.items[0].id, b: v.items[0].id }] }); assert.equal(v2.links.length, 1);
   assert.throws(() => vs.save({ name: '' }), /name/);
+  const v3 = vs.save({ name: 'Pics', items: [{ kind: 'device', src: 'poll', ref: 'p1', pic: 'icon:switch-24port' }, { kind: 'device', src: 'poll', ref: 'p2', pic: 'icon:rectifier-shelf' }, { kind: 'device', src: 'poll', ref: 'p3', pic: 'icon:a b' }], links: [] });
+  assert.deepEqual(v3.items.map((i) => i.pic), ['icon:switch-24port', 'icon:rectifier-shelf', 'icon:server'], '1.99.13 modern picture names (with digits and hyphens) are kept');
 });
 test('pictures: only real PNG / JPEG / WebP are kept, and are served back', () => {
   const { vs } = mk();

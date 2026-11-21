@@ -46,11 +46,11 @@ class ViewStore {
       const o = { id, kind, x: Math.round(num(it.x, 0, W, 100)), y: Math.round(num(it.y, 0, H, 100)), size: Math.round(num(it.size, 16, 600, 96)), name: s(it.name, 60) };
       if (kind === 'device') {
         o.src = it.src === 'dev' ? 'dev' : 'poll'; o.ref = s(it.ref, 260); if (!o.ref) continue;
-        o.pic = /^(icon:[a-z]{2,20}|img:[a-z0-9]{4,24}|none)$/i.test(String(it.pic || '')) ? String(it.pic) : 'icon:server';   // none = marker only: a live ring over a shape of the background drawing
+        o.pic = /^(icon:[a-z0-9-]{2,40}|img:[a-z0-9]{4,24}|none)$/i.test(String(it.pic || '')) ? String(it.pic) : 'icon:server';   // none = marker only: a live ring over a shape of the background drawing
         o.h = Math.round(num(it.h, 20, 600, o.size)); o.hideName = it.hideName === true;
         o.readings = [];
       } else if (kind === 'label') { o.text = s(it.text, 120); o.size = Math.round(num(it.size, 10, 72, 18)); }
-      else { o.view = idOk(it.view) ? String(it.view) : ''; o.pic = /^(icon:[a-z]{2,20})$/.test(String(it.pic || '')) ? String(it.pic) : 'icon:location'; }
+      else { o.view = idOk(it.view) ? String(it.view) : ''; o.pic = /^(icon:[a-z0-9-]{2,40})$/.test(String(it.pic || '')) ? String(it.pic) : 'icon:building'; }
       items.push(o);
     }
     const ids = new Set(items.map((i) => i.id)), links = [], lk = new Set();

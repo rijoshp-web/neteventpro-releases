@@ -1,14 +1,14 @@
 NetEventPro device drawings (stencils)
 ======================================
 
-This folder (app\assets\stencils in the NetEventPro install folder) holds ready-made drawings of network, power, broadcast and building
-equipment for the Device view. They are not built into the app, so the app stays
-small: you pick one only when you need it.
+This folder (app\assets\stencils in the NetEventPro install folder) holds the device drawings that Device view
+also offers built in, grouped in the picker: network, multiplexers and transmission, servers and storage, power,
+and room, office and broadcast equipment. Use these files when you want to edit a drawing or use it elsewhere.
 
 How to use a drawing
   1. Open Device view and click Edit.
   2. Select a device on the canvas.
-  3. Under Picture, click "Upload a picture" and choose a file from this folder.
+  3. Under Picture, click a built-in drawing, or click + and choose a file from this folder.
      The file is stored in the view, so you can move or delete this folder later.
 
 You can also use your own pictures: PNG, JPEG, GIF, WebP or SVG, up to 8 MB.

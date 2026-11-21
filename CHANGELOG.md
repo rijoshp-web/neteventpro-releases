@@ -2,6 +2,12 @@
 
 Every delivered build has its own version number (shown bottom-left of the dashboard, in Settings → About, in the installer file name and in backups). The number is kept in `package.json`; `npm run bump` raises it.
 
+## 1.99.13
+- Device view: 38 more modern device pictures (77 in all), grouped in the picture picker as Network, Multiplexers and transmission, Servers and storage, Power, and Room, office and broadcast. New: chassis switch, PoE switch, L3/SFP switch, chassis router, SD-WAN edge, load balancer, VPN gateway, wireless controller, console server, KVM switch, network tap, SFP module, OLT (PON), ONT/modem, DWDM terminal, SDH add-drop mux (STM-16), PDH/E1 mux, TDM over IP, channel bank, drop-insert mux, passive optical mux, blade chassis, 4U server, GPU server, mini PC, server cluster, virtual server, database, rectifier module, rectifier controller, DC power cabinet, DC distribution, inverter, ATS, battery cabinet, breaker panel, power meter, solar charge controller. The same files are in app\assets\stencils.
+- Device view picks a matching picture from more device names (SDH/STM, E1/PDH, DWDM, OLT, ONT, blade, cluster, VM, database, rectifier controller, DC distribution, inverter, ATS …).
+- The device pictures load only when Device view opens, so other pages stay as fast as before.
+- Fixed: a modern picture chosen in Device view (for example "Switch" or "Rectifier") went back to a server picture after Save.
+
 ## 1.99.12
 - Device view: the built-in pictures are now modern device drawings (the same 39 as in app\assets\stencils), shown without the frame around them. A device's state shows as a coloured glow around its picture and a coloured dot before its name; critical alarms make the glow pulse. Frames are kept only for "Marker only" items (placing devices on a drawing). Older views get a matching modern picture automatically, chosen from the device name (rectifier, UPS, switch, router …).
 - Device view: the wall screen stays on when you click a device, close the details panel, open the alarm window or open another view.
